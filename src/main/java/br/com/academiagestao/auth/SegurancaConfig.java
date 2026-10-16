@@ -2,6 +2,7 @@ package br.com.academiagestao.auth;
 
 import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -28,7 +29,9 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 import javax.crypto.SecretKey;
 import java.util.List;
 
+// Só existe com servidor web; o comando de recuperação de ADMIN sobe sem ele.
 @Configuration
+@ConditionalOnWebApplication
 @EnableMethodSecurity // liga o @PreAuthorize nos controllers
 class SegurancaConfig {
 
