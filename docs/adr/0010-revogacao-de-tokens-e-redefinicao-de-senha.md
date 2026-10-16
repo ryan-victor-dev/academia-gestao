@@ -56,7 +56,6 @@ deixou duas pendências: essa revogação, e a falta de um "esqueci minha senha"
 
 ## Pendências
 
-- **ADMIN que esqueceu a senha:** não há caminho pela API (de propósito). Hoje,
-  só com acesso ao banco. Vale documentar um procedimento de recuperação.
-- **Cadastro de usuários da equipe:** ainda não existe endpoint para criar
-  RECEPCAO e INSTRUTOR; hoje só o primeiro ADMIN é criado automaticamente.
+As duas pendências registradas originalmente aqui (ADMIN que esqueceu a senha e
+cadastro da equipe) foram resolvidas no
+[ADR 0011](0011-gestao-da-equipe-e-recuperacao-de-admin.md).

@@ -73,6 +73,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0008](docs/adr/0008-cadastro-de-alunos.md) | Cadastro de alunos: CPF, inativação e acesso por perfil |
 | [0009](docs/adr/0009-login-do-aluno-e-edicao-simultanea.md) | Login do aluno, senha temporária, edição simultânea e visão do instrutor |
 | [0010](docs/adr/0010-revogacao-de-tokens-e-redefinicao-de-senha.md) | Revogação imediata de tokens e redefinição de senha |
+| [0011](docs/adr/0011-gestao-da-equipe-e-recuperacao-de-admin.md) | Gestão da equipe e recuperação de acesso de ADMIN |
 
 ## Como rodar
 
@@ -132,6 +133,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /actuator/health` | Público |
 | `GET /api/me` | Qualquer perfil logado |
 | `GET /api/usuarios` | ADMIN |
+| `POST /api/usuarios` (ADMIN, RECEPCAO ou INSTRUTOR, com senha temporária) | ADMIN |
+| `POST /api/usuarios/{id}/desativar`, `/reativar` (nunca a si mesmo; sempre sobra um ADMIN) | ADMIN |
 | `POST /api/usuarios/{id}/nova-senha` (senha temporária; nunca para um ADMIN) | ADMIN |
 | `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `GET /api/alunos/{id}` | ADMIN, RECEPCAO, INSTRUTOR¹ |
@@ -159,6 +162,21 @@ expirado, e para login recusado, 403 para perfil sem permissão (ou senha
 temporária ainda não trocada), 404 para recurso inexistente, 409 para conflito
 (ex.: CPF já cadastrado), 412 quando o aluno foi alterado por outra pessoa
 desde o `GET` e 428 quando falta o `If-Match`.
+
+### Recuperar o acesso de um ADMIN
+
+Se um ADMIN esqueceu a senha, quem tem acesso ao servidor roda, na pasta do
+projeto e com o sistema no ar:
+
+```bash
+docker compose run --rm app --recuperar-admin=admin@academia.local
+```
+
+O comando mostra uma senha temporária **só no terminal**, encerra e não deixa
+container para trás. No primeiro acesso, o sistema exige uma senha nova. As
+sessões abertas desse ADMIN caem na hora, e um login inativo é reativado.
+E-mail inexistente ou de quem não é ADMIN termina com erro (código de saída 1)
+sem mudar nada. Para os demais usuários, use as rotas de nova senha da API.
 
 ### Desenvolvimento local (fora do container)
 
