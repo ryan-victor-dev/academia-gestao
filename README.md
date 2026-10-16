@@ -72,6 +72,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0007](docs/adr/0007-autenticacao-com-jwt.md) | Autenticação stateless com JWT (HS256) e perfis |
 | [0008](docs/adr/0008-cadastro-de-alunos.md) | Cadastro de alunos: CPF, inativação e acesso por perfil |
 | [0009](docs/adr/0009-login-do-aluno-e-edicao-simultanea.md) | Login do aluno, senha temporária, edição simultânea e visão do instrutor |
+| [0010](docs/adr/0010-revogacao-de-tokens-e-redefinicao-de-senha.md) | Revogação imediata de tokens e redefinição de senha |
 
 ## Como rodar
 
@@ -131,12 +132,14 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /actuator/health` | Público |
 | `GET /api/me` | Qualquer perfil logado |
 | `GET /api/usuarios` | ADMIN |
+| `POST /api/usuarios/{id}/nova-senha` (senha temporária; nunca para um ADMIN) | ADMIN |
 | `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `GET /api/alunos/{id}` | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `POST /api/alunos` | ADMIN, RECEPCAO |
 | `PUT /api/alunos/{id}` (exige `If-Match`²) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/inativar`, `/reativar` (levam o login junto) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/login` (cria o login com senha temporária) | ADMIN, RECEPCAO |
+| `POST /api/alunos/{id}/login/nova-senha` ("esqueci minha senha") | ADMIN, RECEPCAO |
 | `GET /api/alunos/me` | ALUNO (o próprio cadastro) |
 
 ¹ O instrutor recebe só nome, data de nascimento, observações e se está ativo,
@@ -144,8 +147,11 @@ e busca apenas por nome.
 ² O `GET` devolve `ETag: "<versão>"`; o `PUT` precisa mandar
 `If-Match: "<versão>"`, para nenhuma edição apagar outra feita no meio tempo.
 
-Quem entra com senha temporária (login de aluno recém-criado) só consegue
-trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
+Quem entra com senha temporária (login recém-criado ou senha redefinida) só
+consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
+
+Desativar, reativar, trocar ou redefinir a senha de um usuário invalida na hora
+todos os tokens que ele já tinha: é preciso entrar de novo.
 
 Erros saem em `application/problem+json` (RFC 9457): 400 para dados inválidos
 (com a lista de campos em `erros`), 401 para token ausente, inválido ou

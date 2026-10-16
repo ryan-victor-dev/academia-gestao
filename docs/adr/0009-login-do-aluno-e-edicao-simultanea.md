@@ -43,8 +43,8 @@ e o instrutor via CPF, e-mail e telefone sem precisar deles.
 ### Login acompanha o aluno
 - Inativar o aluno desativa o login dele; reativar o aluno reativa o login. As
   duas mudanças acontecem na mesma transação.
-- Um token emitido antes da inativação continua válido até expirar (até 15
-  minutos, ADR 0007). Um login novo é recusado na hora.
+- Um token emitido antes da inativação continuava válido até expirar (até 15
+  minutos, ADR 0007). Desde o ADR 0010, ele é recusado na hora.
 
 ### Edição simultânea: ETag e If-Match (RFC 9110)
 - `alunos.versao` (migration V7) mapeada com `@Version`: travamento otimista.
@@ -86,7 +86,6 @@ e o instrutor via CPF, e-mail e telefone sem precisar deles.
 
 ## Pendências
 
-- **Esqueci minha senha:** não existe ainda. Hoje, só criando outro login. O
-  caminho natural é a recepção gerar uma nova senha temporária.
-- **Revogação imediata:** a inativação não derruba tokens já emitidos (até 15
-  minutos).
+As duas pendências registradas originalmente aqui ("esqueci minha senha" e
+revogação imediata de tokens) foram resolvidas no
+[ADR 0010](0010-revogacao-de-tokens-e-redefinicao-de-senha.md).
