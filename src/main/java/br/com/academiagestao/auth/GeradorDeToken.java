@@ -36,12 +36,15 @@ class GeradorDeToken {
         if (usuario.getAlunoId() != null) {
             claims.claim(ClaimsDoToken.ALUNO_ID, usuario.getAlunoId().toString());
         }
+        if (usuario.isPrecisaTrocarSenha()) {
+            claims.claim(ClaimsDoToken.TROCAR_SENHA, true);
+        }
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
 
         String token = encoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
-        return new TokenEmitido(token, expiraEm);
+        return new TokenEmitido(token, expiraEm, usuario.isPrecisaTrocarSenha());
     }
 
-    record TokenEmitido(String token, Instant expiraEm) {
+    record TokenEmitido(String token, Instant expiraEm, boolean precisaTrocarSenha) {
     }
 }

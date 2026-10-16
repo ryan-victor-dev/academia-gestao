@@ -1,5 +1,7 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,5 +42,26 @@ class AutenticacaoService {
             throw new CredenciaisInvalidasException();
         }
         return geradorDeToken.gerar(usuario.get());
+    }
+
+    @Transactional
+    GeradorDeToken.TokenEmitido trocarSenha(UUID usuarioId, String senhaAtual, String novaSenha) {
+        // O token pode ser de alguém desativado depois do login: aí, nada de trocar senha.
+        Usuario usuario = repository.findById(usuarioId)
+                .filter(Usuario::isAtivo)
+                .orElseThrow(() -> new DisabledException("Usuário inativo ou removido"));
+
+        if (!passwordEncoder.matches(senhaAtual, usuario.getSenhaHash())) {
+            throw new DadosInvalidosException("senha atual incorreta");
+        }
+        PoliticaDeSenha.problemaCom(novaSenha).ifPresent(problema -> {
+            throw new DadosInvalidosException(problema);
+        });
+        if (novaSenha.equals(senhaAtual)) {
+            throw new DadosInvalidosException("a nova senha precisa ser diferente da atual");
+        }
+
+        usuario.trocarSenha(passwordEncoder.encode(novaSenha));
+        return geradorDeToken.gerar(usuario);
     }
 }

@@ -9,6 +9,9 @@ public final class ClaimsDoToken {
     /** Id do cadastro do aluno; só existe em tokens de perfil ALUNO. */
     public static final String ALUNO_ID = "alunoId";
 
+    /** Presente (true) quando o usuário entrou com senha temporária e precisa trocá-la. */
+    public static final String TROCAR_SENHA = "trocarSenha";
+
     private ClaimsDoToken() {
     }
 }

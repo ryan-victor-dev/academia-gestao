@@ -3,12 +3,15 @@ package br.com.academiagestao.auth;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -22,13 +25,30 @@ class AuthController {
 
     @PostMapping("/login")
     LoginResponse login(@Valid @RequestBody LoginRequest request) {
-        GeradorDeToken.TokenEmitido emitido = autenticacaoService.autenticar(request.email(), request.senha());
-        return new LoginResponse(emitido.token(), "Bearer", emitido.expiraEm());
+        return LoginResponse.de(autenticacaoService.autenticar(request.email(), request.senha()));
+    }
+
+    /**
+     * Troca a senha do próprio usuário. É a única rota (além de /api/me) liberada para
+     * quem entrou com senha temporária. Devolve um token novo, já sem a restrição.
+     */
+    @PostMapping("/trocar-senha")
+    LoginResponse trocarSenha(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody TrocaDeSenhaRequest request) {
+        return LoginResponse.de(autenticacaoService.trocarSenha(
+                UUID.fromString(jwt.getSubject()), request.senhaAtual(), request.novaSenha()));
     }
 
     record LoginRequest(@NotBlank @Email String email, @NotBlank String senha) {
     }
 
-    record LoginResponse(String token, String tipo, Instant expiraEm) {
+    record TrocaDeSenhaRequest(@NotBlank(message = "é obrigatório") String senhaAtual,
+                               @NotBlank(message = "é obrigatório") String novaSenha) {
+    }
+
+    record LoginResponse(String token, String tipo, Instant expiraEm, boolean precisaTrocarSenha) {
+
+        static LoginResponse de(GeradorDeToken.TokenEmitido emitido) {
+            return new LoginResponse(emitido.token(), "Bearer", emitido.expiraEm(), emitido.precisaTrocarSenha());
+        }
     }
 }

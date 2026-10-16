@@ -5,7 +5,11 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -21,10 +25,14 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import javax.crypto.SecretKey;
+import java.util.List;
 
 @Configuration
 @EnableMethodSecurity // liga o @PreAuthorize nos controllers
 class SegurancaConfig {
+
+    /** Autoridade de quem entrou com senha temporária; substitui o ROLE_ do perfil. */
+    static final String SENHA_TEMPORARIA = "SENHA_TEMPORARIA";
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -43,7 +51,13 @@ class SegurancaConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         // Deixa o Spring montar a página de erro de uma rota já autorizada.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .anyRequest().authenticated())
+                        // Quem entrou com senha temporária só pode trocá-la (e ver quem é).
+                        .requestMatchers(HttpMethod.POST, "/api/auth/trocar-senha").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
+                        .anyRequest().access(AuthorizationManagers.allOf(
+                                AuthenticatedAuthorizationManager.authenticated(),
+                                AuthorizationManagers.not(
+                                        AuthorityAuthorizationManager.hasAuthority(SENHA_TEMPORARIA)))))
                 .oauth2ResourceServer(rs -> rs
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
                         .authenticationEntryPoint(entryPoint)
@@ -93,7 +107,11 @@ class SegurancaConfig {
         return decoder;
     }
 
-    /** Claim "perfil": "ADMIN" vira a autoridade ROLE_ADMIN, que é o que hasRole("ADMIN") procura. */
+    /**
+     * Claim "perfil": "ADMIN" vira a autoridade ROLE_ADMIN, que é o que hasRole("ADMIN") procura.
+     * Com senha temporária o token não ganha o perfil, só SENHA_TEMPORARIA: assim nenhuma
+     * regra de perfil (@PreAuthorize) deixa passar, nem as que forem criadas no futuro.
+     */
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter perfis = new JwtGrantedAuthoritiesConverter();
@@ -101,7 +119,10 @@ class SegurancaConfig {
         perfis.setAuthorityPrefix("ROLE_");
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(perfis);
+        converter.setJwtGrantedAuthoritiesConverter(jwt ->
+                Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.TROCAR_SENHA))
+                        ? List.of(new SimpleGrantedAuthority(SENHA_TEMPORARIA))
+                        : perfis.convert(jwt));
         return converter;
     }
 }

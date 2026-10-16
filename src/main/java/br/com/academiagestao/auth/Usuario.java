@@ -39,6 +39,9 @@ public class Usuario {
     @Column(nullable = false)
     private boolean ativo;
 
+    @Column(name = "precisa_trocar_senha", nullable = false)
+    private boolean precisaTrocarSenha;
+
     @Column(name = "criado_em", nullable = false, updatable = false)
     private Instant criadoEm;
 
@@ -94,6 +97,24 @@ public class Usuario {
         this.ativo = false;
     }
 
+    public void reativar() {
+        this.ativo = true;
+    }
+
+    /** A senha atual é temporária: o usuário só poderá usar o sistema depois de trocá-la. */
+    public void exigirTrocaDeSenha() {
+        this.precisaTrocarSenha = true;
+    }
+
+    /** Grava a nova senha (já em hash) e libera o uso normal do sistema. */
+    public void trocarSenha(String novoHash) {
+        if (novoHash == null || novoHash.isBlank()) {
+            throw new IllegalArgumentException("senhaHash é obrigatório");
+        }
+        this.senhaHash = novoHash;
+        this.precisaTrocarSenha = false;
+    }
+
     public UUID getId() { return id; }
     public String getNome() { return nome; }
     public String getEmail() { return email; }
@@ -101,5 +122,6 @@ public class Usuario {
     public Perfil getPerfil() { return perfil; }
     public UUID getAlunoId() { return alunoId; }
     public boolean isAtivo() { return ativo; }
+    public boolean isPrecisaTrocarSenha() { return precisaTrocarSenha; }
     public Instant getCriadoEm() { return criadoEm; }
 }

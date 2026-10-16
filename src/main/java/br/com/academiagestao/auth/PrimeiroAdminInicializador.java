@@ -8,7 +8,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
 
 /**
  * Resolve o problema do "ovo e da galinha": para cadastrar usuários é preciso
@@ -19,10 +18,6 @@ import java.nio.charset.StandardCharsets;
 class PrimeiroAdminInicializador implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(PrimeiroAdminInicializador.class);
-
-    static final int TAMANHO_MINIMO_SENHA = 12;
-    // O BCrypt ignora tudo depois do 72º byte; o Spring Security recusa senhas maiores.
-    static final int TAMANHO_MAXIMO_SENHA_BYTES = 72;
 
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
@@ -62,13 +57,8 @@ class PrimeiroAdminInicializador implements ApplicationRunner {
 
     // Falhar na inicialização é melhor do que subir com um ADMIN de senha fraca.
     private static void validarSenha(String senha) {
-        if (senha.length() < TAMANHO_MINIMO_SENHA) {
-            throw new IllegalStateException(
-                    "ADMIN_SENHA precisa ter pelo menos " + TAMANHO_MINIMO_SENHA + " caracteres");
-        }
-        if (senha.getBytes(StandardCharsets.UTF_8).length > TAMANHO_MAXIMO_SENHA_BYTES) {
-            throw new IllegalStateException(
-                    "ADMIN_SENHA pode ter no máximo " + TAMANHO_MAXIMO_SENHA_BYTES + " bytes (limite do BCrypt)");
-        }
+        PoliticaDeSenha.problemaCom(senha).ifPresent(problema -> {
+            throw new IllegalStateException("ADMIN_SENHA inválida: " + problema);
+        });
     }
 }

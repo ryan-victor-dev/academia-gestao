@@ -47,4 +47,25 @@ class UsuarioTest {
         assertThatThrownBy(() -> Usuario.daEquipe("Ana", "sem-arroba", HASH, Perfil.ADMIN))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void trocarSenhaGravaNovoHashELiberaOUso() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);
+        u.exigirTrocaDeSenha();
+        assertThat(u.isPrecisaTrocarSenha()).isTrue();
+
+        u.trocarSenha("hash-novo");
+
+        assertThat(u.getSenhaHash()).isEqualTo("hash-novo");
+        assertThat(u.isPrecisaTrocarSenha()).isFalse();
+    }
+
+    @Test
+    void desativarEReativar() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);
+        u.desativar();
+        assertThat(u.isAtivo()).isFalse();
+        u.reativar();
+        assertThat(u.isAtivo()).isTrue();
+    }
 }
