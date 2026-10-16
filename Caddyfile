@@ -1,0 +1,23 @@
+# Proxy com HTTPS na frente da aplicação. É a única porta de entrada vinda da rede.
+#
+# - DOMINIO com um domínio de verdade (apontando para este servidor, com as portas
+#   80 e 443 abertas): o Caddy obtém e renova o certificado no Let's Encrypt sozinho.
+# - DOMINIO vazio: usa "localhost" com um certificado da CA interna do Caddy
+#   (o navegador vai avisar que não confia; serve para desenvolvimento).
+{
+	http_port {$HTTP_PORTA:80}
+	https_port {$HTTPS_PORTA:443}
+}
+
+# HTTP só redireciona para HTTPS, com a porta certa mesmo quando não é a 443.
+http://{$DOMINIO:localhost}:{$HTTP_PORTA:80} {
+	redir https://{host}:{$HTTPS_PORTA:443}{uri} permanent
+}
+
+https://{$DOMINIO:localhost}:{$HTTPS_PORTA:443} {
+	# Repassa X-Forwarded-For (IP real do cliente) e X-Forwarded-Proto (https) à aplicação.
+	reverse_proxy app:8090
+
+	# Não anuncia o servidor na resposta.
+	header -Server
+}

@@ -87,9 +87,15 @@ cp .env.example .env   # e preencha (veja abaixo)
 docker compose up --build
 ```
 
-A aplicação sobe em `http://localhost:8090` assim que o Postgres passa no
-healthcheck. As migrations do Flyway são aplicadas automaticamente na
-inicialização.
+A entrada é o **Caddy**, com HTTPS: `https://localhost` (ou
+`https://localhost:<HTTPS_PORTA>`). O HTTP só redireciona para o HTTPS. Sem
+domínio, o certificado é de desenvolvimento e o navegador avisa que não confia
+nele. Com `DOMINIO` apontando para o servidor e as portas 80 e 443 abertas, o
+Caddy obtém e renova sozinho um certificado do Let's Encrypt.
+
+A aplicação (porta 8090) e o banco (5432) só aceitam conexões da própria
+máquina, nunca da rede. As migrations do Flyway são aplicadas automaticamente
+na inicialização.
 
 ### Configurando o `.env`
 
@@ -104,6 +110,8 @@ versionado é o `.env.example`). O Docker Compose lê o arquivo sozinho.
 | `ADMIN_SENHA` | Senha do primeiro ADMIN, mínimo de 12 caracteres |
 | `JWT_SEGREDO` | Chave que assina os tokens: Base64, mínimo de 32 bytes. **Obrigatória** |
 | `JWT_EXPIRACAO` | Validade do token (padrão `15m`) |
+| `DOMINIO` | Domínio do sistema, para o HTTPS de verdade. Vazio = `localhost` |
+| `HTTP_PORTA`, `HTTPS_PORTA` | Portas públicas do Caddy (padrão 80 e 443; o Let's Encrypt exige essas duas) |
 
 Para gerar valores fortes:
 
@@ -130,6 +138,7 @@ mudar `ADMIN_SENHA` depois disso não altera a senha já gravada.
 ### Usando a API
 
 ```bash
+# Na própria máquina (porta interna 8090). De fora, use https://<DOMINIO>.
 # Login: devolve {"token": "...", "tipo": "Bearer", "expiraEm": "..."}
 curl -X POST http://localhost:8090/api/auth/login \
      -H 'Content-Type: application/json' \

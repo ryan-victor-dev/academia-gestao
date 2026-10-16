@@ -21,6 +21,10 @@ spring:
 
 server:
   port: 8090
+  # Atrás do Caddy: o Tomcat lê X-Forwarded-For e X-Forwarded-Proto, mas só quando a
+  # requisição vem de um proxy interno (rede do Docker, localhost). Assim o limite de
+  # login vê o IP real do cliente, e ninguém de fora consegue forjar o próprio IP.
+  forward-headers-strategy: native
 
 academia:
   banco:

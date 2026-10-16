@@ -34,7 +34,28 @@ services:
       JWT_SEGREDO: ${JWT_SEGREDO:-}
       JWT_EXPIRACAO: ${JWT_EXPIRACAO:-15m}
     ports:
-      - "8090:8090"
+      # Só nesta máquina (diagnóstico); quem vem da rede entra pelo Caddy, com HTTPS.
+      - "127.0.0.1:8090:8090"
+
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: academia-caddy
+    depends_on:
+      - app
+    environment:
+      DOMINIO: ${DOMINIO:-localhost}
+      HTTP_PORTA: ${HTTP_PORTA:-80}
+      HTTPS_PORTA: ${HTTPS_PORTA:-443}
+    ports:
+      - "${HTTP_PORTA:-80}:${HTTP_PORTA:-80}"
+      - "${HTTPS_PORTA:-443}:${HTTPS_PORTA:-443}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificados e chaves do Caddy: sobrevivem a reinícios (evita pedir de novo ao Let's Encrypt).
+      - caddy_data:/data
+      - caddy_config:/config
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
