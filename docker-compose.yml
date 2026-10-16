@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: academia-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: academia
       POSTGRES_USER: academia
@@ -20,6 +21,10 @@ services:
   app:
     build: .
     container_name: academia-app
+    restart: unless-stopped
+    # Teto de memória: um ataque pode derrubar a aplicação (que volta sozinha pelo
+    # restart), mas nunca esgotar a memória do servidor inteiro.
+    mem_limit: ${APP_MEMORIA:-1g}
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,6 +45,7 @@ services:
   caddy:
     image: caddy:2.10-alpine
     container_name: academia-caddy
+    restart: unless-stopped
     depends_on:
       - app
     environment:

@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -37,6 +38,23 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         problema.setDetail("Um ou mais campos estão inválidos.");
         problema.setProperty("erros", erros);
         return handleExceptionInternal(e, problema, headers, status, request);
+    }
+
+    // Corpo enviado em partes que passou do limite no meio da leitura (ver LimiteDeTamanhoDoCorpo).
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException e,
+                                                                  HttpHeaders headers,
+                                                                  HttpStatusCode status,
+                                                                  WebRequest request) {
+        for (Throwable causa = e; causa != null; causa = causa.getCause()) {
+            if (causa instanceof CorpoGrandeDemaisException grande) {
+                ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONTENT_TOO_LARGE,
+                        grande.getMessage());
+                problema.setTitle("Corpo grande demais");
+                return handleExceptionInternal(e, problema, headers, HttpStatus.CONTENT_TOO_LARGE, request);
+            }
+        }
+        return super.handleHttpMessageNotReadable(e, headers, status, request);
     }
 
     // Validação de parâmetros da URL, como ?tamanho=500.

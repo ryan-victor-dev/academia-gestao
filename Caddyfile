@@ -15,6 +15,11 @@ http://{$DOMINIO:localhost}:{$HTTP_PORTA:80} {
 }
 
 https://{$DOMINIO:localhost}:{$HTTPS_PORTA:443} {
+	# Segunda barreira contra corpos enormes (a aplicação também limita, em 64 KB).
+	request_body {
+		max_size 1MB
+	}
+
 	# Repassa X-Forwarded-For (IP real do cliente) e X-Forwarded-Proto (https) à aplicação.
 	reverse_proxy app:8090
 

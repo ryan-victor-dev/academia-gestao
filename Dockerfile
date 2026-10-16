@@ -21,4 +21,5 @@ RUN groupadd --system app && useradd --system --gid app app
 COPY --from=build /app/target/academia-gestao-*.jar app.jar
 USER app
 EXPOSE 8090
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# A JVM usa até 75% da memória do container (o padrão, 25%, desperdiça o teto do Compose).
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
