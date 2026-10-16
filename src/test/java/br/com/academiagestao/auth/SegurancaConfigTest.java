@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -21,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import javax.crypto.spec.SecretKeySpec;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 
@@ -116,10 +118,13 @@ class SegurancaConfigTest {
                 .claim("perfil", "INSTRUTOR")
                 .build();
 
+        // convert() e getAuthority() são @Nullable no Spring 7; a checagem explícita evita o aviso.
+        AbstractAuthenticationToken autenticacao = Objects.requireNonNull(converter.convert(jwt));
+
         // O Spring Security 7 também adiciona FACTOR_BEARER (o fator usado para autenticar).
-        assertThat(converter.convert(jwt).getAuthorities())
+        assertThat(autenticacao.getAuthorities())
                 .extracting(GrantedAuthority::getAuthority)
-                .filteredOn(autoridade -> autoridade.startsWith("ROLE_"))
+                .filteredOn(autoridade -> autoridade != null && autoridade.startsWith("ROLE_"))
                 .containsExactly("ROLE_INSTRUTOR");
     }
 }
