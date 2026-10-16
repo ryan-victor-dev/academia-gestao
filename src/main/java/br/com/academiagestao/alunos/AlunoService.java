@@ -1,5 +1,7 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.auth.LoginsDeAlunos;
+import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -13,9 +15,11 @@ import java.util.UUID;
 class AlunoService {
 
     private final AlunoRepository repository;
+    private final LoginsDeAlunos loginsDeAlunos;
 
-    AlunoService(AlunoRepository repository) {
+    AlunoService(AlunoRepository repository, LoginsDeAlunos loginsDeAlunos) {
         this.repository = repository;
+        this.loginsDeAlunos = loginsDeAlunos;
     }
 
     @Transactional
@@ -37,6 +41,19 @@ class AlunoService {
         // Ordem fixa por nome (e id, para empates não trocarem de página entre consultas).
         PageRequest pageRequest = PageRequest.of(pagina, tamanho, Sort.by("nome", "id"));
         return repository.findAll(AlunoRepository.filtro(busca, incluirInativos), pageRequest);
+    }
+
+    /** O login usa o e-mail do cadastro do aluno, e nasce com senha temporária. */
+    @Transactional
+    LoginsDeAlunos.LoginCriado criarLogin(UUID id) {
+        Aluno aluno = buscar(id);
+        if (!aluno.isAtivo()) {
+            throw new AlunoInativoException();
+        }
+        if (aluno.getEmail() == null) {
+            throw new DadosInvalidosException("cadastre um e-mail no aluno antes de criar o login");
+        }
+        return loginsDeAlunos.criar(aluno.getId(), aluno.getNome(), aluno.getEmail());
     }
 
     @Transactional

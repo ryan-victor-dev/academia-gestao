@@ -21,6 +21,13 @@ class AuthExceptionHandler {
         return problema;
     }
 
+    @ExceptionHandler(LoginJaExisteException.class)
+    ProblemDetail loginJaExiste(LoginJaExisteException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle("Login já existe");
+        return problema;
+    }
+
     // O detalhe do erro do token (expirado, assinatura inválida...) não vai no corpo:
     // ajuda pouco o cliente legítimo e muito quem está tentando forjar um token.
     @ExceptionHandler(AuthenticationException.class)

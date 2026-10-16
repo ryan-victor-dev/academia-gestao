@@ -1,6 +1,7 @@
 package br.com.academiagestao.alunos;
 
 import br.com.academiagestao.auth.ClaimsDoToken;
+import br.com.academiagestao.auth.LoginsDeAlunos;
 import br.com.academiagestao.compartilhado.Pagina;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -9,6 +10,8 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -89,6 +92,19 @@ class AlunoController {
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
     AlunoResponse atualizar(@PathVariable UUID id, @Valid @RequestBody AlunoRequest request) {
         return AlunoResponse.de(service.atualizar(id, request.paraDados()));
+    }
+
+    /**
+     * Cria o acesso do aluno ao sistema. A resposta traz a senha temporária, que a
+     * recepção passa ao aluno; ela não fica guardada em lugar nenhum e não aparece de novo.
+     */
+    @PostMapping("/{id}/login")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    ResponseEntity<LoginsDeAlunos.LoginCriado> criarLogin(@PathVariable UUID id) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                // Senha na resposta: nenhum cache (navegador, proxy) pode guardar.
+                .cacheControl(CacheControl.noStore())
+                .body(service.criarLogin(id));
     }
 
     @PostMapping("/{id}/inativar")

@@ -16,6 +16,13 @@ class AlunosExceptionHandler {
         return problema;
     }
 
+    @ExceptionHandler(AlunoInativoException.class)
+    ProblemDetail alunoInativo(AlunoInativoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle("Aluno inativo");
+        return problema;
+    }
+
     @ExceptionHandler(CpfJaCadastradoException.class)
     ProblemDetail cpfJaCadastrado(CpfJaCadastradoException e) {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());

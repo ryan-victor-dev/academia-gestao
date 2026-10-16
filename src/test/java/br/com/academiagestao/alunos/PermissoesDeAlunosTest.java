@@ -85,6 +85,12 @@ class PermissoesDeAlunosTest {
         return JsonPath.read(corpo, "$.token");
     }
 
+    private Aluno alunoComEmail() {
+        String cpf = CpfsParaTeste.aleatorio();
+        return alunoRepository.save(Aluno.novo(new DadosAluno("Aluno " + cpf, cpf, cpf + "@email.com",
+                null, null, null)));
+    }
+
     private MockHttpServletRequestBuilder requisicao(String operacao) {
         String base = "/api/alunos/" + alvo.getId();
         String corpo = "{\"nome\": \"Aluno Alvo\", \"cpf\": \"%s\"}";
@@ -98,6 +104,8 @@ class PermissoesDeAlunosTest {
                     .content(corpo.formatted(alvo.getCpf()));
             case "inativar" -> post(base + "/inativar");
             case "reativar" -> post(base + "/reativar");
+            // Cada tentativa usa um aluno novo, para a segunda não esbarrar no login da primeira.
+            case "criar-login" -> post("/api/alunos/" + alunoComEmail().getId() + "/login");
             default -> throw new IllegalArgumentException(operacao);
         };
     }
@@ -135,6 +143,11 @@ class PermissoesDeAlunosTest {
             "reativar,      INSTRUTOR, 403",
             "reativar,      ALUNO,     403",
 
+            "criar-login,   ADMIN,     201",
+            "criar-login,   RECEPCAO,  201",
+            "criar-login,   INSTRUTOR, 403",
+            "criar-login,   ALUNO,     403",
+
             "meu-cadastro,  ADMIN,     403",
             "meu-cadastro,  RECEPCAO,  403",
             "meu-cadastro,  INSTRUTOR, 403",
@@ -146,7 +159,7 @@ class PermissoesDeAlunosTest {
     }
 
     @ParameterizedTest(name = "{0} sem token -> 401")
-    @CsvSource({"listar", "consultar", "meu-cadastro", "cadastrar", "editar", "inativar", "reativar"})
+    @CsvSource({"listar", "consultar", "meu-cadastro", "cadastrar", "editar", "inativar", "reativar", "criar-login"})
     void semTokenNadaFunciona(String operacao) throws Exception {
         mvc.perform(requisicao(operacao)).andExpect(status().isUnauthorized());
     }
