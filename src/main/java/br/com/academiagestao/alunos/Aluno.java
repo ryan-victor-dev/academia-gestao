@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -83,28 +84,28 @@ public class Aluno {
     // Valida tudo antes de alterar qualquer campo: ou o aluno inteiro muda, ou nada muda.
     private void aplicar(DadosAluno dados) {
         if (dados == null) {
-            throw new IllegalArgumentException("dados do aluno são obrigatórios");
+            throw new DadosInvalidosException("dados do aluno são obrigatórios");
         }
         String nomeLimpo = textoOuNull(dados.nome());
         if (nomeLimpo == null) {
-            throw new IllegalArgumentException("nome é obrigatório");
+            throw new DadosInvalidosException("nome é obrigatório");
         }
         if (nomeLimpo.length() > TAMANHO_MAXIMO_NOME) {
-            throw new IllegalArgumentException("nome pode ter no máximo " + TAMANHO_MAXIMO_NOME + " caracteres");
+            throw new DadosInvalidosException("nome pode ter no máximo " + TAMANHO_MAXIMO_NOME + " caracteres");
         }
         if (!Cpf.ehValido(dados.cpf())) {
-            throw new IllegalArgumentException("CPF inválido");
+            throw new DadosInvalidosException("CPF inválido");
         }
         String emailLimpo = textoOuNull(dados.email());
         if (emailLimpo != null && (!emailLimpo.contains("@") || emailLimpo.length() > TAMANHO_MAXIMO_EMAIL)) {
-            throw new IllegalArgumentException("e-mail inválido");
+            throw new DadosInvalidosException("e-mail inválido");
         }
         String telefoneLimpo = normalizarTelefone(dados.telefone());
         if (telefoneLimpo != null && !telefoneLimpo.matches("\\d{10,11}")) {
-            throw new IllegalArgumentException("telefone deve ter DDD + número (10 ou 11 dígitos)");
+            throw new DadosInvalidosException("telefone deve ter DDD + número (10 ou 11 dígitos)");
         }
         if (dados.dataNascimento() != null && dados.dataNascimento().isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("data de nascimento não pode estar no futuro");
+            throw new DadosInvalidosException("data de nascimento não pode estar no futuro");
         }
 
         this.nome = nomeLimpo;

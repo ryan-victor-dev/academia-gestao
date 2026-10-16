@@ -22,12 +22,4 @@ class AlunosExceptionHandler {
         problema.setTitle("CPF já cadastrado");
         return problema;
     }
-
-    // Regras que só a entidade Aluno confere (ex.: telefone sem DDD).
-    @ExceptionHandler(IllegalArgumentException.class)
-    ProblemDetail dadoInvalido(IllegalArgumentException e) {
-        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
-        problema.setTitle("Dados inválidos");
-        return problema;
-    }
 }

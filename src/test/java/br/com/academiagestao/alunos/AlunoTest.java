@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -31,21 +32,21 @@ class AlunoTest {
     @Test
     void recusaCpfInvalido() {
         assertThatThrownBy(() -> Aluno.novo(dados("Ana", "111.111.111-11")))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("CPF");
     }
 
     @Test
     void recusaNomeVazio() {
         assertThatThrownBy(() -> Aluno.novo(dados("   ", "52998224725")))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("nome");
     }
 
     @Test
     void recusaTelefoneSemDdd() {
         assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, "98765-4321", null, null)))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("telefone");
     }
 
@@ -53,7 +54,7 @@ class AlunoTest {
     void recusaNascimentoNoFuturo() {
         assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, null,
                 LocalDate.now().plusDays(1), null)))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("futuro");
     }
 
@@ -62,7 +63,7 @@ class AlunoTest {
         Aluno aluno = Aluno.novo(dados("Ana", "52998224725"));
 
         assertThatThrownBy(() -> aluno.atualizar(dados("Ana Maria", "123")))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DadosInvalidosException.class);
 
         // O nome era válido, mas o CPF não: nada pode ter mudado.
         assertThat(aluno.getNome()).isEqualTo("Ana");
