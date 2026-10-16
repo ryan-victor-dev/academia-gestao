@@ -21,7 +21,8 @@ build reproduzível e integração contínua.
 | Banco de dados | PostgreSQL 17, migrations com Flyway |
 | Testes | JUnit 5, AssertJ, Testcontainers |
 | Build / execução | Maven Wrapper, Docker (multi-stage), Docker Compose |
-| CI | GitHub Actions (testes + build da imagem a cada push e PR) |
+| Entrada / HTTPS | Caddy (certificado automático do Let's Encrypt) |
+| CI | GitHub Actions (testes, build da imagem e envio das dependências ao GitHub) + Dependabot |
 
 ## Arquitetura
 
@@ -74,6 +75,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0009](docs/adr/0009-login-do-aluno-e-edicao-simultanea.md) | Login do aluno, senha temporária, edição simultânea e visão do instrutor |
 | [0010](docs/adr/0010-revogacao-de-tokens-e-redefinicao-de-senha.md) | Revogação imediata de tokens e redefinição de senha |
 | [0011](docs/adr/0011-gestao-da-equipe-e-recuperacao-de-admin.md) | Gestão da equipe e recuperação de acesso de ADMIN |
+| [0012](docs/adr/0012-endurecimento-de-seguranca.md) | Endurecimento de segurança (revisão de 2026-10-16) |
 
 ## Como rodar
 
@@ -187,7 +189,9 @@ Erros saem em `application/problem+json` (RFC 9457): 400 para dados inválidos
 expirado, e para login recusado, 403 para perfil sem permissão (ou senha
 temporária ainda não trocada), 404 para recurso inexistente, 409 para conflito
 (ex.: CPF já cadastrado), 412 quando o aluno foi alterado por outra pessoa
-desde o `GET` e 428 quando falta o `If-Match`.
+desde o `GET`, 428 quando falta o `If-Match`, 413 para corpo acima de 64 KB e
+429 para excesso de tentativas de login (20 por minuto por IP; 10 senhas erradas
+em 15 minutos bloqueiam o e-mail), com o cabeçalho `Retry-After`.
 
 ### Recuperar o acesso de um ADMIN
 
