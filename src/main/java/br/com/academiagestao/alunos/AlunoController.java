@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -60,13 +61,19 @@ class AlunoController {
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
-    Pagina<AlunoResponse> listar(
+    Pagina<? extends VisaoDoAluno> listar(
+            Authentication autenticacao,
             @RequestParam(required = false) String busca,
             @RequestParam(defaultValue = "false") boolean incluirInativos,
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
             @RequestParam(defaultValue = "20") @Min(value = 1, message = "deve ser pelo menos {value}")
             @Max(value = 100, message = "pode ser no máximo {value}") int tamanho) {
-        return Pagina.de(service.listar(busca, incluirInativos, pagina, tamanho), AlunoResponse::de);
+        if (ehInstrutor(autenticacao)) {
+            // Sem busca por CPF: pelo resultado, o instrutor descobriria de quem é cada CPF.
+            return Pagina.de(service.listar(busca, incluirInativos, false, pagina, tamanho),
+                    AlunoParaInstrutor::de);
+        }
+        return Pagina.de(service.listar(busca, incluirInativos, true, pagina, tamanho), AlunoResponse::de);
     }
 
     /**
@@ -86,8 +93,17 @@ class AlunoController {
     // O instrutor também consulta: precisa ver o aluno para montar a ficha de treino.
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
-    ResponseEntity<AlunoResponse> buscar(@PathVariable UUID id) {
-        return comEtag(service.buscar(id));
+    ResponseEntity<? extends VisaoDoAluno> buscar(Authentication autenticacao, @PathVariable UUID id) {
+        Aluno aluno = service.buscar(id);
+        if (ehInstrutor(autenticacao)) {
+            return ResponseEntity.ok(AlunoParaInstrutor.de(aluno));
+        }
+        return comEtag(aluno);
+    }
+
+    private static boolean ehInstrutor(Authentication autenticacao) {
+        return autenticacao.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_INSTRUTOR".equals(a.getAuthority()));
     }
 
     /**
@@ -157,6 +173,23 @@ class AlunoController {
         }
     }
 
+    /** O que a API mostra de um aluno; o formato depende de quem pergunta. */
+    sealed interface VisaoDoAluno permits AlunoResponse, AlunoParaInstrutor {
+    }
+
+    /**
+     * Visão do instrutor: só o necessário para montar o treino (LGPD, minimização).
+     * Sem CPF, e-mail e telefone. A data de nascimento fica porque a idade importa no treino.
+     */
+    record AlunoParaInstrutor(UUID id, String nome, LocalDate dataNascimento, String observacoes,
+                              boolean ativo) implements VisaoDoAluno {
+
+        static AlunoParaInstrutor de(Aluno a) {
+            return new AlunoParaInstrutor(a.getId(), a.getNome(), a.getDataNascimento(), a.getObservacoes(),
+                    a.isAtivo());
+        }
+    }
+
     record AlunoResponse(
             UUID id,
             String nome,
@@ -166,7 +199,7 @@ class AlunoController {
             LocalDate dataNascimento,
             String observacoes,
             boolean ativo,
-            Instant criadoEm) {
+            Instant criadoEm) implements VisaoDoAluno {
 
         static AlunoResponse de(Aluno a) {
             return new AlunoResponse(a.getId(), a.getNome(), a.getCpf(), a.getEmail(), a.getTelefone(),

@@ -18,10 +18,11 @@ public interface AlunoRepository extends JpaRepository<Aluno, UUID>, JpaSpecific
     boolean existsByCpf(String cpf);
 
     /**
-     * Filtro da listagem. Se a busca só tem dígitos, pontos e traço, procura pelo começo do
-     * CPF; senão, por qualquer parte do nome, sem diferenciar maiúsculas nem acentos.
+     * Filtro da listagem. Se a busca só tem dígitos, pontos e traço (e a busca por CPF é
+     * permitida), procura pelo começo do CPF; senão, por qualquer parte do nome, sem
+     * diferenciar maiúsculas nem acentos.
      */
-    static Specification<Aluno> filtro(String busca, boolean incluirInativos) {
+    static Specification<Aluno> filtro(String busca, boolean incluirInativos, boolean buscaPorCpf) {
         return (root, query, cb) -> {
             List<Predicate> condicoes = new ArrayList<>();
             if (!incluirInativos) {
@@ -29,7 +30,7 @@ public interface AlunoRepository extends JpaRepository<Aluno, UUID>, JpaSpecific
             }
             if (busca != null && !busca.isBlank()) {
                 String termo = busca.trim();
-                if (termo.matches("[\\d.\\-\\s]+")) {
+                if (buscaPorCpf && termo.matches("[\\d.\\-\\s]+")) {
                     condicoes.add(cb.like(root.get("cpf"), escaparLike(Cpf.normalizar(termo)) + "%", '\\'));
                 } else {
                     // Os dois lados passam por unaccent e lower: "jose" acha "José" e "JOSÉ".

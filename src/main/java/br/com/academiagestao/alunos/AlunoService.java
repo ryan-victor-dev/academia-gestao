@@ -38,10 +38,10 @@ class AlunoService {
     }
 
     @Transactional(readOnly = true)
-    Page<Aluno> listar(String busca, boolean incluirInativos, int pagina, int tamanho) {
+    Page<Aluno> listar(String busca, boolean incluirInativos, boolean buscaPorCpf, int pagina, int tamanho) {
         // Ordem fixa por nome (e id, para empates não trocarem de página entre consultas).
         PageRequest pageRequest = PageRequest.of(pagina, tamanho, Sort.by("nome", "id"));
-        return repository.findAll(AlunoRepository.filtro(busca, incluirInativos), pageRequest);
+        return repository.findAll(AlunoRepository.filtro(busca, incluirInativos, buscaPorCpf), pageRequest);
     }
 
     /** O login usa o e-mail do cadastro do aluno, e nasce com senha temporária. */
