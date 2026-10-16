@@ -7,7 +7,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Configuration
-@EnableConfigurationProperties(AdminInicialProperties.class)
+@EnableConfigurationProperties({AdminInicialProperties.class, LimitesDeLoginProperties.class})
 class SenhaConfig {
 
     // BCrypt já inclui um salt aleatório em cada hash e é lento de propósito,

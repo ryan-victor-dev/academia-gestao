@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -24,8 +25,9 @@ class AuthController {
     }
 
     @PostMapping("/login")
-    LoginResponse login(@Valid @RequestBody LoginRequest request) {
-        return LoginResponse.de(autenticacaoService.autenticar(request.email(), request.senha()));
+    LoginResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest requisicao) {
+        return LoginResponse.de(autenticacaoService.autenticar(request.email(), request.senha(),
+                requisicao.getRemoteAddr()));
     }
 
     /**

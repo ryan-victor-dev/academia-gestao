@@ -3,6 +3,11 @@ academia:
   jwt:
     # Chave fixa apenas para testes; nunca usar fora daqui.
     segredo: GAYB7ugX/kp/FimZrUYvEDgZp/gNEbVbp6mcsFXnkSY=
+  login:
+    # Nos testes muitos logins saem do mesmo "IP" em segundos; os limites de verdade
+    # são testados em LimiteDeLoginTest, que define os próprios valores.
+    tentativas-por-ip: 100000
+    falhas-por-conta: 100000
   banco:
     # Senha do usuário academia_app no Postgres descartável dos testes.
     senha-app: senha-do-app-so-para-testes

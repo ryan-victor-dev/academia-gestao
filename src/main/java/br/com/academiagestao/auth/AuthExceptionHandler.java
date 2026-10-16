@@ -1,6 +1,8 @@
 package br.com.academiagestao.auth;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -19,6 +21,17 @@ class AuthExceptionHandler {
                 HttpStatus.UNAUTHORIZED, "E-mail ou senha inválidos.");
         problema.setTitle("Credenciais inválidas");
         return problema;
+    }
+
+    // 429 com Retry-After: o cliente sabe quantos segundos esperar.
+    @ExceptionHandler(MuitasTentativasException.class)
+    ResponseEntity<ProblemDetail> muitasTentativas(MuitasTentativasException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());
+        problema.setTitle("Muitas tentativas");
+        long segundos = Math.max(1, (e.esperar().toMillis() + 999) / 1000);
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundos))
+                .body(problema);
     }
 
     @ExceptionHandler(LoginJaExisteException.class)

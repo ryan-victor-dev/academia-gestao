@@ -25,13 +25,16 @@ import static org.mockito.Mockito.when;
 class AutenticacaoServiceTest {
 
     private static final String SENHA = "senha-correta-123";
+    private static final String IP = "203.0.113.10";
 
     private final SecretKey chave = new SecretKeySpec(new byte[32], "HmacSHA256");
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final UsuarioRepository repository = mock(UsuarioRepository.class);
     private final AutenticacaoService service = new AutenticacaoService(repository, passwordEncoder,
             new GeradorDeToken(new NimbusJwtEncoder(new ImmutableSecret<>(chave)),
-                    new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao")));
+                    new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao")),
+            new LimitadorDeTentativas(new LimitesDeLoginProperties(1000, Duration.ofMinutes(1), 1000,
+                    Duration.ofMinutes(15))));
 
     private Usuario cadastrar(Perfil perfil) {
         Usuario usuario = Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), perfil);
@@ -44,7 +47,7 @@ class AutenticacaoServiceTest {
         Usuario usuario = cadastrar(Perfil.RECEPCAO);
 
         // E-mail com maiúsculas e espaços também funciona: é normalizado antes da busca.
-        GeradorDeToken.TokenEmitido emitido = service.autenticar(" Ana@Academia.com ", SENHA);
+        GeradorDeToken.TokenEmitido emitido = service.autenticar(" Ana@Academia.com ", SENHA, IP);
 
         Jwt jwt = NimbusJwtDecoder.withSecretKey(chave).macAlgorithm(MacAlgorithm.HS256).build()
                 .decode(emitido.token());
@@ -63,7 +66,7 @@ class AutenticacaoServiceTest {
         when(repository.findByEmail("ana@email.com")).thenReturn(Optional.of(aluno));
 
         Jwt jwt = NimbusJwtDecoder.withSecretKey(chave).macAlgorithm(MacAlgorithm.HS256).build()
-                .decode(service.autenticar("ana@email.com", SENHA).token());
+                .decode(service.autenticar("ana@email.com", SENHA, IP).token());
 
         assertThat(jwt.getClaimAsString("perfil")).isEqualTo("ALUNO");
         assertThat(jwt.getClaimAsString("alunoId")).isEqualTo(alunoId.toString());
@@ -73,7 +76,7 @@ class AutenticacaoServiceTest {
     void senhaErradaEhRecusada() {
         cadastrar(Perfil.ADMIN);
 
-        assertThatThrownBy(() -> service.autenticar("ana@academia.com", "senha-errada"))
+        assertThatThrownBy(() -> service.autenticar("ana@academia.com", "senha-errada", IP))
                 .isInstanceOf(CredenciaisInvalidasException.class);
     }
 
@@ -81,7 +84,7 @@ class AutenticacaoServiceTest {
     void usuarioInativoEhRecusadoMesmoComSenhaCerta() {
         cadastrar(Perfil.ADMIN).desativar();
 
-        assertThatThrownBy(() -> service.autenticar("ana@academia.com", SENHA))
+        assertThatThrownBy(() -> service.autenticar("ana@academia.com", SENHA, IP))
                 .isInstanceOf(CredenciaisInvalidasException.class);
     }
 
@@ -89,7 +92,7 @@ class AutenticacaoServiceTest {
     void emailInexistenteEhRecusadoDoMesmoJeito() {
         when(repository.findByEmail(anyString())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.autenticar("ninguem@academia.com", SENHA))
+        assertThatThrownBy(() -> service.autenticar("ninguem@academia.com", SENHA, IP))
                 .isInstanceOf(CredenciaisInvalidasException.class);
     }
 
@@ -97,7 +100,7 @@ class AutenticacaoServiceTest {
     void senhaGiganteEhRecusadaSemEstourarErro() {
         cadastrar(Perfil.ADMIN);
 
-        assertThatThrownBy(() -> service.autenticar("ana@academia.com", "a".repeat(200)))
+        assertThatThrownBy(() -> service.autenticar("ana@academia.com", "a".repeat(200), IP))
                 .isInstanceOf(CredenciaisInvalidasException.class);
     }
 }
