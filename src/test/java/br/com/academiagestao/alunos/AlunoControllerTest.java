@@ -158,6 +158,7 @@ class AlunoControllerTest {
         String id = cadastrarAluno("Ana", CPF_ANA);
 
         mvc.perform(put("/api/alunos/" + id).with(perfil("RECEPCAO"))
+                        .header("If-Match", "\"0\"") // versão de quem acabou de ser cadastrado
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nome": "Ana Maria Souza", "cpf": "%s"}
@@ -173,6 +174,7 @@ class AlunoControllerTest {
         String idBia = cadastrarAluno("Bia", CPF_BIA);
 
         mvc.perform(put("/api/alunos/" + idBia).with(perfil("ADMIN"))
+                        .header("If-Match", "\"0\"")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json("Bia", CPF_ANA)))
                 .andExpect(status().isConflict());

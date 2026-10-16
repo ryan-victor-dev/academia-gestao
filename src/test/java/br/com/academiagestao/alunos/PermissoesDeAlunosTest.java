@@ -100,7 +100,8 @@ class PermissoesDeAlunosTest {
             case "meu-cadastro" -> get("/api/alunos/me");
             case "cadastrar" -> post("/api/alunos").contentType(MediaType.APPLICATION_JSON)
                     .content(corpo.formatted(CpfsParaTeste.aleatorio()));
-            case "editar" -> put(base).contentType(MediaType.APPLICATION_JSON)
+            // "*" aceita qualquer versão: aqui o assunto é permissão, não edição simultânea.
+            case "editar" -> put(base).header("If-Match", "*").contentType(MediaType.APPLICATION_JSON)
                     .content(corpo.formatted(alvo.getCpf()));
             case "inativar" -> post(base + "/inativar");
             case "reativar" -> post(base + "/reativar");

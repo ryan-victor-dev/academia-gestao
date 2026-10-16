@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,7 +50,8 @@ class AlunoController {
         // 201 Created com o endereço do novo recurso no cabeçalho Location.
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(aluno.getId()).toUri();
-        return ResponseEntity.created(location).body(AlunoResponse.de(aluno));
+        return ResponseEntity.created(location).eTag(VersaoEsperada.etag(aluno.getVersao()))
+                .body(AlunoResponse.de(aluno));
     }
 
     /**
@@ -83,15 +86,24 @@ class AlunoController {
     // O instrutor também consulta: precisa ver o aluno para montar a ficha de treino.
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
-    AlunoResponse buscar(@PathVariable UUID id) {
-        return AlunoResponse.de(service.buscar(id));
+    ResponseEntity<AlunoResponse> buscar(@PathVariable UUID id) {
+        return comEtag(service.buscar(id));
     }
 
-    /** Substitui todos os dados editáveis: campo opcional que não vier fica vazio. */
+    /**
+     * Substitui todos os dados editáveis: campo opcional que não vier fica vazio.
+     * Exige If-Match com o ETag do GET: sem ele, 428; se o aluno mudou desde então, 412.
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
-    AlunoResponse atualizar(@PathVariable UUID id, @Valid @RequestBody AlunoRequest request) {
-        return AlunoResponse.de(service.atualizar(id, request.paraDados()));
+    ResponseEntity<AlunoResponse> atualizar(@PathVariable UUID id,
+                                            @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
+                                            @Valid @RequestBody AlunoRequest request) {
+        return comEtag(service.atualizar(id, request.paraDados(), ifMatch));
+    }
+
+    private static ResponseEntity<AlunoResponse> comEtag(Aluno aluno) {
+        return ResponseEntity.ok().eTag(VersaoEsperada.etag(aluno.getVersao())).body(AlunoResponse.de(aluno));
     }
 
     /**
@@ -109,14 +121,14 @@ class AlunoController {
 
     @PostMapping("/{id}/inativar")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
-    AlunoResponse inativar(@PathVariable UUID id) {
-        return AlunoResponse.de(service.inativar(id));
+    ResponseEntity<AlunoResponse> inativar(@PathVariable UUID id) {
+        return comEtag(service.inativar(id));
     }
 
     @PostMapping("/{id}/reativar")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
-    AlunoResponse reativar(@PathVariable UUID id) {
-        return AlunoResponse.de(service.reativar(id));
+    ResponseEntity<AlunoResponse> reativar(@PathVariable UUID id) {
+        return comEtag(service.reativar(id));
     }
 
     record AlunoRequest(

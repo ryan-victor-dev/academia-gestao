@@ -16,6 +16,20 @@ class AlunosExceptionHandler {
         return problema;
     }
 
+    @ExceptionHandler(AlunoModificadoException.class)
+    ProblemDetail alunoModificado(AlunoModificadoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.PRECONDITION_FAILED, e.getMessage());
+        problema.setTitle("Aluno alterado por outra pessoa");
+        return problema;
+    }
+
+    @ExceptionHandler(IfMatchAusenteException.class)
+    ProblemDetail ifMatchAusente(IfMatchAusenteException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.PRECONDITION_REQUIRED, e.getMessage());
+        problema.setTitle("Cabeçalho If-Match obrigatório");
+        return problema;
+    }
+
     @ExceptionHandler(AlunoInativoException.class)
     ProblemDetail alunoInativo(AlunoInativoException e) {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());

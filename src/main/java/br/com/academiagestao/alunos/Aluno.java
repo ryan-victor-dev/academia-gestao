@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -50,6 +51,12 @@ public class Aluno {
 
     @Column(name = "criado_em", nullable = false, updatable = false)
     private Instant criadoEm;
+
+    // Travamento otimista: o Hibernate inclui "WHERE versao = ?" no UPDATE e incrementa
+    // o número. Se outra transação mudou o aluno antes, o UPDATE não acha a linha e falha.
+    @Version
+    @Column(nullable = false)
+    private long versao;
 
     // Exigido pelo JPA. Protegido para ninguém criar um Aluno vazio pelo código.
     protected Aluno() {
@@ -135,4 +142,5 @@ public class Aluno {
     public String getObservacoes() { return observacoes; }
     public boolean isAtivo() { return ativo; }
     public Instant getCriadoEm() { return criadoEm; }
+    public long getVersao() { return versao; }
 }
