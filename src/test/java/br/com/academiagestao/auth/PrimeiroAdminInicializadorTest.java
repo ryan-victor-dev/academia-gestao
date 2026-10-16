@@ -37,6 +37,8 @@ class PrimeiroAdminInicializadorTest {
                 .isNotEqualTo("senha-forte-de-teste")
                 .startsWith("$2a$");
         assertThat(passwordEncoder.matches("senha-forte-de-teste", admin.getSenhaHash())).isTrue();
+        // A senha do .env é só de primeiro acesso.
+        assertThat(admin.isPrecisaTrocarSenha()).isTrue();
     }
 
     @Test

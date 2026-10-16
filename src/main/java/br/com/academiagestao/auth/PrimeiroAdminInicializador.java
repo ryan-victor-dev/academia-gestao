@@ -49,6 +49,9 @@ class PrimeiroAdminInicializador implements ApplicationRunner {
                 : properties.nome();
         Usuario admin = Usuario.daEquipe(nome, properties.email(),
                 passwordEncoder.encode(properties.senha()), Perfil.ADMIN);
+        // A senha do .env fica no servidor (no arquivo e nas variáveis do container). Ela
+        // vale só para o primeiro acesso: depois de trocada, um .env vazado não entrega o ADMIN.
+        admin.exigirTrocaDeSenha();
         repository.save(admin);
 
         // Nunca logar a senha, nem o hash.

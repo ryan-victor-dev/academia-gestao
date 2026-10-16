@@ -107,7 +107,7 @@ versionado é o `.env.example`). O Docker Compose lê o arquivo sozinho.
 | `POSTGRES_PASSWORD` | Senha do dono do banco, usado só pelas migrations. **Obrigatória** |
 | `DB_APP_SENHA` | Senha do usuário da aplicação no banco (`academia_app`), que só lê e grava dados. Mínimo de 16 caracteres. **Obrigatória** |
 | `ADMIN_NOME`, `ADMIN_EMAIL` | Dados do primeiro ADMIN |
-| `ADMIN_SENHA` | Senha do primeiro ADMIN, mínimo de 12 caracteres |
+| `ADMIN_SENHA` | Senha de primeiro acesso do ADMIN, mínimo de 12 caracteres. O sistema exige trocá-la no primeiro login |
 | `JWT_SEGREDO` | Chave que assina os tokens: Base64, mínimo de 32 bytes. **Obrigatória** |
 | `JWT_EXPIRACAO` | Validade do token (padrão `15m`) |
 | `DOMINIO` | Domínio do sistema, para o HTTPS de verdade. Vazio = `localhost` |
