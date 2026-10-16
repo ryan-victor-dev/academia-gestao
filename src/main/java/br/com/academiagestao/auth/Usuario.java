@@ -124,6 +124,12 @@ public class Usuario {
         revogarTokens();
     }
 
+    /** "Esqueci minha senha": nova senha temporária, troca obrigatória e sessões derrubadas. */
+    public void redefinirComSenhaTemporaria(String novoHash) {
+        trocarSenha(novoHash);
+        this.precisaTrocarSenha = true;
+    }
+
     private void revogarTokens() {
         this.versaoToken++;
     }

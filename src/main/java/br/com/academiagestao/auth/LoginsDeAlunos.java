@@ -16,10 +16,13 @@ public class LoginsDeAlunos {
 
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final RedefinicaoDeSenha redefinicaoDeSenha;
 
-    LoginsDeAlunos(UsuarioRepository repository, PasswordEncoder passwordEncoder) {
+    LoginsDeAlunos(UsuarioRepository repository, PasswordEncoder passwordEncoder,
+                   RedefinicaoDeSenha redefinicaoDeSenha) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
+        this.redefinicaoDeSenha = redefinicaoDeSenha;
     }
 
     /**
@@ -27,7 +30,7 @@ public class LoginsDeAlunos {
      * nesta resposta: no banco fica apenas o hash, e ninguém consegue recuperá-la depois.
      */
     @Transactional
-    public LoginCriado criar(UUID alunoId, String nome, String email) {
+    public CredenciaisTemporarias criar(UUID alunoId, String nome, String email) {
         if (repository.existsByAlunoId(alunoId)) {
             throw new LoginJaExisteException("Este aluno já tem login");
         }
@@ -45,7 +48,15 @@ public class LoginsDeAlunos {
             // Dois pedidos ao mesmo tempo passam pelas checagens acima; o UNIQUE do banco barra o segundo.
             throw new LoginJaExisteException("Este aluno já tem login ou o e-mail já está em uso");
         }
-        return new LoginCriado(usuario.getEmail(), senhaTemporaria);
+        return new CredenciaisTemporarias(usuario.getEmail(), senhaTemporaria);
+    }
+
+    /** O aluno esqueceu a senha: gera uma nova senha temporária para o login dele. */
+    @Transactional
+    public CredenciaisTemporarias redefinirSenha(UUID alunoId) {
+        Usuario usuario = repository.findByAlunoId(alunoId)
+                .orElseThrow(() -> new UsuarioNaoEncontradoException("Este aluno ainda não tem login"));
+        return redefinicaoDeSenha.aplicar(usuario);
     }
 
     /** Aluno inativado: o login dele (se existir) para de funcionar. */
@@ -58,8 +69,5 @@ public class LoginsDeAlunos {
     @Transactional
     public void reativar(UUID alunoId) {
         repository.findByAlunoId(alunoId).ifPresent(Usuario::reativar);
-    }
-
-    public record LoginCriado(String email, String senhaTemporaria) {
     }
 }

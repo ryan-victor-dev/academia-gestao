@@ -81,4 +81,16 @@ class UsuarioTest {
         u.trocarSenha("hash-novo");
         assertThat(u.getVersaoToken()).isEqualTo(inicial + 3);
     }
+
+    @Test
+    void redefinirComSenhaTemporariaExigeTrocaERevogaTokens() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);
+        int versao = u.getVersaoToken();
+
+        u.redefinirComSenhaTemporaria("hash-temporario");
+
+        assertThat(u.getSenhaHash()).isEqualTo("hash-temporario");
+        assertThat(u.isPrecisaTrocarSenha()).isTrue();
+        assertThat(u.getVersaoToken()).isGreaterThan(versao);
+    }
 }

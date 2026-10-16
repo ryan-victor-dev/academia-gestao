@@ -1,7 +1,7 @@
 package br.com.academiagestao.alunos;
 
 import br.com.academiagestao.auth.ClaimsDoToken;
-import br.com.academiagestao.auth.LoginsDeAlunos;
+import br.com.academiagestao.auth.CredenciaisTemporarias;
 import br.com.academiagestao.compartilhado.Pagina;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -128,11 +128,18 @@ class AlunoController {
      */
     @PostMapping("/{id}/login")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
-    ResponseEntity<LoginsDeAlunos.LoginCriado> criarLogin(@PathVariable UUID id) {
+    ResponseEntity<CredenciaisTemporarias> criarLogin(@PathVariable UUID id) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 // Senha na resposta: nenhum cache (navegador, proxy) pode guardar.
                 .cacheControl(CacheControl.noStore())
                 .body(service.criarLogin(id));
+    }
+
+    /** O aluno esqueceu a senha: nova senha temporária, que só aparece nesta resposta. */
+    @PostMapping("/{id}/login/nova-senha")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    ResponseEntity<CredenciaisTemporarias> novaSenha(@PathVariable UUID id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.redefinirSenha(id));
     }
 
     @PostMapping("/{id}/inativar")

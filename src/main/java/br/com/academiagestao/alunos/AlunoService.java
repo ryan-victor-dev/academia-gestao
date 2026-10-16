@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.auth.CredenciaisTemporarias;
 import br.com.academiagestao.auth.LoginsDeAlunos;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -46,7 +47,7 @@ class AlunoService {
 
     /** O login usa o e-mail do cadastro do aluno, e nasce com senha temporária. */
     @Transactional
-    LoginsDeAlunos.LoginCriado criarLogin(UUID id) {
+    CredenciaisTemporarias criarLogin(UUID id) {
         Aluno aluno = buscar(id);
         if (!aluno.isAtivo()) {
             throw new AlunoInativoException();
@@ -58,6 +59,16 @@ class AlunoService {
     }
 
     // Aluno e login mudam na mesma transação: ou os dois mudam, ou nenhum.
+    /** O aluno esqueceu a senha. Aluno inativo não recebe senha nova: reative antes. */
+    @Transactional
+    CredenciaisTemporarias redefinirSenha(UUID id) {
+        Aluno aluno = buscar(id);
+        if (!aluno.isAtivo()) {
+            throw new AlunoInativoException();
+        }
+        return loginsDeAlunos.redefinirSenha(id);
+    }
+
     @Transactional
     Aluno inativar(UUID id) {
         Aluno aluno = buscar(id);

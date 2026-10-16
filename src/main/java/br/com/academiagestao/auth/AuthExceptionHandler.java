@@ -28,6 +28,27 @@ class AuthExceptionHandler {
         return problema;
     }
 
+    @ExceptionHandler(UsuarioNaoEncontradoException.class)
+    ProblemDetail usuarioNaoEncontrado(UsuarioNaoEncontradoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+        problema.setTitle("Login não encontrado");
+        return problema;
+    }
+
+    @ExceptionHandler(UsuarioInativoException.class)
+    ProblemDetail usuarioInativo(UsuarioInativoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle("Usuário inativo");
+        return problema;
+    }
+
+    @ExceptionHandler(RedefinicaoNaoPermitidaException.class)
+    ProblemDetail redefinicaoNaoPermitida(RedefinicaoNaoPermitidaException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
+        problema.setTitle("Redefinição não permitida");
+        return problema;
+    }
+
     // O detalhe do erro do token (expirado, assinatura inválida...) não vai no corpo:
     // ajuda pouco o cliente legítimo e muito quem está tentando forjar um token.
     @ExceptionHandler(AuthenticationException.class)
