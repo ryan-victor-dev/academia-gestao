@@ -26,6 +26,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/academia
       SPRING_DATASOURCE_USERNAME: academia
       SPRING_DATASOURCE_PASSWORD: academia
+      # Lidos do arquivo .env (copie de .env.example)
+      ADMIN_NOME: ${ADMIN_NOME:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_SENHA: ${ADMIN_SENHA:-}
     ports:
       - "8090:8090"
 
