@@ -68,4 +68,17 @@ class UsuarioTest {
         u.reativar();
         assertThat(u.isAtivo()).isTrue();
     }
+
+    @Test
+    void desativarReativarETrocarSenhaRevogamOsTokens() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);
+        int inicial = u.getVersaoToken();
+
+        u.desativar();
+        assertThat(u.getVersaoToken()).isEqualTo(inicial + 1);
+        u.reativar();
+        assertThat(u.getVersaoToken()).isEqualTo(inicial + 2);
+        u.trocarSenha("hash-novo");
+        assertThat(u.getVersaoToken()).isEqualTo(inicial + 3);
+    }
 }

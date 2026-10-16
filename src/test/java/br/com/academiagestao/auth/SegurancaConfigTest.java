@@ -2,11 +2,13 @@ package br.com.academiagestao.auth;
 
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -49,14 +51,31 @@ class SegurancaConfigTest {
     @Autowired
     JwtAuthenticationConverter converter;
 
-    private static String token(JwtEncoder encoder, UnaryOperator<JwtClaimsSet.Builder> ajuste) {
+    @Autowired
+    UsuarioRepository usuarioRepository;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    private Usuario usuario;
+
+    // Os tokens deste teste são de um usuário real: o validador confere no banco se ele
+    // existe, está ativo e se a versão do token é a atual.
+    @BeforeEach
+    void cadastrarUsuario() {
+        jdbc.update("DELETE FROM usuarios");
+        usuario = usuarioRepository.save(Usuario.daEquipe("Ana", "ana@academia.com", "hash", Perfil.ADMIN));
+    }
+
+    private String token(JwtEncoder encoder, UnaryOperator<JwtClaimsSet.Builder> ajuste) {
         Instant agora = Instant.now();
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .issuer("academia-gestao")
-                .subject(UUID.randomUUID().toString())
+                .subject(usuario.getId().toString())
                 .issuedAt(agora)
                 .expiresAt(agora.plus(Duration.ofMinutes(15)))
-                .claim("perfil", "ADMIN");
+                .claim("perfil", "ADMIN")
+                .claim("versaoToken", usuario.getVersaoToken());
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         return encoder.encode(JwtEncoderParameters.from(header, ajuste.apply(claims).build())).getTokenValue();
     }

@@ -12,6 +12,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
@@ -97,13 +98,18 @@ class SegurancaConfig {
         return (request, response, excecao) -> resolver.resolveException(request, response, null, excecao);
     }
 
-    /** Valida assinatura, expiração ("exp", com 60 s de tolerância) e emissor ("iss"). */
+    /**
+     * Valida assinatura, expiração ("exp", com 60 s de tolerância), emissor ("iss") e,
+     * no banco, se o token não foi revogado (usuário ativo e versão do token atual).
+     */
     @Bean
-    JwtDecoder jwtDecoder(SecretKey chaveJwt, JwtProperties properties) {
+    JwtDecoder jwtDecoder(SecretKey chaveJwt, JwtProperties properties, UsuarioRepository usuarioRepository) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(chaveJwt)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(properties.emissor()));
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(properties.emissor()),
+                new TokenRevogadoValidator(usuarioRepository)));
         return decoder;
     }
 

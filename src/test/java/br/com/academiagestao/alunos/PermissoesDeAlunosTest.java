@@ -57,6 +57,9 @@ class PermissoesDeAlunosTest {
     JdbcTemplate jdbc;
 
     private final Map<Perfil, String> tokens = new EnumMap<>(Perfil.class);
+    // O aluno dono do login ALUNO. Não é alvo de inativação: inativá-lo derrubaria o token dele.
+    private Aluno alunoLogado;
+    // Alvo das operações de cadastro (editar, inativar...), sem login.
     private Aluno alvo;
 
     @BeforeAll
@@ -64,13 +67,15 @@ class PermissoesDeAlunosTest {
         jdbc.update("DELETE FROM usuarios");
         alunoRepository.deleteAll();
 
+        alunoLogado = alunoRepository.save(Aluno.novo(new DadosAluno("Aluno Logado", CpfsParaTeste.aleatorio(),
+                null, null, null, null)));
         alvo = alunoRepository.save(Aluno.novo(new DadosAluno("Aluno Alvo", CpfsParaTeste.aleatorio(),
                 null, null, null, null)));
         String hash = passwordEncoder.encode(SENHA);
         for (Perfil perfil : Perfil.values()) {
             String email = perfil.name().toLowerCase() + "@academia.com";
             usuarioRepository.save(perfil == Perfil.ALUNO
-                    ? Usuario.deAluno("Aluno Alvo", email, hash, alvo.getId())
+                    ? Usuario.deAluno("Aluno Logado", email, hash, alunoLogado.getId())
                     : Usuario.daEquipe(perfil.name(), email, hash, perfil));
             tokens.put(perfil, login(email));
         }
@@ -168,7 +173,7 @@ class PermissoesDeAlunosTest {
     @Test
     void alunoLogadoVeOsPropriosDadosPeloTokenDoLogin() throws Exception {
         mvc.perform(get("/api/alunos/me").header("Authorization", "Bearer " + tokens.get(Perfil.ALUNO)))
-                .andExpect(jsonPath("$.id").value(alvo.getId().toString()))
-                .andExpect(jsonPath("$.nome").value("Aluno Alvo"));
+                .andExpect(jsonPath("$.id").value(alunoLogado.getId().toString()))
+                .andExpect(jsonPath("$.nome").value("Aluno Logado"));
     }
 }

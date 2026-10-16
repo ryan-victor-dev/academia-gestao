@@ -30,7 +30,8 @@ class GeradorDeToken {
                 .subject(usuario.getId().toString())
                 .issuedAt(agora)
                 .expiresAt(expiraEm)
-                .claim(ClaimsDoToken.PERFIL, usuario.getPerfil().name());
+                .claim(ClaimsDoToken.PERFIL, usuario.getPerfil().name())
+                .claim(ClaimsDoToken.VERSAO_TOKEN, usuario.getVersaoToken());
         // Login de aluno leva o id do cadastro dele. Assim o módulo de alunos sabe de quem
         // são os dados sem precisar consultar as tabelas do módulo de autenticação.
         if (usuario.getAlunoId() != null) {

@@ -4,6 +4,7 @@ import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.auth.Perfil;
 import br.com.academiagestao.auth.Usuario;
 import br.com.academiagestao.auth.UsuarioRepository;
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,6 +73,18 @@ class InativacaoComLoginTest {
 
         loginDaAna().andExpect(status().isUnauthorized());
         assertThat(usuarioRepository.findByAlunoId(ana.getId()).orElseThrow().isAtivo()).isFalse();
+    }
+
+    @Test
+    void tokenQueOAlunoJaTinhaMorreNaHoraDaInativacao() throws Exception {
+        String corpo = loginDaAna().andReturn().getResponse().getContentAsString();
+        String token = JsonPath.read(corpo, "$.token");
+        mvc.perform(get("/api/alunos/me").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
+
+        mvc.perform(post("/api/alunos/" + ana.getId() + "/inativar").with(RECEPCAO));
+
+        mvc.perform(get("/api/alunos/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

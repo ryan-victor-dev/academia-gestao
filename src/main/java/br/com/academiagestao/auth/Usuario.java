@@ -42,6 +42,10 @@ public class Usuario {
     @Column(name = "precisa_trocar_senha", nullable = false)
     private boolean precisaTrocarSenha;
 
+    // Vai no token. Aumentar o número invalida todos os tokens já emitidos.
+    @Column(name = "versao_token", nullable = false)
+    private int versaoToken;
+
     @Column(name = "criado_em", nullable = false, updatable = false)
     private Instant criadoEm;
 
@@ -95,10 +99,13 @@ public class Usuario {
 
     public void desativar() {
         this.ativo = false;
+        revogarTokens();
     }
 
+    // Reativar também revoga: um token de antes da desativação não volta a valer.
     public void reativar() {
         this.ativo = true;
+        revogarTokens();
     }
 
     /** A senha atual é temporária: o usuário só poderá usar o sistema depois de trocá-la. */
@@ -113,6 +120,12 @@ public class Usuario {
         }
         this.senhaHash = novoHash;
         this.precisaTrocarSenha = false;
+        // Quem tinha a senha antiga (inclusive um invasor) perde as sessões abertas.
+        revogarTokens();
+    }
+
+    private void revogarTokens() {
+        this.versaoToken++;
     }
 
     public UUID getId() { return id; }
@@ -123,5 +136,6 @@ public class Usuario {
     public UUID getAlunoId() { return alunoId; }
     public boolean isAtivo() { return ativo; }
     public boolean isPrecisaTrocarSenha() { return precisaTrocarSenha; }
+    public int getVersaoToken() { return versaoToken; }
     public Instant getCriadoEm() { return criadoEm; }
 }
