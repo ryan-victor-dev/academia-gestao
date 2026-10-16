@@ -97,7 +97,7 @@ class SegurancaConfig {
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter perfis = new JwtGrantedAuthoritiesConverter();
-        perfis.setAuthoritiesClaimName(GeradorDeToken.CLAIM_PERFIL);
+        perfis.setAuthoritiesClaimName(ClaimsDoToken.PERFIL);
         perfis.setAuthorityPrefix("ROLE_");
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();

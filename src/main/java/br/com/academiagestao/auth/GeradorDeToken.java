@@ -12,8 +12,6 @@ import java.time.Instant;
 @Component
 class GeradorDeToken {
 
-    static final String CLAIM_PERFIL = "perfil";
-
     private final JwtEncoder encoder;
     private final JwtProperties properties;
 
@@ -27,16 +25,20 @@ class GeradorDeToken {
         Instant expiraEm = agora.plus(properties.expiracao());
 
         // "sub" leva o id, e não o e-mail: o id nunca muda e não é dado pessoal.
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .issuer(properties.emissor())
                 .subject(usuario.getId().toString())
                 .issuedAt(agora)
                 .expiresAt(expiraEm)
-                .claim(CLAIM_PERFIL, usuario.getPerfil().name())
-                .build();
+                .claim(ClaimsDoToken.PERFIL, usuario.getPerfil().name());
+        // Login de aluno leva o id do cadastro dele. Assim o módulo de alunos sabe de quem
+        // são os dados sem precisar consultar as tabelas do módulo de autenticação.
+        if (usuario.getAlunoId() != null) {
+            claims.claim(ClaimsDoToken.ALUNO_ID, usuario.getAlunoId().toString());
+        }
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
 
-        String token = encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+        String token = encoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
         return new TokenEmitido(token, expiraEm);
     }
 

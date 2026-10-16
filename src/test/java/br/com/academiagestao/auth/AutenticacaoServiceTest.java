@@ -13,6 +13,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,6 +53,20 @@ class AutenticacaoServiceTest {
         assertThat(jwt.getClaimAsString("iss")).isEqualTo("academia-gestao");
         assertThat(Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt())).isEqualTo(Duration.ofMinutes(15));
         assertThat(jwt.getExpiresAt()).isCloseTo(emitido.expiraEm(), within(Duration.ofSeconds(1)));
+        assertThat(jwt.hasClaim("alunoId")).isFalse(); // só login de aluno leva alunoId
+    }
+
+    @Test
+    void tokenDeAlunoLevaOIdDoCadastro() {
+        UUID alunoId = UUID.randomUUID();
+        Usuario aluno = Usuario.deAluno("Ana", "ana@email.com", passwordEncoder.encode(SENHA), alunoId);
+        when(repository.findByEmail("ana@email.com")).thenReturn(Optional.of(aluno));
+
+        Jwt jwt = NimbusJwtDecoder.withSecretKey(chave).macAlgorithm(MacAlgorithm.HS256).build()
+                .decode(service.autenticar("ana@email.com", SENHA).token());
+
+        assertThat(jwt.getClaimAsString("perfil")).isEqualTo("ALUNO");
+        assertThat(jwt.getClaimAsString("alunoId")).isEqualTo(alunoId.toString());
     }
 
     @Test

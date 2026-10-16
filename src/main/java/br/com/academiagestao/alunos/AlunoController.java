@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.auth.ClaimsDoToken;
 import br.com.academiagestao.compartilhado.Pagina;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -9,7 +10,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,6 +61,20 @@ class AlunoController {
             @RequestParam(defaultValue = "20") @Min(value = 1, message = "deve ser pelo menos {value}")
             @Max(value = 100, message = "pode ser no máximo {value}") int tamanho) {
         return Pagina.de(service.listar(busca, incluirInativos, pagina, tamanho), AlunoResponse::de);
+    }
+
+    /**
+     * O aluno vê o próprio cadastro, mesmo inativo (é direito dele, LGPD art. 18).
+     * O id vem do token, nunca da URL: não há como pedir o cadastro de outra pessoa.
+     */
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('ALUNO')")
+    AlunoResponse meuCadastro(@AuthenticationPrincipal Jwt jwt) {
+        String alunoId = jwt.getClaimAsString(ClaimsDoToken.ALUNO_ID);
+        if (alunoId == null) {
+            throw new AccessDeniedException("Token de aluno sem alunoId");
+        }
+        return AlunoResponse.de(service.buscar(UUID.fromString(alunoId)));
     }
 
     // O instrutor também consulta: precisa ver o aluno para montar a ficha de treino.
