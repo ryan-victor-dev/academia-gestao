@@ -70,6 +70,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0005](docs/adr/0005-testes-com-testcontainers.md) | Testes de integração com Testcontainers |
 | [0006](docs/adr/0006-empacotamento-em-docker.md) | Empacotamento em Docker e porta 8090 |
 | [0007](docs/adr/0007-autenticacao-com-jwt.md) | Autenticação stateless com JWT (HS256) e perfis |
+| [0008](docs/adr/0008-cadastro-de-alunos.md) | Cadastro de alunos: CPF, inativação e acesso por perfil |
 
 ## Como rodar
 
@@ -128,9 +129,16 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /actuator/health` | Público |
 | `GET /api/me` | Qualquer perfil logado |
 | `GET /api/usuarios` | ADMIN |
+| `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` | ADMIN, RECEPCAO, INSTRUTOR |
+| `GET /api/alunos/{id}` | ADMIN, RECEPCAO, INSTRUTOR |
+| `POST /api/alunos`, `PUT /api/alunos/{id}` | ADMIN, RECEPCAO |
+| `POST /api/alunos/{id}/inativar`, `/reativar` | ADMIN, RECEPCAO |
+| `GET /api/alunos/me` | ALUNO (o próprio cadastro) |
 
-Erros saem em `application/problem+json` (RFC 9457): 401 para token ausente,
-inválido ou expirado, e para login recusado; 403 para perfil sem permissão.
+Erros saem em `application/problem+json` (RFC 9457): 400 para dados inválidos
+(com a lista de campos em `erros`), 401 para token ausente, inválido ou
+expirado, e para login recusado, 403 para perfil sem permissão, 404 para
+recurso inexistente e 409 para conflito (ex.: CPF já cadastrado).
 
 ### Desenvolvimento local (fora do container)
 
@@ -158,7 +166,8 @@ Requer Docker ligado (o Testcontainers sobe um PostgreSQL descartável):
 
 - [x] **1. Fundação** — projeto, Postgres no Docker, Flyway, máquina de estados da mensalidade, Dockerfile, CI
 - [x] **2. Autenticação** — login com JWT, senhas em BCrypt, perfis (ADMIN, RECEPCAO, INSTRUTOR, ALUNO) e autorização por perfil
-- [ ] **3–8.** Alunos, planos, matrículas, cobrança, treinos e auditoria
+- [x] **3. Alunos** — cadastro com validação de CPF, busca paginada, inativação e acesso por perfil
+- [ ] **4–8.** Planos, matrículas, cobrança, treinos e auditoria
 
 ## Autor
 
