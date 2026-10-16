@@ -9,6 +9,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -57,7 +58,9 @@ public class Aluno {
         Aluno aluno = new Aluno();
         aluno.id = UUID.randomUUID();
         aluno.ativo = true;
-        aluno.criadoEm = Instant.now();
+        // O Postgres guarda microssegundos; sem truncar, a resposta do cadastro mostraria
+        // nanossegundos e a consulta seguinte, um horário "diferente".
+        aluno.criadoEm = Instant.now().truncatedTo(ChronoUnit.MICROS);
         aluno.aplicar(dados);
         return aluno;
     }

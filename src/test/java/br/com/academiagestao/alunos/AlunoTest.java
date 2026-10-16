@@ -25,6 +25,7 @@ class AlunoTest {
         assertThat(aluno.getEmail()).isEqualTo("ana@email.com");
         assertThat(aluno.getTelefone()).isEqualTo("31987654321");
         assertThat(aluno.getObservacoes()).isNull(); // só espaços conta como vazio
+        assertThat(aluno.getCriadoEm().getNano() % 1000).isZero(); // mesma precisão do Postgres
     }
 
     @Test
