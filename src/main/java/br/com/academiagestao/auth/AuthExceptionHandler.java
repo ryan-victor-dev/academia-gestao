@@ -42,6 +42,13 @@ class AuthExceptionHandler {
         return problema;
     }
 
+    @ExceptionHandler(OperacaoNaoPermitidaException.class)
+    ProblemDetail operacaoNaoPermitida(OperacaoNaoPermitidaException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle("Operação não permitida");
+        return problema;
+    }
+
     @ExceptionHandler(RedefinicaoNaoPermitidaException.class)
     ProblemDetail redefinicaoNaoPermitida(RedefinicaoNaoPermitidaException e) {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
