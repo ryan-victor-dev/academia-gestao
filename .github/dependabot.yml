@@ -1,0 +1,22 @@
+# Dependabot: abre PRs semanais com atualizações. Os alertas de segurança (CVE) são
+# avisados na hora, independentemente desta agenda.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # Spring Boot e o que ele gerencia vêm juntos num PR só.
+      spring:
+        patterns: ["org.springframework*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
