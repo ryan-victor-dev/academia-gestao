@@ -134,7 +134,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/me` | Qualquer perfil logado |
 | `GET /api/usuarios` | ADMIN |
 | `POST /api/usuarios` (ADMIN, RECEPCAO ou INSTRUTOR, com senha temporária) | ADMIN |
-| `POST /api/usuarios/{id}/desativar`, `/reativar` (nunca a si mesmo; sempre sobra um ADMIN) | ADMIN |
+| `PUT /api/usuarios/{id}` (nome e perfil; mudar o perfil derruba as sessões da pessoa) | ADMIN |
+| `POST /api/usuarios/{id}/desativar`, `/reativar` | ADMIN |
 | `POST /api/usuarios/{id}/nova-senha` (senha temporária; nunca para um ADMIN) | ADMIN |
 | `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `GET /api/alunos/{id}` | ADMIN, RECEPCAO, INSTRUTOR¹ |
@@ -153,8 +154,11 @@ e busca apenas por nome.
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
 
-Desativar, reativar, trocar ou redefinir a senha de um usuário invalida na hora
-todos os tokens que ele já tinha: é preciso entrar de novo.
+Na gestão da equipe, ninguém desativa a si mesmo nem muda o próprio perfil, e o
+sistema nunca deixa a academia sem pelo menos um ADMIN ativo.
+
+Desativar, reativar, mudar o perfil, trocar ou redefinir a senha de um usuário
+invalida na hora todos os tokens que ele já tinha: é preciso entrar de novo.
 
 Erros saem em `application/problem+json` (RFC 9457): 400 para dados inválidos
 (com a lista de campos em `erros`), 401 para token ausente, inválido ou

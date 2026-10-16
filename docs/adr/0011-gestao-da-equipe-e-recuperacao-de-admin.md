@@ -23,14 +23,20 @@ de um ADMIN.
   caem na hora (ADR 0010).
 - `POST /api/usuarios/{id}/reativar`: volta a funcionar. Reativar quem já está
   ativo não mexe nos tokens.
-- Login de aluno não é desativado nem reativado por aqui (400): ele acompanha
-  o cadastro do aluno (ADR 0009).
+- `PUT /api/usuarios/{id}`: corrige o nome e muda o perfil (ADMIN, RECEPCAO
+  ou INSTRUTOR). **Mudar o perfil derruba as sessões da pessoa na hora**: o
+  perfil vai dentro do token, e um ADMIN rebaixado não pode manter os poderes
+  até o token expirar. Corrigir só o nome não mexe nos tokens.
+- Login de aluno não é desativado, reativado nem editado por aqui (400): ele
+  acompanha o cadastro do aluno (ADR 0009).
 
 ### A academia nunca fica sem ADMIN
-- Ninguém desativa o próprio login (409).
-- O último ADMIN ativo não pode ser desativado (409). Com a regra anterior,
-  isso só acontece numa **corrida**: A desativa B enquanto B desativa A, as
-  duas checagens veem "2 ADMINs ativos" e as duas passariam. Por isso, antes de
+- Ninguém desativa o próprio login nem muda o próprio perfil (409). Corrigir o
+  próprio nome pode.
+- O último ADMIN ativo não pode ser desativado nem rebaixado (409). Com a regra
+  anterior, isso só acontece numa **corrida**: A tira B (desativando ou
+  rebaixando) enquanto B tira A, as duas checagens veem "2 ADMINs ativos" e as
+  duas passariam. Por isso, antes de
   contar, as linhas dos ADMINs ativos são travadas (`SELECT ... FOR UPDATE`,
   sempre na mesma ordem, sem risco de deadlock). A segunda transação espera a
   primeira, conta de novo e é recusada.
@@ -61,4 +67,6 @@ de um ADMIN.
 - A equipe pode ser gerida inteiramente pela API, e um ex-funcionário perde o
   acesso na hora.
 - Recuperar um ADMIN exige acesso ao servidor. Está documentado no README.
-- Mudar nome ou perfil de um usuário da equipe ainda não é possível.
+- Edições de usuários da equipe não usam ETag/If-Match como as de alunos: só o
+  ADMIN edita, são raras e têm só dois campos. Se duas pessoas editarem ao mesmo
+  tempo, vale a última.
