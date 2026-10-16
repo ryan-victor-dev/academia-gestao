@@ -56,10 +56,12 @@ class AlunoService {
         return loginsDeAlunos.criar(aluno.getId(), aluno.getNome(), aluno.getEmail());
     }
 
+    // Aluno e login mudam na mesma transação: ou os dois mudam, ou nenhum.
     @Transactional
     Aluno inativar(UUID id) {
         Aluno aluno = buscar(id);
         aluno.inativar();
+        loginsDeAlunos.desativar(id);
         return aluno;
     }
 
@@ -67,6 +69,7 @@ class AlunoService {
     Aluno reativar(UUID id) {
         Aluno aluno = buscar(id);
         aluno.reativar();
+        loginsDeAlunos.reativar(id);
         return aluno;
     }
 

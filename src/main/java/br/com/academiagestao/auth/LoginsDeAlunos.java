@@ -48,6 +48,18 @@ public class LoginsDeAlunos {
         return new LoginCriado(usuario.getEmail(), senhaTemporaria);
     }
 
+    /** Aluno inativado: o login dele (se existir) para de funcionar. */
+    @Transactional
+    public void desativar(UUID alunoId) {
+        repository.findByAlunoId(alunoId).ifPresent(Usuario::desativar);
+    }
+
+    /** Aluno reativado: o login dele (se existir) volta a funcionar. */
+    @Transactional
+    public void reativar(UUID alunoId) {
+        repository.findByAlunoId(alunoId).ifPresent(Usuario::reativar);
+    }
+
     public record LoginCriado(String email, String senhaTemporaria) {
     }
 }
