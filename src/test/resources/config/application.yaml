@@ -1,0 +1,5 @@
+# Complementa o application.yaml principal só nos testes (classpath:/config/ tem prioridade).
+academia:
+  jwt:
+    # Chave fixa apenas para testes; nunca usar fora daqui.
+    segredo: GAYB7ugX/kp/FimZrUYvEDgZp/gNEbVbp6mcsFXnkSY=

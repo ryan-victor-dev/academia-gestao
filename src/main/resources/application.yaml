@@ -5,6 +5,10 @@ spring:
     url: jdbc:postgresql://localhost:5432/academia
     username: academia
     password: academia
+  mvc:
+    # Erros da API no formato padrão RFC 9457 (application/problem+json)
+    problemdetails:
+      enabled: true
   jpa:
     open-in-view: false
     hibernate:
@@ -19,3 +23,7 @@ academia:
     nome: ${ADMIN_NOME:}
     email: ${ADMIN_EMAIL:}
     senha: ${ADMIN_SENHA:}
+  jwt:
+    # Chave HMAC em Base64, com pelo menos 32 bytes. Sem ela a aplicação não sobe.
+    segredo: ${JWT_SEGREDO:}
+    expiracao: ${JWT_EXPIRACAO:15m}

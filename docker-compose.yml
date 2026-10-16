@@ -30,6 +30,8 @@ services:
       ADMIN_NOME: ${ADMIN_NOME:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_SENHA: ${ADMIN_SENHA:-}
+      JWT_SEGREDO: ${JWT_SEGREDO:-}
+      JWT_EXPIRACAO: ${JWT_EXPIRACAO:-15m}
     ports:
       - "8090:8090"
 
