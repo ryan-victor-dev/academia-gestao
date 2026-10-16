@@ -6,6 +6,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
@@ -31,6 +32,25 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problema = e.getBody();
         problema.setTitle("Dados inválidos");
         problema.setDetail("Um ou mais campos estão inválidos.");
+        problema.setProperty("erros", erros);
+        return handleExceptionInternal(e, problema, headers, status, request);
+    }
+
+    // Validação de parâmetros da URL, como ?tamanho=500.
+    @Override
+    protected ResponseEntity<Object> handleHandlerMethodValidationException(HandlerMethodValidationException e,
+                                                                            HttpHeaders headers,
+                                                                            HttpStatusCode status,
+                                                                            WebRequest request) {
+        List<ErroDeCampo> erros = e.getParameterValidationResults().stream()
+                .flatMap(resultado -> resultado.getResolvableErrors().stream()
+                        .map(erro -> new ErroDeCampo(resultado.getMethodParameter().getParameterName(),
+                                erro.getDefaultMessage())))
+                .toList();
+
+        ProblemDetail problema = e.getBody();
+        problema.setTitle("Dados inválidos");
+        problema.setDetail("Um ou mais parâmetros estão inválidos.");
         problema.setProperty("erros", erros);
         return handleExceptionInternal(e, problema, headers, status, request);
     }

@@ -1,6 +1,9 @@
 package br.com.academiagestao.alunos;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +30,27 @@ class AlunoService {
     @Transactional(readOnly = true)
     Aluno buscar(UUID id) {
         return repository.findById(id).orElseThrow(() -> new AlunoNaoEncontradoException(id));
+    }
+
+    @Transactional(readOnly = true)
+    Page<Aluno> listar(String busca, boolean incluirInativos, int pagina, int tamanho) {
+        // Ordem fixa por nome (e id, para empates não trocarem de página entre consultas).
+        PageRequest pageRequest = PageRequest.of(pagina, tamanho, Sort.by("nome", "id"));
+        return repository.findAll(AlunoRepository.filtro(busca, incluirInativos), pageRequest);
+    }
+
+    @Transactional
+    Aluno inativar(UUID id) {
+        Aluno aluno = buscar(id);
+        aluno.inativar();
+        return aluno;
+    }
+
+    @Transactional
+    Aluno reativar(UUID id) {
+        Aluno aluno = buscar(id);
+        aluno.reativar();
+        return aluno;
     }
 
     @Transactional

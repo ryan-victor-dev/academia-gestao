@@ -1,7 +1,10 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.compartilhado.Pagina;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -40,6 +44,21 @@ class AlunoController {
         return ResponseEntity.created(location).body(AlunoResponse.de(aluno));
     }
 
+    /**
+     * Lista paginada, em ordem de nome. Por padrão só alunos ativos.
+     * Ex.: GET /api/alunos?busca=ana&pagina=0&tamanho=20
+     */
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
+    Pagina<AlunoResponse> listar(
+            @RequestParam(required = false) String busca,
+            @RequestParam(defaultValue = "false") boolean incluirInativos,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
+            @RequestParam(defaultValue = "20") @Min(value = 1, message = "deve ser pelo menos {value}")
+            @Max(value = 100, message = "pode ser no máximo {value}") int tamanho) {
+        return Pagina.de(service.listar(busca, incluirInativos, pagina, tamanho), AlunoResponse::de);
+    }
+
     // O instrutor também consulta: precisa ver o aluno para montar a ficha de treino.
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
@@ -52,6 +71,18 @@ class AlunoController {
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
     AlunoResponse atualizar(@PathVariable UUID id, @Valid @RequestBody AlunoRequest request) {
         return AlunoResponse.de(service.atualizar(id, request.paraDados()));
+    }
+
+    @PostMapping("/{id}/inativar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    AlunoResponse inativar(@PathVariable UUID id) {
+        return AlunoResponse.de(service.inativar(id));
+    }
+
+    @PostMapping("/{id}/reativar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    AlunoResponse reativar(@PathVariable UUID id) {
+        return AlunoResponse.de(service.reativar(id));
     }
 
     record AlunoRequest(
