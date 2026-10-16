@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: academia-gestao
+  datasource:
+    url: jdbc:postgresql://localhost:5432/academia
+    username: academia
+    password: academia
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+server:
+  port: 8090
