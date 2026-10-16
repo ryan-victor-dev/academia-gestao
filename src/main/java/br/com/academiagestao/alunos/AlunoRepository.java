@@ -19,7 +19,7 @@ public interface AlunoRepository extends JpaRepository<Aluno, UUID>, JpaSpecific
 
     /**
      * Filtro da listagem. Se a busca só tem dígitos, pontos e traço, procura pelo começo do
-     * CPF; senão, por qualquer parte do nome, sem diferenciar maiúsculas.
+     * CPF; senão, por qualquer parte do nome, sem diferenciar maiúsculas nem acentos.
      */
     static Specification<Aluno> filtro(String busca, boolean incluirInativos) {
         return (root, query, cb) -> {
@@ -32,8 +32,12 @@ public interface AlunoRepository extends JpaRepository<Aluno, UUID>, JpaSpecific
                 if (termo.matches("[\\d.\\-\\s]+")) {
                     condicoes.add(cb.like(root.get("cpf"), escaparLike(Cpf.normalizar(termo)) + "%", '\\'));
                 } else {
-                    condicoes.add(cb.like(cb.lower(root.get("nome")),
-                            "%" + escaparLike(termo.toLowerCase(Locale.ROOT)) + "%", '\\'));
+                    // Os dois lados passam por unaccent e lower: "jose" acha "José" e "JOSÉ".
+                    String padrao = "%" + escaparLike(termo.toLowerCase(Locale.ROOT)) + "%";
+                    condicoes.add(cb.like(
+                            cb.lower(cb.function("unaccent", String.class, root.get("nome"))),
+                            cb.lower(cb.function("unaccent", String.class, cb.literal(padrao))),
+                            '\\'));
                 }
             }
             return cb.and(condicoes.toArray(Predicate[]::new));

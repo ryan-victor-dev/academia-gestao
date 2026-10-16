@@ -3,6 +3,8 @@ package br.com.academiagestao.alunos;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -72,6 +74,24 @@ class AlunoListagemTest {
         // "ana" está em "Ana Souza" e em "Carla Anastácio"; a Carla está inativa.
         mvc.perform(get("/api/alunos").param("busca", "ANA").param("incluirInativos", "true").with(perfil("ADMIN")))
                 .andExpect(jsonPath("$.conteudo[*].nome").value(contains("Ana Souza", "Carla Anastácio")));
+    }
+
+    @ParameterizedTest(name = "busca \"{0}\" acha {1}")
+    @CsvSource({
+            "anastacio, Carla Anastácio",   // sem acento acha o nome com acento
+            "ANASTÁCIO, Carla Anastácio",   // com acento e maiúsculas também
+            "jose,      José Antônio",
+            "JOSÉ,      José Antônio",
+            "antonio,   José Antônio",
+            "joao,      João Pereira",
+            "JOAO,      João Pereira",
+    })
+    void buscaPorNomeIgnoraAcentosEMaiusculas(String busca, String esperado) throws Exception {
+        repository.save(Aluno.novo(new DadosAluno("José Antônio", "39053344705", null, null, null, null)));
+        repository.save(Aluno.novo(new DadosAluno("João Pereira", "12345678909", null, null, null, null)));
+
+        mvc.perform(get("/api/alunos").param("busca", busca).param("incluirInativos", "true").with(perfil("ADMIN")))
+                .andExpect(jsonPath("$.conteudo[*].nome").value(contains(esperado)));
     }
 
     @Test

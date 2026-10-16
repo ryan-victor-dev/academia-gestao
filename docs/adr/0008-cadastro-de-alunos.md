@@ -55,7 +55,12 @@ um aluno sai.
 ### Listagem
 - Uma caixa de busca só: se o texto tem apenas dígitos, pontos e traço,
   procura pelo começo do CPF; senão, por qualquer parte do nome, sem
-  diferenciar maiúsculas. Os curingas do LIKE (`%`, `_`) são escapados.
+  diferenciar maiúsculas **nem acentos** ("jose" acha "José"). Os curingas
+  do LIKE (`%`, `_`) são escapados.
+- Acentos: a extensão `unaccent` do PostgreSQL (migration V5) é aplicada aos
+  dois lados da comparação. Instalar extensão exige permissão de
+  superusuário, que o dono do banco tem no Docker Compose; num banco
+  gerenciado (RDS, Cloud SQL) a `unaccent` costuma estar na lista liberada.
 - Só ativos por padrão (`incluirInativos=true` traz todos).
 - Paginação com `pagina`/`tamanho`, máximo de 100 por página, ordem fixa por
   nome (e id, para desempate estável).
@@ -78,8 +83,6 @@ um aluno sai.
 
 ## Pendências
 
-- **Busca sem acento:** hoje "Jose" não encontra "José". Resolver com a
-  extensão `unaccent` do PostgreSQL.
 - **Login do aluno:** ainda não há endpoint para criar o acesso de um aluno
   (decidido que será uma ação separada do cadastro).
 - **Aluno inativado com login:** quando existir o login de aluno, decidir se
