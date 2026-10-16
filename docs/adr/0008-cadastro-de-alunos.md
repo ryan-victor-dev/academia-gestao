@@ -83,12 +83,6 @@ um aluno sai.
 
 ## Pendências
 
-- **Login do aluno:** ainda não há endpoint para criar o acesso de um aluno
-  (decidido que será uma ação separada do cadastro).
-- **Aluno inativado com login:** quando existir o login de aluno, decidir se
-  inativar o aluno também desativa o acesso dele.
-- **Edição simultânea:** duas pessoas editando o mesmo aluno, a última
-  sobrescreve a outra sem aviso. Se virar problema, usar travamento otimista
-  (`@Version`) e responder 409.
-- **Minimização de dados:** o instrutor vê o CPF, que ele não precisa para
-  montar treino. Avaliar uma resposta reduzida por perfil.
+As quatro pendências registradas originalmente aqui (login do aluno, login de
+aluno inativado, edição simultânea e dados visíveis ao instrutor) foram
+resolvidas no [ADR 0009](0009-login-do-aluno-e-edicao-simultanea.md).

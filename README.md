@@ -71,6 +71,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0006](docs/adr/0006-empacotamento-em-docker.md) | Empacotamento em Docker e porta 8090 |
 | [0007](docs/adr/0007-autenticacao-com-jwt.md) | Autenticação stateless com JWT (HS256) e perfis |
 | [0008](docs/adr/0008-cadastro-de-alunos.md) | Cadastro de alunos: CPF, inativação e acesso por perfil |
+| [0009](docs/adr/0009-login-do-aluno-e-edicao-simultanea.md) | Login do aluno, senha temporária, edição simultânea e visão do instrutor |
 
 ## Como rodar
 
@@ -126,19 +127,32 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | Rota | Acesso |
 |---|---|
 | `POST /api/auth/login` | Público |
+| `POST /api/auth/trocar-senha` | Qualquer usuário logado (inclusive com senha temporária) |
 | `GET /actuator/health` | Público |
 | `GET /api/me` | Qualquer perfil logado |
 | `GET /api/usuarios` | ADMIN |
-| `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` | ADMIN, RECEPCAO, INSTRUTOR |
-| `GET /api/alunos/{id}` | ADMIN, RECEPCAO, INSTRUTOR |
-| `POST /api/alunos`, `PUT /api/alunos/{id}` | ADMIN, RECEPCAO |
-| `POST /api/alunos/{id}/inativar`, `/reativar` | ADMIN, RECEPCAO |
+| `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` | ADMIN, RECEPCAO, INSTRUTOR¹ |
+| `GET /api/alunos/{id}` | ADMIN, RECEPCAO, INSTRUTOR¹ |
+| `POST /api/alunos` | ADMIN, RECEPCAO |
+| `PUT /api/alunos/{id}` (exige `If-Match`²) | ADMIN, RECEPCAO |
+| `POST /api/alunos/{id}/inativar`, `/reativar` (levam o login junto) | ADMIN, RECEPCAO |
+| `POST /api/alunos/{id}/login` (cria o login com senha temporária) | ADMIN, RECEPCAO |
 | `GET /api/alunos/me` | ALUNO (o próprio cadastro) |
+
+¹ O instrutor recebe só nome, data de nascimento, observações e se está ativo,
+e busca apenas por nome.
+² O `GET` devolve `ETag: "<versão>"`; o `PUT` precisa mandar
+`If-Match: "<versão>"`, para nenhuma edição apagar outra feita no meio tempo.
+
+Quem entra com senha temporária (login de aluno recém-criado) só consegue
+trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
 
 Erros saem em `application/problem+json` (RFC 9457): 400 para dados inválidos
 (com a lista de campos em `erros`), 401 para token ausente, inválido ou
-expirado, e para login recusado, 403 para perfil sem permissão, 404 para
-recurso inexistente e 409 para conflito (ex.: CPF já cadastrado).
+expirado, e para login recusado, 403 para perfil sem permissão (ou senha
+temporária ainda não trocada), 404 para recurso inexistente, 409 para conflito
+(ex.: CPF já cadastrado), 412 quando o aluno foi alterado por outra pessoa
+desde o `GET` e 428 quando falta o `If-Match`.
 
 ### Desenvolvimento local (fora do container)
 
