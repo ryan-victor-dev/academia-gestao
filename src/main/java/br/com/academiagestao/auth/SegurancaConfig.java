@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
 import org.springframework.security.authorization.AuthorityAuthorizationManager;
@@ -14,6 +15,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
@@ -86,10 +88,16 @@ class SegurancaConfig {
     @Bean
     AuthenticationEntryPoint authenticationEntryPoint(
             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver) {
-        // Mantém o cabeçalho WWW-Authenticate padrão (RFC 6750), que diz ao cliente o motivo.
+        // O padrão do Spring escolhe o status e o WWW-Authenticate (RFC 6750). O cabeçalho é
+        // reescrito só com o código do erro: a descrição trazia detalhes internos ("Signed JWT
+        // rejected: Invalid signature", "Token revogado") que ajudam quem tenta forjar um token.
         BearerTokenAuthenticationEntryPoint padrao = new BearerTokenAuthenticationEntryPoint();
         return (request, response, excecao) -> {
             padrao.commence(request, response, excecao);
+            response.setHeader(HttpHeaders.WWW_AUTHENTICATE,
+                    excecao instanceof OAuth2AuthenticationException oauth
+                            ? "Bearer error=\"" + oauth.getError().getErrorCode() + "\""
+                            : "Bearer");
             resolver.resolveException(request, response, null, excecao);
         };
     }

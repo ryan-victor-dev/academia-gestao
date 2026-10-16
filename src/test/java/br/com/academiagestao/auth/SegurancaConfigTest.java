@@ -93,6 +93,24 @@ class SegurancaConfigTest {
     }
 
     @Test
+    void cabecalhoDo401NaoRevelaOMotivoInterno() throws Exception {
+        JwtEncoder falsificador = new NimbusJwtEncoder(
+                new ImmutableSecret<>(new SecretKeySpec(new byte[32], "HmacSHA256")));
+        Instant passado = Instant.now().minus(Duration.ofHours(1));
+
+        // Assinatura errada, token expirado e lixo: todos com o mesmo cabeçalho, sem descrição.
+        for (String token : new String[]{
+                token(falsificador, c -> c),
+                token(encoder, c -> c.issuedAt(passado.minusSeconds(900)).expiresAt(passado)),
+                "isto.nao.eh-um-jwt"}) {
+            mvc.perform(get(ROTA_PROTEGIDA).header("Authorization", "Bearer " + token))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(header().string("WWW-Authenticate", "Bearer error=\"invalid_token\""));
+        }
+        mvc.perform(get(ROTA_PROTEGIDA)).andExpect(header().string("WWW-Authenticate", "Bearer"));
+    }
+
+    @Test
     void tokenValidoPassaPelaSeguranca() throws Exception {
         mvc.perform(get(ROTA_PROTEGIDA).header("Authorization", "Bearer " + token(encoder, c -> c)))
                 .andExpect(status().isNotFound());
