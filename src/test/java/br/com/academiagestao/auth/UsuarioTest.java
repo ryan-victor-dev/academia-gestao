@@ -93,4 +93,38 @@ class UsuarioTest {
         assertThat(u.isPrecisaTrocarSenha()).isTrue();
         assertThat(u.getVersaoToken()).isGreaterThan(versao);
     }
+
+    @Test
+    void mudarPerfilRevogaTokensSoQuandoMudaDeVerdade() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);
+        int versao = u.getVersaoToken();
+
+        u.mudarPerfil(Perfil.RECEPCAO);
+        assertThat(u.getVersaoToken()).isEqualTo(versao);
+
+        u.mudarPerfil(Perfil.ADMIN);
+        assertThat(u.getPerfil()).isEqualTo(Perfil.ADMIN);
+        assertThat(u.getVersaoToken()).isEqualTo(versao + 1);
+    }
+
+    @Test
+    void perfilAlunoNaoEntraNemSaiPorMudarPerfil() {
+        Usuario equipe = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);
+        Usuario aluno = Usuario.deAluno("Bia", "bia@x.com", HASH, UUID.randomUUID());
+
+        assertThatThrownBy(() -> equipe.mudarPerfil(Perfil.ALUNO)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> aluno.mudarPerfil(Perfil.ADMIN)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void renomearExigeNomeENaoRevogaTokens() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);
+        int versao = u.getVersaoToken();
+
+        u.renomear("  Ana Maria ");
+
+        assertThat(u.getNome()).isEqualTo("Ana Maria");
+        assertThat(u.getVersaoToken()).isEqualTo(versao);
+        assertThatThrownBy(() -> u.renomear(" ")).isInstanceOf(IllegalArgumentException.class);
+    }
 }

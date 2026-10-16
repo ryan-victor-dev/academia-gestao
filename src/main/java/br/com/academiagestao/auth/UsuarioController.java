@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -69,6 +70,16 @@ class UsuarioController {
         return equipeService.desativar(id, UUID.fromString(jwt.getSubject()));
     }
 
+    /**
+     * Muda nome e perfil. Mudar o perfil derruba as sessões da pessoa na hora (o perfil vai
+     * no token); mudar só o nome, não.
+     */
+    @PutMapping("/{id}")
+    UsuarioResponse editar(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt,
+                           @Valid @RequestBody EdicaoDeUsuarioRequest request) {
+        return equipeService.editar(id, request.nome(), request.perfil(), UUID.fromString(jwt.getSubject()));
+    }
+
     @PostMapping("/{id}/reativar")
     UsuarioResponse reativar(@PathVariable UUID id) {
         return equipeService.reativar(id);
@@ -89,6 +100,13 @@ class UsuarioController {
             @NotBlank(message = "é obrigatório") @Email(message = "e-mail inválido")
             @Size(max = 150, message = "pode ter no máximo {max} caracteres")
             String email,
+            @NotNull(message = "é obrigatório")
+            Perfil perfil) {
+    }
+
+    record EdicaoDeUsuarioRequest(
+            @NotBlank(message = "é obrigatório") @Size(max = 150, message = "pode ter no máximo {max} caracteres")
+            String nome,
             @NotNull(message = "é obrigatório")
             Perfil perfil) {
     }

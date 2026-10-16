@@ -7,15 +7,17 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * A desativa B enquanto B desativa A. Sem travar as linhas, as duas checagens veriam
- * "2 ADMINs ativos", as duas passariam e a academia ficaria sem nenhum ADMIN.
+ * A tira B (desativando ou rebaixando) enquanto B tira A. Sem travar as linhas, as duas
+ * checagens veriam "2 ADMINs ativos", as duas passariam e a academia ficaria sem ADMIN.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -32,18 +34,33 @@ class UltimoAdminTest {
 
     @Test
     void desativacaoCruzadaSimultaneaNuncaDeixaAAcademiaSemAdmin() throws Exception {
+        corrida((a, b) -> equipeService.desativar(b, a), (a, b) -> equipeService.desativar(a, b));
+    }
+
+    @Test
+    void rebaixamentoCruzadoSimultaneoNuncaDeixaAAcademiaSemAdmin() throws Exception {
+        corrida((a, b) -> equipeService.editar(b, "B", Perfil.RECEPCAO, a),
+                (a, b) -> equipeService.editar(a, "A", Perfil.RECEPCAO, b));
+    }
+
+    @Test
+    void desativacaoERebaixamentoSimultaneosNuncaDeixamAAcademiaSemAdmin() throws Exception {
+        corrida((a, b) -> equipeService.desativar(b, a),
+                (a, b) -> equipeService.editar(a, "A", Perfil.INSTRUTOR, b));
+    }
+
+    /** 30 rodadas: com dois ADMINs, cada um tenta tirar o outro ao mesmo tempo. Sempre sobra um. */
+    private void corrida(BiConsumer<UUID, UUID> acaoDeA, BiConsumer<UUID, UUID> acaoDeB) throws Exception {
         for (int rodada = 0; rodada < 30; rodada++) {
             jdbc.update("DELETE FROM usuarios");
-            Usuario a = repository.save(Usuario.daEquipe("A", "a@academia.com", "hash", Perfil.ADMIN));
-            Usuario b = repository.save(Usuario.daEquipe("B", "b@academia.com", "hash", Perfil.ADMIN));
+            UUID a = repository.save(Usuario.daEquipe("A", "a@academia.com", "hash", Perfil.ADMIN)).getId();
+            UUID b = repository.save(Usuario.daEquipe("B", "b@academia.com", "hash", Perfil.ADMIN)).getId();
 
             CountDownLatch largada = new CountDownLatch(1);
-            CompletableFuture<Void> aDesativaB = CompletableFuture.runAsync(() -> tentar(largada, () ->
-                    equipeService.desativar(b.getId(), a.getId())));
-            CompletableFuture<Void> bDesativaA = CompletableFuture.runAsync(() -> tentar(largada, () ->
-                    equipeService.desativar(a.getId(), b.getId())));
+            CompletableFuture<Void> deA = CompletableFuture.runAsync(() -> tentar(largada, () -> acaoDeA.accept(a, b)));
+            CompletableFuture<Void> deB = CompletableFuture.runAsync(() -> tentar(largada, () -> acaoDeB.accept(a, b)));
             largada.countDown();
-            CompletableFuture.allOf(aDesativaB, bDesativaA).get(10, TimeUnit.SECONDS);
+            CompletableFuture.allOf(deA, deB).get(10, TimeUnit.SECONDS);
 
             Integer adminsAtivos = jdbc.queryForObject(
                     "SELECT count(*) FROM usuarios WHERE perfil = 'ADMIN' AND ativo", Integer.class);

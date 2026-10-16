@@ -97,6 +97,28 @@ public class Usuario {
         }
     }
 
+    public void renomear(String novoNome) {
+        if (novoNome == null || novoNome.isBlank()) {
+            throw new IllegalArgumentException("nome é obrigatório");
+        }
+        this.nome = novoNome.trim();
+    }
+
+    /**
+     * Muda o perfil de alguém da equipe. O perfil vai dentro do token: se mudou, os tokens
+     * antigos são revogados, senão um ADMIN rebaixado manteria os poderes até expirar.
+     */
+    public void mudarPerfil(Perfil novoPerfil) {
+        Objects.requireNonNull(novoPerfil, "perfil é obrigatório");
+        if (novoPerfil == Perfil.ALUNO || this.perfil == Perfil.ALUNO) {
+            throw new IllegalArgumentException("o perfil ALUNO não é trocado por aqui");
+        }
+        if (novoPerfil != this.perfil) {
+            this.perfil = novoPerfil;
+            revogarTokens();
+        }
+    }
+
     public void desativar() {
         this.ativo = false;
         revogarTokens();

@@ -58,14 +58,42 @@ class EquipeService {
         }
         Usuario usuario = buscarDaEquipe(id);
         if (usuario.getPerfil() == Perfil.ADMIN) {
-            List<Usuario> adminsAtivos = repository.travarAdminsAtivos();
-            boolean quemPedeAindaEhAdminAtivo = adminsAtivos.stream().anyMatch(a -> a.getId().equals(quemPede));
-            if (!quemPedeAindaEhAdminAtivo || adminsAtivos.size() <= 1) {
-                throw new OperacaoNaoPermitidaException("A academia precisa de pelo menos um ADMIN ativo");
-            }
+            garantirQueSobraOutroAdmin(quemPede);
         }
         usuario.desativar();
         return UsuarioResponse.de(usuario);
+    }
+
+    /**
+     * Muda nome e perfil de alguém da equipe. Ninguém muda o próprio perfil, e rebaixar um
+     * ADMIN passa pela mesma proteção da desativação (A rebaixa B enquanto B rebaixa A).
+     */
+    @Transactional
+    UsuarioResponse editar(UUID id, String nome, Perfil perfil, UUID quemPede) {
+        if (perfil == Perfil.ALUNO) {
+            throw new DadosInvalidosException("o perfil ALUNO não é dado por aqui: login de aluno nasce do cadastro do aluno");
+        }
+        Usuario usuario = buscarDaEquipe(id);
+        boolean mudaPerfil = usuario.getPerfil() != perfil;
+        if (mudaPerfil && id.equals(quemPede)) {
+            throw new OperacaoNaoPermitidaException("Você não pode mudar o seu próprio perfil");
+        }
+        if (mudaPerfil && usuario.getPerfil() == Perfil.ADMIN) {
+            garantirQueSobraOutroAdmin(quemPede);
+        }
+        usuario.renomear(nome);
+        usuario.mudarPerfil(perfil);
+        return UsuarioResponse.de(usuario);
+    }
+
+    // Trava as linhas dos ADMINs ativos (SELECT ... FOR UPDATE) e só então conta: quem pede
+    // precisa continuar sendo ADMIN ativo e sobrar pelo menos um além do afetado.
+    private void garantirQueSobraOutroAdmin(UUID quemPede) {
+        List<Usuario> adminsAtivos = repository.travarAdminsAtivos();
+        boolean quemPedeAindaEhAdminAtivo = adminsAtivos.stream().anyMatch(a -> a.getId().equals(quemPede));
+        if (!quemPedeAindaEhAdminAtivo || adminsAtivos.size() <= 1) {
+            throw new OperacaoNaoPermitidaException("A academia precisa de pelo menos um ADMIN ativo");
+        }
     }
 
     @Transactional
