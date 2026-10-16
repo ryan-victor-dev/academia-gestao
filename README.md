@@ -17,6 +17,7 @@ build reproduzível e integração contínua.
 | Camada | Tecnologia |
 |---|---|
 | Linguagem / framework | Java 25, Spring Boot 4.1 (Web MVC, Data JPA, Security, Validation, Actuator) |
+| Autenticação | JWT (HS256) com Spring Security OAuth2 Resource Server (Nimbus), senhas em BCrypt |
 | Banco de dados | PostgreSQL 17, migrations com Flyway |
 | Testes | JUnit 5, AssertJ, Testcontainers |
 | Build / execução | Maven Wrapper, Docker (multi-stage), Docker Compose |
@@ -68,6 +69,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0004](docs/adr/0004-dominio-em-java-puro.md) | Regras de negócio em Java puro, separadas da persistência |
 | [0005](docs/adr/0005-testes-com-testcontainers.md) | Testes de integração com Testcontainers |
 | [0006](docs/adr/0006-empacotamento-em-docker.md) | Empacotamento em Docker e porta 8090 |
+| [0007](docs/adr/0007-autenticacao-com-jwt.md) | Autenticação stateless com JWT (HS256) e perfis |
 
 ## Como rodar
 
@@ -77,6 +79,7 @@ para subir o sistema.
 ```bash
 git clone https://github.com/ryan-victor-dev/academia-gestao.git
 cd academia-gestao
+cp .env.example .env   # e preencha (veja abaixo)
 docker compose up --build
 ```
 
@@ -84,12 +87,58 @@ A aplicação sobe em `http://localhost:8090` assim que o Postgres passa no
 healthcheck. As migrations do Flyway são aplicadas automaticamente na
 inicialização.
 
+### Configurando o `.env`
+
+O `.env` guarda os segredos locais e **não vai para o Git** (o modelo
+versionado é o `.env.example`). O Docker Compose lê o arquivo sozinho.
+
+| Variável | Para que serve |
+|---|---|
+| `ADMIN_NOME`, `ADMIN_EMAIL` | Dados do primeiro ADMIN |
+| `ADMIN_SENHA` | Senha do primeiro ADMIN, mínimo de 12 caracteres |
+| `JWT_SEGREDO` | Chave que assina os tokens: Base64, mínimo de 32 bytes. **Obrigatória** |
+| `JWT_EXPIRACAO` | Validade do token (padrão `15m`) |
+
+Para gerar valores fortes:
+
+```bash
+openssl rand -base64 24   # ADMIN_SENHA
+openssl rand -base64 32   # JWT_SEGREDO
+```
+
+Na primeira subida, se o banco não tiver nenhum ADMIN, ele é criado e o log
+mostra `Primeiro ADMIN criado: <e-mail>`. Nas próximas, nada acontece:
+mudar `ADMIN_SENHA` depois disso não altera a senha já gravada.
+
+### Usando a API
+
+```bash
+# Login: devolve {"token": "...", "tipo": "Bearer", "expiraEm": "..."}
+curl -X POST http://localhost:8090/api/auth/login \
+     -H 'Content-Type: application/json' \
+     -d '{"email": "admin@academia.local", "senha": "<ADMIN_SENHA>"}'
+
+# Demais chamadas: token no cabeçalho Authorization
+curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
+```
+
+| Rota | Acesso |
+|---|---|
+| `POST /api/auth/login` | Público |
+| `GET /actuator/health` | Público |
+| `GET /api/me` | Qualquer perfil logado |
+| `GET /api/usuarios` | ADMIN |
+
+Erros saem em `application/problem+json` (RFC 9457): 401 para token ausente,
+inválido ou expirado, e para login recusado; 403 para perfil sem permissão.
+
 ### Desenvolvimento local (fora do container)
 
 Requer JDK 25. Sobe só o banco no Docker e roda a aplicação pelo Maven Wrapper:
 
 ```bash
 docker compose up -d postgres
+set -a; . ./.env; set +a   # carrega JWT_SEGREDO e ADMIN_* no shell
 ./mvnw spring-boot:run
 ```
 
@@ -101,13 +150,14 @@ Requer Docker ligado (o Testcontainers sobe um PostgreSQL descartável):
 ./mvnw verify
 ```
 
-> As credenciais em `docker-compose.yml` e `application.yaml` são apenas para
-> desenvolvimento local.
+> As credenciais **do banco** em `docker-compose.yml` e `application.yaml` são
+> apenas para desenvolvimento local. Os testes usam uma chave JWT própria, em
+> `src/test/resources/config/application.yaml`, e não precisam do `.env`.
 
 ## Roadmap
 
 - [x] **1. Fundação** — projeto, Postgres no Docker, Flyway, máquina de estados da mensalidade, Dockerfile, CI
-- [ ] **2. Autenticação** — login com JWT e perfis (ADMIN, RECEPCAO, INSTRUTOR, ALUNO)
+- [x] **2. Autenticação** — login com JWT, senhas em BCrypt, perfis (ADMIN, RECEPCAO, INSTRUTOR, ALUNO) e autorização por perfil
 - [ ] **3–8.** Alunos, planos, matrículas, cobrança, treinos e auditoria
 
 ## Autor
