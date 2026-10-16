@@ -98,6 +98,8 @@ versionado é o `.env.example`). O Docker Compose lê o arquivo sozinho.
 
 | Variável | Para que serve |
 |---|---|
+| `POSTGRES_PASSWORD` | Senha do dono do banco, usado só pelas migrations. **Obrigatória** |
+| `DB_APP_SENHA` | Senha do usuário da aplicação no banco (`academia_app`), que só lê e grava dados. Mínimo de 16 caracteres. **Obrigatória** |
 | `ADMIN_NOME`, `ADMIN_EMAIL` | Dados do primeiro ADMIN |
 | `ADMIN_SENHA` | Senha do primeiro ADMIN, mínimo de 12 caracteres |
 | `JWT_SEGREDO` | Chave que assina os tokens: Base64, mínimo de 32 bytes. **Obrigatória** |
@@ -106,9 +108,20 @@ versionado é o `.env.example`). O Docker Compose lê o arquivo sozinho.
 Para gerar valores fortes:
 
 ```bash
-openssl rand -base64 24   # ADMIN_SENHA
+openssl rand -base64 24   # POSTGRES_PASSWORD, DB_APP_SENHA e ADMIN_SENHA (um para cada)
 openssl rand -base64 32   # JWT_SEGREDO
 ```
+
+> **Já tinha subido o sistema antes de existir `POSTGRES_PASSWORD`?** O Postgres
+> só usa essa variável ao criar o banco pela primeira vez. Depois de preencher o
+> `.env`, troque a senha do banco existente uma vez:
+>
+> ```bash
+> set -a; . ./.env; set +a
+> echo "ALTER ROLE academia PASSWORD :'senha'" | \
+>   docker exec -i academia-postgres psql -U academia -d academia -v senha="$POSTGRES_PASSWORD"
+> docker compose up -d
+> ```
 
 Na primeira subida, se o banco não tiver nenhum ADMIN, ele é criado e o log
 mostra `Primeiro ADMIN criado: <e-mail>`. Nas próximas, nada acontece:
@@ -200,9 +213,9 @@ Requer Docker ligado (o Testcontainers sobe um PostgreSQL descartável):
 ./mvnw verify
 ```
 
-> As credenciais **do banco** em `docker-compose.yml` e `application.yaml` são
-> apenas para desenvolvimento local. Os testes usam uma chave JWT própria, em
-> `src/test/resources/config/application.yaml`, e não precisam do `.env`.
+> Nenhuma senha real fica no repositório: tudo vem do `.env`. O banco só aceita
+> conexões desta máquina (`127.0.0.1`), nunca da rede. Os testes usam valores
+> próprios, em `src/test/resources/config/application.yaml`, e não precisam do `.env`.
 
 ## Roadmap
 

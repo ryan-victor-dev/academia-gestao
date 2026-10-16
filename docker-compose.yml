@@ -5,9 +5,10 @@ services:
     environment:
       POSTGRES_DB: academia
       POSTGRES_USER: academia
-      POSTGRES_PASSWORD: academia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (veja o .env.example)}
     ports:
-      - "5432:5432"
+      # Só nesta máquina (para rodar a aplicação pelo Maven); nunca na rede.
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -24,8 +25,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/academia
-      SPRING_DATASOURCE_USERNAME: academia
-      SPRING_DATASOURCE_PASSWORD: academia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      DB_APP_SENHA: ${DB_APP_SENHA:?defina DB_APP_SENHA no .env}
       # Lidos do arquivo .env (copie de .env.example)
       ADMIN_NOME: ${ADMIN_NOME:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
