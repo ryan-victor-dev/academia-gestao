@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class LoginSimultaneoTest {
 
-    private static final int SIMULTANEOS = 30;  // o pool dos testes tem 10 conexões
+    private static final int SIMULTANEOS = 30;  // o pool tem 20 conexões
     private static final String SENHA = "senha-de-teste-123";
 
     @Autowired

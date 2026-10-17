@@ -1,11 +1,16 @@
 package br.com.academiagestao.compartilhado;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -23,6 +28,9 @@ import java.util.List;
  */
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ApiExceptionHandler.class);
+    private static final String TENTAR_DE_NOVO_EM_SEGUNDOS = "5";
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException e,
@@ -96,6 +104,23 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
         problema.setTitle("Dados inválidos");
         return problema;
+    }
+
+    /*
+     * Banco sem conexão livre em 3 s, ou consulta que passou de 5 s (ver application.yaml).
+     * É passageiro: 503 com Retry-After, em vez de um 500 que parece defeito. O detalhe do
+     * erro (SQL, nome da trava) fica só no log.
+     */
+    @ExceptionHandler({CannotCreateTransactionException.class, DataAccessResourceFailureException.class,
+            QueryTimeoutException.class})
+    ResponseEntity<ProblemDetail> bancoSobrecarregado(Exception e) {
+        LOG.warn("Banco sobrecarregado: {}", e.getMessage());
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+                "O sistema está sobrecarregado no momento. Tente de novo em alguns segundos.");
+        problema.setTitle("Sistema sobrecarregado");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, TENTAR_DE_NOVO_EM_SEGUNDOS)
+                .body(problema);
     }
 
     record ErroDeCampo(String campo, String mensagem) {

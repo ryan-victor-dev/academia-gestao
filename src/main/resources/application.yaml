@@ -6,6 +6,15 @@ spring:
     # Usuário da aplicação: só lê e grava dados (ver UsuarioDaAplicacaoNoBanco).
     username: academia_app
     password: ${DB_APP_SENHA:}
+    # Tempos curtos (revisão de 2026-10-17): com a espera padrão de 30 s, uma consulta lenta
+    # ou um pico de acessos virava fila, e quem estava na fila esperava meio minuto pelo 500.
+    # Agora, sem conexão em 3 s ou consulta acima de 5 s, a resposta é 503 com Retry-After.
+    hikari:
+      maximum-pool-size: ${DB_POOL:20}
+      connection-timeout: 3000
+      data-source-properties:
+        # Só nas conexões da aplicação: as migrations (Flyway) e o backup usam outras.
+        options: "-c statement_timeout=5s"
   flyway:
     # As migrations rodam com o dono do banco, que pode criar e alterar tabelas.
     user: academia
