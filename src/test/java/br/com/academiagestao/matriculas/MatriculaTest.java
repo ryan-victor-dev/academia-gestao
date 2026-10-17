@@ -588,21 +588,47 @@ class MatriculaTest {
         return Matricula.nova(ALUNO, plano, null, em("2027-01-20T10:00"));
     }
 
-    @ParameterizedTest(name = "atual com fidelidade -> novo com fidelidade={0} e valor {1}: multa {2}")
-    @CsvSource(nullValues = "null", value = {
-            "true,  99.90,  null",    // mantém o compromisso, mesmo valor
-            "true,  129.90, null",    // mantém o compromisso, mais caro
-            "true,  89.90,  159.84",  // mais barato: quebra a fidelidade
-            "false, 129.90, 159.84",  // sem fidelidade: a brecha do ADR 0018
-            "false, 89.90,  159.84",
-    })
-    void multaNaTrocaDeUmaMatriculaComFidelidade(boolean fidelidadeNova, String valorNovo, String multa) {
-        Matricula atual = Matricula.nova(ALUNO, anualComFidelidade("20"), null, em("2026-10-17T10:00"));
-        Matricula nova = novaDoPlano(fidelidadeNova, valorNovo);
+    private static Matricula novaDoPlano(boolean fidelidade, String valor, int meses, String percentual) {
+        PlanoContratado plano = new PlanoContratado(UUID.randomUUID(), "Novo", new BigDecimal(valor), meses, fidelidade,
+                fidelidade ? new BigDecimal(percentual) : null, FormaPagamento.MENSAL);
+        return Matricula.nova(ALUNO, plano, null, em("2027-01-20T10:00"));
+    }
 
-        atual.encerrarPorTroca(nova, USUARIO, em("2027-01-20T10:00"));  // faltam 8 meses: 8 × 99,90 × 20%
+    /**
+     * Atual: anual com 20%, trocada em 20/01 (faltam 8 meses: a multa de hoje seria
+     * 8 × 99,90 × 20% = 159,84). Sem multa só se a nova, saindo logo depois da troca, cobrar
+     * pelo menos isso (ADR 0020).
+     */
+    @ParameterizedTest(name = "novo: fidelidade={0}, R$ {1}, {2} meses, {3}% -> multa {4}")
+    @CsvSource(nullValues = "null", value = {
+            "true,  99.90,  12, 20,   null",    // mesmo plano em outra versão: 11 × 99,90 × 20% = 219,78
+            "true,  129.90, 12, 20,   null",    // mais caro, mesmo percentual
+            "true,  89.90,  12, 30,   null",    // mais barato, mas compromisso maior: 296,67
+            "true,  99.90,   9, 20,   null",    // fronteira: 8 × 99,90 × 20% = 159,84, igual
+            "true,  99.90,   9, 19.99, 159.84", // um centavo de compromisso a menos
+            "true,  99.90,  12, 10,   159.84",  // mesmo valor, metade do percentual: 109,89
+            "true,  129.90,  1, 10,   159.84",  // brecha da revisão: mensal com fidelidade (0 meses restantes)
+            "true,  99.90,   6, 0.01, 159.84",  // brecha da revisão: multa simbólica (0,05)
+            "false, 129.90, 12, 0,    159.84",  // sem fidelidade: a brecha do ADR 0018
+    })
+    void multaNaTrocaDeUmaMatriculaComFidelidade(boolean fidelidadeNova, String valorNovo, int meses,
+                                                  String percentual, String multa) {
+        Matricula atual = Matricula.nova(ALUNO, anualComFidelidade("20"), null, em("2026-10-17T10:00"));
+        Matricula nova = novaDoPlano(fidelidadeNova, valorNovo, meses, percentual);
+
+        atual.encerrarPorTroca(nova, USUARIO, em("2027-01-20T10:00"));
 
         assertThat(atual.getMulta() == null ? null : atual.getMulta().toString()).isEqualTo(multa);
+    }
+
+    @Test
+    void trocaNoUltimoMesNaoTemMulta() {
+        // Faltam 0 meses inteiros: a multa de hoje seria 0, e qualquer plano novo mantém isso.
+        Matricula atual = Matricula.nova(ALUNO, anualComFidelidade("20"), null, em("2026-10-17T10:00"));
+
+        atual.encerrarPorTroca(novaDoPlano(false, "50", 1, "0"), USUARIO, em("2027-10-01T10:00"));
+
+        assertThat(atual.getMulta()).isNull();
     }
 
     @Test

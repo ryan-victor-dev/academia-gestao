@@ -315,10 +315,11 @@ public class Matricula {
 
     /**
      * Encerra esta matrícula na véspera de hoje porque o aluno trocou de plano (ADR 0018). Só
-     * vigente e sem trancamento em aberto. Com fidelidade, a troca não tem multa só se o novo
-     * plano também tiver fidelidade e valor mensal igual ou maior; nos outros casos, aplica a
-     * multa desta, como num cancelamento (senão, trocar para um mensal sem fidelidade e
-     * cancelar anularia a fidelidade).
+     * vigente e sem trancamento em aberto. Com fidelidade, a troca não tem multa só se o
+     * compromisso continuar (ADR 0020): a multa que a nova cobraria se o aluno saísse logo
+     * depois da troca tem de ser pelo menos a que esta cobraria hoje. Senão, aplica a multa
+     * desta, como num cancelamento. A regra anterior (novo plano com fidelidade e valor mensal
+     * igual ou maior) deixava escapar trocando para um plano curto ou de multa simbólica.
      */
     void encerrarPorTroca(Matricula nova, UUID usuarioId, Instant agora) {
         LocalDate hoje = hoje(agora);
@@ -338,9 +339,12 @@ public class Matricula {
         if (usuarioId == null) {
             throw new DadosInvalidosException("quem trocou é obrigatório");
         }
-        boolean mantemOCompromisso = nova.fidelidade && nova.valorMensal.compareTo(valorMensal) >= 0;
+        BigDecimal multaDestaHoje = multaSeEncerrarEm(hoje);
+        // Sem fidelidade, a nova não cobraria nada para sair.
+        BigDecimal multaDaNova = nova.fidelidade ? nova.multaSeEncerrarEm(hoje) : BigDecimal.ZERO;
+        boolean mantemOCompromisso = multaDestaHoje == null || multaDaNova.compareTo(multaDestaHoje) >= 0;
 
-        this.multa = mantemOCompromisso ? null : multaSeEncerrarEm(hoje);
+        this.multa = mantemOCompromisso ? null : multaDestaHoje;
         this.trocadaEm = hoje;
         this.trocadaPor = usuarioId;
         nova.trocaDe = this.id;

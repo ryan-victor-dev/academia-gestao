@@ -597,4 +597,16 @@ class MatriculaControllerTest {
         mvc.perform(get("/api/matriculas/" + atual).header("Authorization", "Bearer " + tokenRecepcao))
                 .andExpect(jsonPath("$.situacao").value("VIGENTE"));
     }
+
+    // Revisão de 2026-10-17 (ADR 0020): trocar o anual por um plano curto com fidelidade (que
+    // não deixa mês inteiro para multar) e cancelar em seguida escapava da multa.
+    @Test
+    void trocaParaPlanoCurtoComFidelidadeNaoEscapaDaMulta() throws Exception {
+        String anual = idDe(matricular(aluno, criarPlanoComFidelidade("99.90", 12, "20"), null));
+        String nova = idDe(trocarPlano(anual, criarPlanoComFidelidade("129.90", 1, "10")));
+
+        mvc.perform(get("/api/matriculas/" + anual).header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(jsonPath("$.multa").value(219.78));
+        cancelar(nova, "{\"motivo\": \"Saindo\"}").andExpect(jsonPath("$.multa").value(0.0));
+    }
 }
