@@ -83,6 +83,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0017](docs/adr/0017-matriculas-decisoes-da-implementacao.md) | Matrículas: decisões tomadas durante a implementação |
 | [0018](docs/adr/0018-fidelidade-trancamento-troca-e-vencimento.md) | Fidelidade, forma de pagamento, trancamento, troca de plano e vencimento |
 | [0019](docs/adr/0019-fidelidade-trancamento-e-troca-decisoes-da-implementacao.md) | Fidelidade, trancamento e troca: decisões tomadas durante a implementação |
+| [0020](docs/adr/0020-terceira-revisao-login-troca-e-backup.md) | Terceira revisão (2026-10-17): login sob carga, troca de plano e backup |
 
 ## Como rodar
 
@@ -203,8 +204,8 @@ a nova começa hoje.
 ⁵ O dono define em cada plano se há fidelidade (com percentual de multa de 0,01% a
 100%) e se o pagamento é mensal ou à vista; a matrícula copia essas regras. Sair antes
 do fim de uma matrícula com fidelidade gera multa = percentual × meses inteiros que
-faltam × valor mensal; a troca para um plano que também tenha fidelidade e valor
-mensal igual ou maior não gera multa.
+faltam × valor mensal; a troca não gera multa só se a multa que o plano novo cobraria
+(saindo logo depois da troca) for pelo menos a que a matrícula atual cobraria hoje.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.

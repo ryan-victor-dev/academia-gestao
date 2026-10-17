@@ -61,6 +61,14 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - Matrículas (e trancamentos) têm chave estrangeira para alunos, planos e usuários, e vários
   testes antigos apagam essas tabelas inteiras: teste que cria matrícula apaga os próprios
   trancamentos e matrículas antes de sair.
+- `REQUIRES_NEW` dentro de outra transação usa uma segunda conexão: sob carga, o pool (10)
+  esgota e tudo para por 30 s. Foi o que derrubou o login (ADR 0020); teste com mais
+  requisições simultâneas do que conexões.
+- O VS Code (extensão Java) compila em `target/` por conta própria: um `.class` dele, mais
+  novo que o código, faz o Maven pular a compilação e esconder o erro do `javac`
+  ("Unresolved compilation problem" no teste). Na dúvida, `touch` no arquivo e recompile.
+- Backup só vale com restauração testada (o teste pegou um script que restaurava o arquivo
+  errado). `scripts/e2e.sh` cobre os dois.
 - `CHECK (a AND x > 0)` deixa passar `x` nulo: `NULL > 0` dá `NULL`, e CHECK com `NULL`
   passa. Escreva `x IS NOT NULL AND x > 0`.
 - O Caddy (Go) devolve `Etag`, não `ETag`: em scripts de validação, leia cabeçalhos sem
