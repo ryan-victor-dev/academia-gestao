@@ -1,6 +1,7 @@
 package br.com.academiagestao.auth;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -27,7 +28,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * custaria uma conexão por chamada, justamente o recurso que o limite protege. Com mais de
  * uma instância da aplicação, cada uma contaria o seu (o limite efetivo se multiplicaria).
  */
+// Só com servidor web, como a SegurancaConfig que o usa (e registra as propriedades dele):
+// o comando de recuperação de ADMIN sobe sem web (ModoComandoTest).
 @Component
+@ConditionalOnWebApplication
 class LimiteDeRequisicoes {
 
     private static final Duration JANELA = Duration.ofMinutes(1);

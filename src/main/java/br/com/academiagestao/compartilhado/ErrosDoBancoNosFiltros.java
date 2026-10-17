@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -21,9 +22,10 @@ import java.io.IOException;
  * dentro do filtro de segurança (usuário ativo, versão do token); com o pool esgotado, o erro
  * saía dali como 500, fora do alcance do ApiExceptionHandler. Aqui ele é repassado ao mesmo
  * tratador e vira o mesmo 503 com Retry-After. Fica logo depois do limite de tamanho do corpo,
- * antes da segurança.
+ * antes da segurança. Só com servidor web: o comando de recuperação de ADMIN sobe sem ele.
  */
 @Component
+@ConditionalOnWebApplication
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 class ErrosDoBancoNosFiltros extends OncePerRequestFilter {
 
