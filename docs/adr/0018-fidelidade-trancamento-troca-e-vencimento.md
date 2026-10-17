@@ -1,6 +1,6 @@
 # ADR 0018 — Fidelidade, forma de pagamento, trancamento, troca de plano e vencimento
 
-- **Status:** Aceito (complementa os ADRs 0013 e 0016)
+- **Status:** Aceito (complementa os ADRs 0013 e 0016); complementado pelo [ADR 0019](0019-fidelidade-trancamento-e-troca-decisoes-da-implementacao.md)
 - **Data:** 2026-10-17
 
 ## Contexto

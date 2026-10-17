@@ -82,6 +82,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0016](docs/adr/0016-matriculas.md) | Matrículas: preço congelado, períodos sem sobreposição e quem vê o quê |
 | [0017](docs/adr/0017-matriculas-decisoes-da-implementacao.md) | Matrículas: decisões tomadas durante a implementação |
 | [0018](docs/adr/0018-fidelidade-trancamento-troca-e-vencimento.md) | Fidelidade, forma de pagamento, trancamento, troca de plano e vencimento |
+| [0019](docs/adr/0019-fidelidade-trancamento-e-troca-decisoes-da-implementacao.md) | Fidelidade, trancamento e troca: decisões tomadas durante a implementação |
 
 ## Como rodar
 
@@ -176,11 +177,13 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/alunos/{id}/login/nova-senha` ("esqueci minha senha") | ADMIN, RECEPCAO |
 | `GET /api/alunos/me` | ALUNO (o próprio cadastro) |
 | `GET /api/planos?incluirInativos=`, `GET /api/planos/{id}` | Todos os perfis³ |
-| `POST /api/planos`, `PUT /api/planos/{id}` (exige `If-Match`²) | ADMIN |
+| `POST /api/planos`, `PUT /api/planos/{id}` (exige `If-Match`²; `fidelidade`, `percentualMulta` e `formaPagamento` opcionais⁵) | ADMIN |
 | `POST /api/planos/{id}/inativar`, `/reativar` | ADMIN |
 | `POST /api/matriculas` (`alunoId`, `planoId`, `inicio` opcional; copia nome, valor e duração do plano⁴) | ADMIN, RECEPCAO |
 | `GET /api/matriculas/{id}`, `GET /api/matriculas?alunoId=` (histórico) | ADMIN, RECEPCAO |
-| `POST /api/matriculas/{id}/cancelar` (`motivo` obrigatório) | ADMIN, RECEPCAO |
+| `POST /api/matriculas/{id}/cancelar` (`motivo` obrigatório; com fidelidade, grava a multa⁵) | ADMIN, RECEPCAO |
+| `POST /api/matriculas/{id}/trancar` (`voltaPrevista` e `motivo`; `inicio` opcional) e `/registrar-volta` | ADMIN, RECEPCAO |
+| `POST /api/matriculas/{id}/trocar-plano` (`planoId`; devolve a matrícula nova) | ADMIN, RECEPCAO |
 | `GET /api/matriculas/vigente?alunoId=` (só se o aluno pode treinar hoje) | ADMIN, RECEPCAO, INSTRUTOR |
 | `GET /api/matriculas/me` | ALUNO (as próprias) |
 
@@ -191,9 +194,17 @@ e busca apenas por nome.
 ³ O aluno vê só os planos ativos, sem `ativo` e `criadoEm`. Reajustar o valor de
 um plano vale para matrículas novas.
 ⁴ A matrícula começa hoje ou numa data futura e vai até início + N meses − 1 dia
-(17/10 a 16/11 no plano mensal). Os períodos de um aluno não se sobrepõem, mas dá
-para agendar a renovação a partir do dia seguinte ao fim. A situação (`AGENDADA`,
-`VIGENTE`, `ENCERRADA`, `CANCELADA`) é calculada pelas datas, no fuso de São Paulo.
+(17/10 a 16/11 no plano mensal), mais os dias trancados. Os períodos de um aluno não
+se sobrepõem, mas dá para agendar a renovação a partir do dia seguinte ao fim. A
+situação (`AGENDADA`, `VIGENTE`, `TRANCADA`, `ENCERRADA`, `CANCELADA`, `TROCADA`) sai
+das datas, no fuso de São Paulo. Trancamento: de 7 a 90 dias (90 somados), estende o
+fim; a volta antecipada conta só os dias parados. Troca: a atual termina na véspera e
+a nova começa hoje.
+⁵ O dono define em cada plano se há fidelidade (com percentual de multa de 0,01% a
+100%) e se o pagamento é mensal ou à vista; a matrícula copia essas regras. Sair antes
+do fim de uma matrícula com fidelidade gera multa = percentual × meses inteiros que
+faltam × valor mensal; a troca para um plano que também tenha fidelidade e valor
+mensal igual ou maior não gera multa.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
@@ -275,7 +286,7 @@ um token dele. É só para desenvolvimento: ele se recusa a rodar se o `.env` ti
 - [x] **2. Autenticação** — login com JWT, senhas em BCrypt, perfis (ADMIN, RECEPCAO, INSTRUTOR, ALUNO) e autorização por perfil
 - [x] **3. Alunos** — cadastro com validação de CPF, busca paginada, inativação e acesso por perfil
 - [x] **4. Planos** — preço com duas casas, nome único entre os ativos, só o ADMIN altera, aluno vê os ativos
-- [x] **5. Matrículas** — preço do plano congelado na matrícula, períodos sem sobreposição garantidos pelo banco, cancelamento com motivo, visões do instrutor e do aluno
+- [x] **5. Matrículas** — preço e regras do plano congelados na matrícula, períodos sem sobreposição garantidos pelo banco, fidelidade com multa, trancamento, troca de plano, visões do instrutor e do aluno
 - [ ] **6–8.** Cobrança, treinos e auditoria
 
 ## Autor

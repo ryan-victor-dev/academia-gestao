@@ -58,8 +58,11 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - `psql -c` não substitui variáveis (`:'senha'`); passe o SQL pela entrada padrão.
 - O `/tmp` (e a pasta de rascunho) pode ser apagado: guarde utilitários em `target/` ou `scripts/`.
 - Caddy sem root: o binário exige a capacidade `NET_BIND_SERVICE` (setcap); sem ela, nem executa.
-- Matrículas têm chave estrangeira para alunos, planos e usuários, e vários testes antigos
-  apagam essas tabelas inteiras: teste que cria matrícula apaga as próprias antes de sair.
+- Matrículas (e trancamentos) têm chave estrangeira para alunos, planos e usuários, e vários
+  testes antigos apagam essas tabelas inteiras: teste que cria matrícula apaga os próprios
+  trancamentos e matrículas antes de sair.
+- `CHECK (a AND x > 0)` deixa passar `x` nulo: `NULL > 0` dá `NULL`, e CHECK com `NULL`
+  passa. Escreva `x IS NOT NULL AND x > 0`.
 - O Caddy (Go) devolve `Etag`, não `ETag`: em scripts de validação, leia cabeçalhos sem
   diferenciar maiúsculas.
 - Teste de corrida: confira que cada lado ganha em parte das rodadas; se um lado ganha
