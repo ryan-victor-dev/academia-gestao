@@ -1,6 +1,6 @@
 # ADR 0015 — Testes de arquitetura (ArchUnit) e de mutação (PIT)
 
-- **Status:** Aceito
+- **Status:** Aceito; portas de `alunos` e `planos` ampliadas no [ADR 0017](0017-matriculas-decisoes-da-implementacao.md)
 - **Data:** 2026-10-17
 
 ## Contexto
