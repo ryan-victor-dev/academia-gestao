@@ -69,6 +69,12 @@ confere("app com sistema de arquivos só de leitura", r.returncode != 0 and "Rea
 for c in (P + "app", P + "caddy", P + "postgres"):
     info = sh("docker", "inspect", c, "--format", "{{.HostConfig.LogConfig.Config}} {{.HostConfig.SecurityOpt}}").stdout
     confere(f"{c} com rotação de log e no-new-privileges", "max-size:10m" in info and "no-new-privileges" in info, info)
+for c in (P + "app", P + "caddy", P + "postgres", P + "backup", f"{PROJETO}-caddy-permissoes-1"):
+    # Sem limite, o Docker devolve 0 ou "<no value>": só número positivo conta.
+    limites = sh("docker", "inspect", c, "--format",
+                 "{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}").stdout.strip().split("|")
+    confere(f"{c} com teto de memória, CPU e processos", all(v.isdigit() and int(v) > 0 for v in limites),
+            "memória={} cpu={} processos={}".format(*limites))
 confere("sem pebble na imagem", sh("docker", "exec", P + "app", "sh", "-c", "ls /usr/bin/pebble").returncode != 0)
 
 secao("entrada HTTPS")

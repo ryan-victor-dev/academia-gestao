@@ -6,6 +6,11 @@ x-logs: &logs
     max-size: "10m"
     max-file: "5"
 
+# Limites de recursos (revisão de 2026-10-17): o servidor é dividido com outros serviços, e
+# só a aplicação tinha teto de memória. Agora todo container tem teto de memória, de CPU e
+# de processos: um ataque ou um defeito derruba (e o restart levanta) só o container, sem
+# esgotar o servidor. Os principais podem ser ajustados no .env.
+
 # Nenhum processo ganha privilégios depois de iniciar (setuid, capacidades de arquivo).
 x-sem-novos-privilegios: &sem-novos-privilegios
   - no-new-privileges:true
@@ -21,6 +26,10 @@ services:
     # root para o usuário postgres. O banco em si roda como postgres (uid 70).
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    # Um processo por conexão: 20 da aplicação, o backup e os do próprio Postgres.
+    mem_limit: ${POSTGRES_MEMORIA:-1g}
+    cpus: ${POSTGRES_CPUS:-2}
+    pids_limit: 200
     environment:
       POSTGRES_DB: academia
       POSTGRES_USER: academia
@@ -52,6 +61,11 @@ services:
     # Teto de memória: um ataque pode derrubar a aplicação (que volta sozinha pelo
     # restart), mas nunca esgotar a memória do servidor inteiro.
     mem_limit: ${APP_MEMORIA:-1g}
+    # 2 núcleos: ~30 logins por segundo (o BCrypt é o que mais gasta CPU), de sobra para uma
+    # academia, e uma enxurrada de logins não tira CPU dos outros serviços do servidor.
+    cpus: ${APP_CPUS:-2}
+    # Cada thread da JVM conta como processo (até 200 do Tomcat, mais as da JVM).
+    pids_limit: 512
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,6 +100,9 @@ services:
       - /tmp
     # Grava como o seu usuário, para a pasta de backups ser sua e fácil de copiar.
     user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 100
     entrypoint: ["sh", "/rotina/rotina.sh"]
     depends_on:
       postgres:
@@ -112,6 +129,9 @@ services:
     # CHOWN para trocar o dono; DAC_READ_SEARCH para entrar nas pastas (700) que, depois da
     # primeira vez, já são do usuário do Caddy, e não do root.
     cap_add: [CHOWN, DAC_READ_SEARCH]
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 20
     entrypoint: ["chown", "-R", "10001:10001", "/data", "/config"]
     volumes:
       - caddy_data:/data
@@ -129,6 +149,9 @@ services:
     # marcado com ela; sem ela, o kernel nem executa o arquivo.
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 100
     depends_on:
       caddy-permissoes:
         condition: service_completed_successfully
