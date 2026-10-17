@@ -26,6 +26,7 @@ import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthen
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import javax.crypto.SecretKey;
@@ -71,6 +72,13 @@ class SegurancaConfig {
                 .exceptionHandling(erros -> erros
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
+                // A API só devolve JSON: nada nela carrega scripts, imagens ou frames. Se um
+                // dia uma resposta for aberta direto no navegador, ela não executa nem embute nada.
+                .headers(cabecalhos -> cabecalhos
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+                        .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
+                        .permissionsPolicyHeader(permissoes -> permissoes
+                                .policy("camera=(), microphone=(), geolocation=(), payment=()")))
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
                 .logout(logout -> logout.disable())

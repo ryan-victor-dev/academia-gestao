@@ -20,6 +20,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.RequestBuilder;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.time.Duration;
@@ -78,6 +79,20 @@ class SegurancaConfigTest {
                 .claim("versaoToken", usuario.getVersaoToken());
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         return encoder.encode(JwtEncoderParameters.from(header, ajuste.apply(claims).build())).getTokenValue();
+    }
+
+    @Test
+    void respostasTrazemOsCabecalhosDeSeguranca() throws Exception {
+        // Inclusive nos erros (401), que saem dos filtros de segurança.
+        for (RequestBuilder requisicao : new RequestBuilder[]{
+                get("/actuator/health"), get(ROTA_PROTEGIDA)}) {
+            mvc.perform(requisicao)
+                    .andExpect(header().string("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"))
+                    .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                    .andExpect(header().string("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()"))
+                    .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                    .andExpect(header().string("X-Frame-Options", "DENY"));
+        }
     }
 
     @Test
