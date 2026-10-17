@@ -19,7 +19,7 @@ build reproduzível e integração contínua.
 | Linguagem / framework | Java 25, Spring Boot 4.1 (Web MVC, Data JPA, Security, Validation, Actuator) |
 | Autenticação | JWT (HS256) com Spring Security OAuth2 Resource Server (Nimbus), senhas em BCrypt |
 | Banco de dados | PostgreSQL 17, migrations com Flyway |
-| Testes | JUnit 5, AssertJ, Testcontainers |
+| Testes | JUnit 5, AssertJ, Testcontainers, ArchUnit (fronteiras entre módulos), PIT (mutação) |
 | Build / execução | Maven Wrapper, Docker (multi-stage), Docker Compose |
 | Entrada / HTTPS | Caddy (certificado automático do Let's Encrypt) |
 | CI | GitHub Actions (testes, build da imagem e envio das dependências ao GitHub) + Dependabot |
@@ -77,6 +77,8 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0011](docs/adr/0011-gestao-da-equipe-e-recuperacao-de-admin.md) | Gestão da equipe e recuperação de acesso de ADMIN |
 | [0012](docs/adr/0012-endurecimento-de-seguranca.md) | Endurecimento de segurança (revisão de 2026-10-16) |
 | [0013](docs/adr/0013-planos.md) | Planos: preço, nome único e quem vê o quê |
+| [0014](docs/adr/0014-segunda-revisao-de-seguranca.md) | Segunda revisão de segurança (2026-10-17) |
+| [0015](docs/adr/0015-testes-de-arquitetura-e-mutacao.md) | Testes de arquitetura (ArchUnit) e de mutação (PIT) |
 
 ## Como rodar
 
@@ -230,6 +232,14 @@ Requer Docker ligado (o Testcontainers sobe um PostgreSQL descartável):
 
 ```bash
 ./mvnw verify
+```
+
+O `verify` também confere as fronteiras entre os módulos (`ArquiteturaTest`).
+Para checar se os testes de domínio realmente pegam erros (teste de mutação):
+
+```bash
+./mvnw -P mutacao test-compile org.pitest:pitest-maven:mutationCoverage
+# relatório em target/pit-reports/index.html
 ```
 
 > Nenhuma senha real fica no repositório: tudo vem do `.env`. O banco só aceita

@@ -1,6 +1,6 @@
 # ADR 0002 — Monolito modular com pacotes por domínio
 
-- **Status:** Aceito
+- **Status:** Aceito; fronteiras verificadas por testes desde o [ADR 0015](0015-testes-de-arquitetura-e-mutacao.md)
 - **Data:** 2026-10-16
 
 ## Contexto
