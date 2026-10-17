@@ -13,6 +13,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -20,10 +22,13 @@ class AlunoService {
 
     private final AlunoRepository repository;
     private final LoginsDeAlunos loginsDeAlunos;
+    private final List<ImpedimentoParaInativar> impedimentos;
 
-    AlunoService(AlunoRepository repository, LoginsDeAlunos loginsDeAlunos) {
+    AlunoService(AlunoRepository repository, LoginsDeAlunos loginsDeAlunos,
+                 List<ImpedimentoParaInativar> impedimentos) {
         this.repository = repository;
         this.loginsDeAlunos = loginsDeAlunos;
+        this.impedimentos = impedimentos;
     }
 
     @Transactional
@@ -71,9 +76,20 @@ class AlunoService {
         return loginsDeAlunos.redefinirSenha(id);
     }
 
+    /**
+     * Recusa (409) se outro módulo tiver um impedimento, como uma matrícula vigente. A linha
+     * do aluno fica travada antes de perguntar: uma matrícula feita ao mesmo tempo espera esta
+     * transação (e vê o aluno inativo), ou esta espera a matrícula (e vê o impedimento).
+     */
     @Transactional
     Aluno inativar(UUID id) {
-        Aluno aluno = buscar(id);
+        Aluno aluno = repository.travarPorId(id).orElseThrow(() -> new AlunoNaoEncontradoException(id));
+        for (ImpedimentoParaInativar impedimento : impedimentos) {
+            Optional<String> motivo = impedimento.verificar(id);
+            if (motivo.isPresent()) {
+                throw new InativacaoImpedidaException(motivo.get());
+            }
+        }
         aluno.inativar();
         loginsDeAlunos.desativar(id);
         return aluno;

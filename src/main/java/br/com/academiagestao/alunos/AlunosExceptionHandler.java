@@ -23,6 +23,13 @@ class AlunosExceptionHandler {
         return problema;
     }
 
+    @ExceptionHandler(InativacaoImpedidaException.class)
+    ProblemDetail inativacaoImpedida(InativacaoImpedidaException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle("Aluno não pode ser inativado");
+        return problema;
+    }
+
     @ExceptionHandler(CpfJaCadastradoException.class)
     ProblemDetail cpfJaCadastrado(CpfJaCadastradoException e) {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());

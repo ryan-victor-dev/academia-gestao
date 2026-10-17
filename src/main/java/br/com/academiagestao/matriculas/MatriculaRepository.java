@@ -22,6 +22,10 @@ interface MatriculaRepository extends JpaRepository<Matricula, UUID> {
             ORDER BY m.inicio""")
     List<Matricula> sobrepostas(UUID alunoId, LocalDate inicio, LocalDate fim);
 
+    /** A primeira matrícula não cancelada que ainda não terminou (vigente ou agendada). */
+    Optional<Matricula> findFirstByAlunoIdAndCanceladaEmIsNullAndFimGreaterThanEqualOrderByInicio(UUID alunoId,
+                                                                                                 LocalDate hoje);
+
     /** SELECT ... FOR UPDATE: dois cancelamentos da mesma matrícula não passam juntos. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM Matricula m WHERE m.id = :id")
