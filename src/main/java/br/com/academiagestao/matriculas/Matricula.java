@@ -1,13 +1,17 @@
 package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import br.com.academiagestao.planos.FormaPagamento;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -31,6 +35,7 @@ public class Matricula {
     static final int TAMANHO_MAXIMO_NOME_DO_PLANO = 80;
     // NUMERIC(10,2): até 8 dígitos antes da vírgula, como em planos.
     static final BigDecimal VALOR_MAXIMO = new BigDecimal("99999999.99");
+    static final BigDecimal CEM = new BigDecimal("100");
 
     @Id
     private UUID id;
@@ -50,6 +55,17 @@ public class Matricula {
     @Column(name = "duracao_meses", nullable = false, updatable = false)
     private int duracaoMeses;
 
+    // Regras do plano no dia da matrícula (ADR 0018).
+    @Column(nullable = false, updatable = false)
+    private boolean fidelidade;
+
+    @Column(name = "percentual_multa", updatable = false, precision = 5, scale = 2)
+    private BigDecimal percentualMulta;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "forma_pagamento", nullable = false, updatable = false, length = 10)
+    private FormaPagamento formaPagamento;
+
     @Column(nullable = false, updatable = false)
     private LocalDate inicio;
 
@@ -67,6 +83,9 @@ public class Matricula {
 
     @Column(name = "motivo_cancelamento", length = TAMANHO_MAXIMO_MOTIVO)
     private String motivoCancelamento;
+
+    @Column(name = "multa_cancelamento", precision = 10, scale = 2)
+    private BigDecimal multaCancelamento;
 
     // Dois cancelamentos simultâneos: só um grava, o outro falha no UPDATE ... WHERE versao = ?.
     @Version
@@ -107,6 +126,18 @@ public class Matricula {
         if (duracao < 1 || duracao > DURACAO_MAXIMA_MESES) {
             throw new DadosInvalidosException("duração precisa ser de 1 a " + DURACAO_MAXIMA_MESES + " meses");
         }
+        BigDecimal multa = plano.percentualMulta();
+        if (plano.fidelidade()) {
+            if (multa == null || multa.signum() <= 0 || multa.compareTo(CEM) > 0
+                    || multa.stripTrailingZeros().scale() > 2) {
+                throw new DadosInvalidosException("plano com fidelidade precisa de percentual de multa de 0,01 a 100");
+            }
+        } else if (multa != null) {
+            throw new DadosInvalidosException("percentual de multa só existe em plano com fidelidade");
+        }
+        if (plano.formaPagamento() == null) {
+            throw new DadosInvalidosException("forma de pagamento é obrigatória");
+        }
         LocalDate hoje = hoje(agora);
         LocalDate comeco = inicio == null ? hoje : inicio;
         if (comeco.isBefore(hoje)) {
@@ -120,6 +151,9 @@ public class Matricula {
         matricula.planoNome = nome;
         matricula.valorMensal = valor.setScale(2);
         matricula.duracaoMeses = duracao;
+        matricula.fidelidade = plano.fidelidade();
+        matricula.percentualMulta = plano.fidelidade() ? multa.setScale(2) : null;
+        matricula.formaPagamento = plano.formaPagamento();
         matricula.inicio = comeco;
         matricula.fim = fimDoPeriodo(comeco, duracao);
         // O Postgres guarda microssegundos; sem truncar, a resposta e a consulta divergiriam.
@@ -150,7 +184,8 @@ public class Matricula {
 
     /**
      * Só agendada ou vigente. Uma vigente termina hoje; uma agendada fica cancelada sem ter
-     * começado. Valida tudo antes de alterar: ou o cancelamento inteiro é gravado, ou nada.
+     * começado. Com fidelidade, grava a multa (ver {@link #multaSeEncerrarEm}). Valida tudo
+     * antes de alterar: ou o cancelamento inteiro é gravado, ou nada.
      */
     void cancelar(UUID usuarioId, String motivo, Instant agora) {
         SituacaoMatricula situacao = situacao(agora);
@@ -171,6 +206,23 @@ public class Matricula {
         this.canceladaEm = agora.truncatedTo(ChronoUnit.MICROS);
         this.canceladaPor = usuarioId;
         this.motivoCancelamento = motivoLimpo;
+        this.multaCancelamento = situacao == SituacaoMatricula.VIGENTE ? multaSeEncerrarEm(hoje(agora)) : null;
+    }
+
+    /**
+     * Multa por encerrar antes do fim (ADR 0018): percentual × meses inteiros que faltam ×
+     * valor mensal. O mês em curso conta como usado: um anual de 17/10 a 16/10 encerrado em
+     * 20/01 tem 8 meses restantes (de 17/02 em diante). Sem fidelidade, não há multa (null).
+     */
+    BigDecimal multaSeEncerrarEm(LocalDate dia) {
+        if (!fidelidade) {
+            return null;
+        }
+        // Conta a partir do dia seguinte: um mês que começa no próprio dia já está em curso.
+        long mesesRestantes = ChronoUnit.MONTHS.between(dia.plusDays(1), fim.plusDays(1));
+        return valorMensal.multiply(BigDecimal.valueOf(mesesRestantes))
+                .multiply(percentualMulta)
+                .divide(CEM, 2, RoundingMode.HALF_UP);
     }
 
     static LocalDate hoje(Instant agora) {
@@ -188,11 +240,15 @@ public class Matricula {
     public String getPlanoNome() { return planoNome; }
     public BigDecimal getValorMensal() { return valorMensal; }
     public int getDuracaoMeses() { return duracaoMeses; }
+    public boolean isFidelidade() { return fidelidade; }
+    public BigDecimal getPercentualMulta() { return percentualMulta; }
+    public FormaPagamento getFormaPagamento() { return formaPagamento; }
     public LocalDate getInicio() { return inicio; }
     public LocalDate getFim() { return fim; }
     public Instant getCriadaEm() { return criadaEm; }
     public Instant getCanceladaEm() { return canceladaEm; }
     public UUID getCanceladaPor() { return canceladaPor; }
     public String getMotivoCancelamento() { return motivoCancelamento; }
+    public BigDecimal getMultaCancelamento() { return multaCancelamento; }
     public long getVersao() { return versao; }
 }

@@ -1,6 +1,7 @@
 package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.auth.ClaimsDoToken;
+import br.com.academiagestao.planos.FormaPagamento;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -116,26 +117,31 @@ class MatriculaController {
 
     /** Visão do aluno: o contrato dele, sem o id de quem da equipe cancelou. */
     record MatriculaParaAluno(UUID id, UUID planoId, String planoNome, BigDecimal valorMensal, int duracaoMeses,
-                              BigDecimal valorTotal, LocalDate inicio, LocalDate fim, SituacaoMatricula situacao,
-                              Instant canceladaEm, String motivoCancelamento) {
+                              BigDecimal valorTotal, boolean fidelidade, BigDecimal percentualMulta,
+                              FormaPagamento formaPagamento, LocalDate inicio, LocalDate fim,
+                              SituacaoMatricula situacao, Instant canceladaEm, String motivoCancelamento,
+                              BigDecimal multaCancelamento) {
 
         static MatriculaParaAluno de(Matricula m, Instant agora) {
             return new MatriculaParaAluno(m.getId(), m.getPlanoId(), m.getPlanoNome(), m.getValorMensal(),
-                    m.getDuracaoMeses(), m.getValorTotal(), m.getInicio(), m.getFim(), m.situacao(agora),
-                    m.getCanceladaEm(), m.getMotivoCancelamento());
+                    m.getDuracaoMeses(), m.getValorTotal(), m.isFidelidade(), m.getPercentualMulta(),
+                    m.getFormaPagamento(), m.getInicio(), m.getFim(), m.situacao(agora), m.getCanceladaEm(),
+                    m.getMotivoCancelamento(), m.getMultaCancelamento());
         }
     }
 
     record MatriculaResponse(UUID id, UUID alunoId, UUID planoId, String planoNome, BigDecimal valorMensal,
-                             int duracaoMeses, BigDecimal valorTotal, LocalDate inicio, LocalDate fim,
+                             int duracaoMeses, BigDecimal valorTotal, boolean fidelidade, BigDecimal percentualMulta,
+                             FormaPagamento formaPagamento, LocalDate inicio, LocalDate fim,
                              SituacaoMatricula situacao, Instant criadaEm, Instant canceladaEm, UUID canceladaPor,
-                             String motivoCancelamento) {
+                             String motivoCancelamento, BigDecimal multaCancelamento) {
 
         static MatriculaResponse de(Matricula m, Instant agora) {
             return new MatriculaResponse(m.getId(), m.getAlunoId(), m.getPlanoId(), m.getPlanoNome(),
-                    m.getValorMensal(), m.getDuracaoMeses(), m.getValorTotal(), m.getInicio(), m.getFim(),
-                    m.situacao(agora), m.getCriadaEm(), m.getCanceladaEm(), m.getCanceladaPor(),
-                    m.getMotivoCancelamento());
+                    m.getValorMensal(), m.getDuracaoMeses(), m.getValorTotal(), m.isFidelidade(),
+                    m.getPercentualMulta(), m.getFormaPagamento(), m.getInicio(), m.getFim(), m.situacao(agora),
+                    m.getCriadaEm(), m.getCanceladaEm(), m.getCanceladaPor(), m.getMotivoCancelamento(),
+                    m.getMultaCancelamento());
         }
     }
 }

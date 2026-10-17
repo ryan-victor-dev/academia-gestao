@@ -380,4 +380,56 @@ class MatriculaControllerTest {
         ResultActions resultado = matricular(aluno, plano, null);
         resultado.andExpect(header().string("Location", endsWith("/api/matriculas/" + idDe(resultado))));
     }
+
+    // Fidelidade e multa (ADR 0018)
+
+    private UUID criarPlanoComFidelidade(String valor, int meses, String percentual) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO planos (id, nome, valor_mensal, duracao_meses, fidelidade, percentual_multa, forma_pagamento)
+                VALUES (?, ?, ?::numeric, ?, true, ?::numeric, 'A_VISTA')""", id, "Plano " + id, valor, meses, percentual);
+        planos.add(id);
+        return id;
+    }
+
+    @Test
+    void matriculaCopiaAFidelidadeECancelarCalculaAMulta() throws Exception {
+        UUID anual = criarPlanoComFidelidade("99.90", 12, "20");
+
+        String id = idDe(matricular(aluno, anual, null)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.fidelidade").value(true))
+                .andExpect(jsonPath("$.percentualMulta").value(20.00))
+                .andExpect(jsonPath("$.formaPagamento").value("A_VISTA"))
+                .andExpect(jsonPath("$.multaCancelamento").doesNotExist()));
+
+        // Cancelada no primeiro dia: o 1º mês já está em curso; faltam 11. 11 × 99,90 × 20% = 219,78.
+        cancelar(id, "{\"motivo\": \"Mudou de cidade\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.multaCancelamento").value(219.78));
+    }
+
+    @Test
+    void mudarAFidelidadeDoPlanoNaoMudaOContrato() throws Exception {
+        UUID anual = criarPlanoComFidelidade("99.90", 12, "20");
+        String id = idDe(matricular(aluno, anual, null));
+
+        jdbc.update("UPDATE planos SET fidelidade = false, percentual_multa = NULL, forma_pagamento = 'MENSAL'"
+                + " WHERE id = ?", anual);
+
+        mvc.perform(get("/api/matriculas/" + id).header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(jsonPath("$.fidelidade").value(true))
+                .andExpect(jsonPath("$.percentualMulta").value(20.00))
+                .andExpect(jsonPath("$.formaPagamento").value("A_VISTA"));
+    }
+
+    @Test
+    void semFidelidadeCancelaSemMulta() throws Exception {
+        String id = idDe(matricular(aluno, plano, null));
+
+        cancelar(id, "{\"motivo\": \"Desistiu\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fidelidade").value(false))
+                .andExpect(jsonPath("$.multaCancelamento").doesNotExist());
+    }
 }

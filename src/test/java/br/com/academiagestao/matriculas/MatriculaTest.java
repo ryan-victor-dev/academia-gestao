@@ -1,6 +1,7 @@
 package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import br.com.academiagestao.planos.FormaPagamento;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -268,5 +269,109 @@ class MatriculaTest {
                 .isInstanceOf(DadosInvalidosException.class);
         assertThat(matricula.getCanceladaEm()).isNull();
         assertThat(matricula.getMotivoCancelamento()).isNull();
+    }
+
+    // Fidelidade, forma de pagamento e multa (ADR 0018)
+
+    private static PlanoContratado anualComFidelidade(String percentual) {
+        return new PlanoContratado(UUID.randomUUID(), "Anual", new BigDecimal("99.90"), 12, true,
+                new BigDecimal(percentual), FormaPagamento.A_VISTA);
+    }
+
+    @Test
+    void copiaAsRegrasDoPlano() {
+        Matricula matricula = Matricula.nova(ALUNO, anualComFidelidade("12.5"), null, em("2026-10-17T10:00"));
+
+        assertThat(matricula.isFidelidade()).isTrue();
+        assertThat(matricula.getPercentualMulta()).hasToString("12.50");
+        assertThat(matricula.getFormaPagamento()).isEqualTo(FormaPagamento.A_VISTA);
+        assertThat(matricula.getMultaCancelamento()).isNull();
+        Matricula semFidelidade = mensal("2026-10-17", "2026-10-17T10:00");
+        assertThat(semFidelidade.isFidelidade()).isFalse();
+        assertThat(semFidelidade.getPercentualMulta()).isNull();
+        assertThat(semFidelidade.getFormaPagamento()).isEqualTo(FormaPagamento.MENSAL);
+    }
+
+    @ParameterizedTest(name = "cancelada em {0}: {1} meses restantes, multa {2}")
+    @CsvSource({
+            "2026-10-17, 11, 219.78",  // primeiro dia: o 1º mês já está em curso
+            "2027-01-17,  8, 159.84",  // dia em que um mês começa: ele já está em curso
+            "2027-01-20,  8, 159.84",  // exemplo do ADR 0018
+            "2027-02-16,  8, 159.84",  // último dia do mês em curso
+            "2027-02-17,  7, 139.86",
+            "2027-10-16,  0, 0.00",    // último dia do período
+    })
+    void multaEhOPercentualDosMesesInteirosQueFaltam(String dia, int meses, String multa) {
+        Matricula matricula = Matricula.nova(ALUNO, anualComFidelidade("20"), null, em("2026-10-17T10:00"));
+        assertThat(matricula.getFim()).isEqualTo(LocalDate.parse("2027-10-16"));
+
+        matricula.cancelar(USUARIO, "Mudou de cidade", em(dia + "T15:00"));
+
+        assertThat(matricula.getMultaCancelamento()).hasToString(multa);
+        assertThat(new BigDecimal("99.90").multiply(BigDecimal.valueOf(meses)).multiply(new BigDecimal("0.20"))
+                .setScale(2, java.math.RoundingMode.HALF_UP)).hasToString(multa);
+    }
+
+    @Test
+    void multaArredondaOsCentavosParaCima() {
+        Matricula matricula = Matricula.nova(ALUNO, anualComFidelidade("12.5"), null, em("2026-10-17T10:00"));
+
+        // 1 mês restante: 99,90 × 12,5% = 12,4875, que vira 12,49.
+        matricula.cancelar(USUARIO, "Motivo", em("2027-08-20T10:00"));
+
+        assertThat(matricula.getMultaCancelamento()).hasToString("12.49");
+    }
+
+    @Test
+    void semFidelidadeNaoTemMulta() {
+        Matricula matricula = mensal("2026-10-17", "2026-10-17T10:00");
+
+        matricula.cancelar(USUARIO, "Motivo", em("2026-10-20T10:00"));
+
+        assertThat(matricula.getMultaCancelamento()).isNull();
+    }
+
+    @Test
+    void agendadaComFidelidadeCanceladaNaoTemMulta() {
+        Matricula matricula = Matricula.nova(ALUNO, anualComFidelidade("20"), LocalDate.parse("2026-11-01"),
+                em("2026-10-17T10:00"));
+
+        matricula.cancelar(USUARIO, "Desistiu antes de começar", em("2026-10-20T10:00"));
+
+        assertThat(matricula.getMultaCancelamento()).isNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource(nullValues = "null", value = {
+            "true,  null,   0,01 a 100",
+            "true,  0,      0,01 a 100",
+            "true,  100.01, 0,01 a 100",
+            "true,  12.345, 0,01 a 100",
+            "false, 20,     só existe em plano com fidelidade",
+    })
+    void recusaRegrasDeFidelidadeIncoerentes(boolean fidelidade, String percentual, String mensagem) {
+        PlanoContratado plano = new PlanoContratado(UUID.randomUUID(), "Anual", new BigDecimal("99.90"), 12,
+                fidelidade, percentual == null ? null : new BigDecimal(percentual), FormaPagamento.MENSAL);
+
+        assertThatThrownBy(() -> Matricula.nova(ALUNO, plano, null, em("2026-10-17T10:00")))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining(mensagem);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0.01", "100"})
+    void percentuaisNosLimitesSaoAceitos(String percentual) {
+        assertThat(Matricula.nova(ALUNO, anualComFidelidade(percentual), null, em("2026-10-17T10:00"))
+                .getPercentualMulta().scale()).isEqualTo(2);
+    }
+
+    @Test
+    void formaDePagamentoEhObrigatoria() {
+        PlanoContratado semForma = new PlanoContratado(UUID.randomUUID(), "Anual", new BigDecimal("99.90"), 12,
+                false, null, null);
+
+        assertThatThrownBy(() -> Matricula.nova(ALUNO, semForma, null, em("2026-10-17T10:00")))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("forma de pagamento");
     }
 }

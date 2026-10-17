@@ -55,7 +55,7 @@ class ArquiteturaTest {
 
     @ArchTest
     static final ArchRule planosSoPelaPortaPublica = soPelaPortaPublica("planos",
-            Set.of("PlanosParaMatricula", "PlanoOfertado"));
+            Set.of("PlanosParaMatricula", "PlanoOfertado", "FormaPagamento"));
 
     @ArchTest
     static final ArchRule cobrancaSoPelaPortaPublica = soPelaPortaPublica("cobranca", Set.of());

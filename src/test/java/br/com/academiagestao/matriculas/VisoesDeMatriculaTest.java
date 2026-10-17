@@ -162,7 +162,9 @@ class VisoesDeMatriculaTest {
                 .andExpect(jsonPath("$[1].motivoCancelamento").value("Desistiu"))
                 // Quem da equipe cancelou é dado interno.
                 .andExpect(jsonPath("$[1].canceladaPor").doesNotExist())
-                .andExpect(jsonPath("$[1].canceladaEm").exists());
+                .andExpect(jsonPath("$[1].canceladaEm").exists())
+                .andExpect(jsonPath("$[0].fidelidade").value(false))
+                .andExpect(jsonPath("$[0].formaPagamento").value("MENSAL"));
     }
 
     @Test
@@ -180,5 +182,24 @@ class VisoesDeMatriculaTest {
     void tokenDeAlunoSemAlunoIdEhRecusado() throws Exception {
         mvc.perform(get("/api/matriculas/me").with(tokenDeAluno(null)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void alunoVeAMultaQueLheFoiCobrada() throws Exception {
+        UUID ana = criarAluno(true);
+        LocalDate inicio = hoje().minusMonths(2);
+        jdbc.update("""
+                INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim,
+                                        criada_em, fidelidade, percentual_multa, forma_pagamento, cancelada_em,
+                                        cancelada_por, motivo_cancelamento, multa_cancelamento)
+                VALUES (?, ?, ?, 'Anual', 99.90, 12, ?, ?, now(), true, 20, 'MENSAL', now(), ?, 'Mudou de cidade', 179.82)""",
+                UUID.randomUUID(), ana, plano, Date.valueOf(inicio), Date.valueOf(inicio.plusMonths(12).minusDays(1)),
+                usuario);
+
+        mvc.perform(get("/api/matriculas/me").with(tokenDeAluno(ana)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].fidelidade").value(true))
+                .andExpect(jsonPath("$[0].percentualMulta").value(20.00))
+                .andExpect(jsonPath("$[0].multaCancelamento").value(179.82));
     }
 }

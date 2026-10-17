@@ -216,4 +216,44 @@ class MatriculaRepositoryTest {
                 UUID.randomUUID(), aluno, plano, meses,
                 Date.valueOf(LocalDate.parse(inicio)), Date.valueOf(LocalDate.parse(fim)));
     }
+
+    @Test
+    void regrasDoPlanoEMultaSaoGravadas() {
+        Matricula anual = Matricula.nova(aluno, new PlanoContratado(plano, "Anual", new BigDecimal("99.90"), 12, true,
+                new BigDecimal("20"), br.com.academiagestao.planos.FormaPagamento.A_VISTA),
+                LocalDate.parse("2027-01-10"), em("2027-01-10"));
+        repository.saveAndFlush(anual);
+        anual.cancelar(usuario, "Mudou de cidade", em("2027-01-10"));
+        repository.saveAndFlush(anual);
+
+        Matricula lida = repository.findById(anual.getId()).orElseThrow();
+        assertThat(lida.isFidelidade()).isTrue();
+        assertThat(lida.getPercentualMulta()).isEqualByComparingTo("20");
+        assertThat(lida.getFormaPagamento()).isEqualTo(br.com.academiagestao.planos.FormaPagamento.A_VISTA);
+        assertThat(lida.getMultaCancelamento()).isEqualByComparingTo("219.78");
+    }
+
+    @Test
+    void bancoRecusaRegrasDeFidelidadeIncoerentes() {
+        UUID id = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1)).getId();
+
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET fidelidade = true WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_percentual_multa");
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET percentual_multa = 10 WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_percentual_multa");
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET multa_cancelamento = 10 WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_multa");
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET forma_pagamento = 'PIX' WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_forma_pagamento");
+        jdbc.update("UPDATE matriculas SET fidelidade = true, percentual_multa = 20 WHERE id = ?", id);
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET multa_cancelamento = -1 WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_multa");
+        assertThatCode(() -> jdbc.update("UPDATE matriculas SET multa_cancelamento = 0 WHERE id = ?", id))
+                .doesNotThrowAnyException();
+    }
 }
