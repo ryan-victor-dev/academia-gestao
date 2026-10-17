@@ -160,6 +160,7 @@ class MatriculaControllerTest {
                 .andExpect(header().string("Location", containsString("/api/matriculas/")))
                 .andExpect(jsonPath("$.alunoId").value(aluno.toString()))
                 .andExpect(jsonPath("$.planoId").value(trimestral.toString()))
+                .andExpect(jsonPath("$.planoNome").value("Plano " + trimestral))
                 .andExpect(jsonPath("$.valorMensal").value(119.90))
                 .andExpect(jsonPath("$.duracaoMeses").value(3))
                 .andExpect(jsonPath("$.valorTotal").value(359.70))
@@ -189,7 +190,7 @@ class MatriculaControllerTest {
                 .andExpect(jsonPath("$.situacao").value("AGENDADA"));
     }
 
-    // O compromisso do ADR 0013: reajustar o plano não muda o que o aluno já contratou.
+    // O compromisso do ADR 0013: reajustar (ou renomear) o plano não muda o que o aluno já contratou.
     @Test
     void reajusteDoPlanoNaoMudaMatriculaExistente() throws Exception {
         String id = idDe(matricular(aluno, plano, null).andExpect(status().isCreated()));
@@ -198,15 +199,17 @@ class MatriculaControllerTest {
                 .andReturn().getResponse().getHeader("ETag");
         mvc.perform(put("/api/planos/" + plano).header("Authorization", "Bearer " + tokenAdmin)
                         .header("If-Match", etag).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"nome\": \"Plano %s\", \"valorMensal\": 149.90, \"duracaoMeses\": 2}".formatted(plano)))
+                        .content("{\"nome\": \"Novo %s\", \"valorMensal\": 149.90, \"duracaoMeses\": 2}".formatted(plano)))
                 .andExpect(status().isOk());
 
         mvc.perform(get("/api/matriculas/" + id).header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(jsonPath("$.planoNome").value("Plano " + plano))
                 .andExpect(jsonPath("$.valorMensal").value(129.90))
                 .andExpect(jsonPath("$.duracaoMeses").value(1))
                 .andExpect(jsonPath("$.fim").value(hoje().plusMonths(1).minusDays(1).toString()));
         // Quem se matricula depois do reajuste paga o valor novo.
         matricular(criarAluno(true), plano, null)
+                .andExpect(jsonPath("$.planoNome").value("Novo " + plano))
                 .andExpect(jsonPath("$.valorMensal").value(149.90))
                 .andExpect(jsonPath("$.duracaoMeses").value(2));
     }
@@ -316,8 +319,8 @@ class MatriculaControllerTest {
         UUID id = UUID.randomUUID();
         LocalDate inicio = hoje().minusMonths(2);
         jdbc.update("""
-                INSERT INTO matriculas (id, aluno_id, plano_id, valor_mensal, duracao_meses, inicio, fim, criada_em)
-                VALUES (?, ?, ?, 129.90, 1, ?, ?, now())""",
+                INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim, criada_em)
+                VALUES (?, ?, ?, 'Mensal', 129.90, 1, ?, ?, now())""",
                 id, aluno, plano, Date.valueOf(inicio), Date.valueOf(inicio.plusMonths(1).minusDays(1)));
 
         mvc.perform(get("/api/matriculas/" + id).header("Authorization", "Bearer " + tokenRecepcao))

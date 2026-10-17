@@ -59,8 +59,9 @@ class MatriculaService {
             throw new MatriculaRecusadaException("Plano inativo", "O plano não está mais sendo oferecido");
         }
 
-        Matricula matricula = Matricula.nova(alunoId,
-                new PlanoContratado(plano.id(), plano.valorMensal(), plano.duracaoMeses()), inicio, relogio.instant());
+        PlanoContratado contratado =
+                new PlanoContratado(plano.id(), plano.nome(), plano.valorMensal(), plano.duracaoMeses());
+        Matricula matricula = Matricula.nova(alunoId, contratado, inicio, relogio.instant());
         List<Matricula> sobrepostas = repository.sobrepostas(alunoId, matricula.getInicio(), matricula.getFim());
         if (!sobrepostas.isEmpty()) {
             throw periodoOcupado(sobrepostas.getLast());

@@ -15,8 +15,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /**
- * Um aluno num plano por um período (ADR 0016). Guarda o valor e a duração do plano no
- * dia em que foi feita: um reajuste posterior não muda o que o aluno contratou (ADR 0013).
+ * Um aluno num plano por um período (ADR 0016). Guarda o nome, o valor e a duração do
+ * plano no dia em que foi feita: um reajuste posterior não muda o que o aluno contratou (ADR 0013).
  * A situação é calculada pelas datas; só o cancelamento é gravado.
  */
 @Entity
@@ -28,6 +28,7 @@ public class Matricula {
 
     static final int DURACAO_MAXIMA_MESES = 60;
     static final int TAMANHO_MAXIMO_MOTIVO = 500;
+    static final int TAMANHO_MAXIMO_NOME_DO_PLANO = 80;
     // NUMERIC(10,2): até 8 dígitos antes da vírgula, como em planos.
     static final BigDecimal VALOR_MAXIMO = new BigDecimal("99999999.99");
 
@@ -39,6 +40,9 @@ public class Matricula {
 
     @Column(name = "plano_id", nullable = false, updatable = false)
     private UUID planoId;
+
+    @Column(name = "plano_nome", nullable = false, updatable = false, length = TAMANHO_MAXIMO_NOME_DO_PLANO)
+    private String planoNome;
 
     @Column(name = "valor_mensal", nullable = false, updatable = false, precision = 10, scale = 2)
     private BigDecimal valorMensal;
@@ -84,6 +88,11 @@ public class Matricula {
         if (plano == null || plano.planoId() == null) {
             throw new DadosInvalidosException("plano é obrigatório");
         }
+        String nome = plano.nome() == null ? "" : plano.nome().trim();
+        if (nome.isEmpty() || nome.length() > TAMANHO_MAXIMO_NOME_DO_PLANO) {
+            throw new DadosInvalidosException("nome do plano é obrigatório, com até "
+                    + TAMANHO_MAXIMO_NOME_DO_PLANO + " caracteres");
+        }
         BigDecimal valor = plano.valorMensal();
         if (valor == null || valor.signum() <= 0) {
             throw new DadosInvalidosException("valor mensal precisa ser maior que zero");
@@ -108,6 +117,7 @@ public class Matricula {
         matricula.id = UUID.randomUUID();
         matricula.alunoId = alunoId;
         matricula.planoId = plano.planoId();
+        matricula.planoNome = nome;
         matricula.valorMensal = valor.setScale(2);
         matricula.duracaoMeses = duracao;
         matricula.inicio = comeco;
@@ -175,6 +185,7 @@ public class Matricula {
     public UUID getId() { return id; }
     public UUID getAlunoId() { return alunoId; }
     public UUID getPlanoId() { return planoId; }
+    public String getPlanoNome() { return planoNome; }
     public BigDecimal getValorMensal() { return valorMensal; }
     public int getDuracaoMeses() { return duracaoMeses; }
     public LocalDate getInicio() { return inicio; }

@@ -22,6 +22,7 @@ public class PlanosParaMatricula {
     @Transactional(readOnly = true)
     public Optional<PlanoOfertado> buscar(UUID planoId) {
         return repository.findById(planoId)
-                .map(p -> new PlanoOfertado(p.getId(), p.getValorMensal(), p.getDuracaoMeses(), p.isAtivo()));
+                .map(p -> new PlanoOfertado(p.getId(), p.getNome(), p.getValorMensal(), p.getDuracaoMeses(),
+                        p.isAtivo()));
     }
 }

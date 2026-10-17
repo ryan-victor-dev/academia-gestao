@@ -26,7 +26,7 @@ class MatriculaTest {
     }
 
     private static PlanoContratado plano(String valor, int meses) {
-        return new PlanoContratado(UUID.randomUUID(), valor == null ? null : new BigDecimal(valor), meses);
+        return new PlanoContratado(UUID.randomUUID(), "Mensal", valor == null ? null : new BigDecimal(valor), meses);
     }
 
     private static Matricula mensal(String inicio, String agora) {
@@ -35,7 +35,8 @@ class MatriculaTest {
 
     @Test
     void copiaValorEDuracaoDoPlanoECalculaOPeriodo() {
-        PlanoContratado trimestral = plano("119.9", 3);
+        PlanoContratado trimestral = new PlanoContratado(UUID.randomUUID(), "  Plano Trimestral ",
+                new BigDecimal("119.9"), 3);
         Instant agora = em("2026-10-17T10:00:00.123456789");
 
         Matricula matricula = Matricula.nova(ALUNO, trimestral, null, agora);
@@ -43,6 +44,7 @@ class MatriculaTest {
         assertThat(matricula.getId()).isNotNull();
         assertThat(matricula.getAlunoId()).isEqualTo(ALUNO);
         assertThat(matricula.getPlanoId()).isEqualTo(trimestral.planoId());
+        assertThat(matricula.getPlanoNome()).isEqualTo("Plano Trimestral");
         assertThat(matricula.getValorMensal()).isEqualByComparingTo("119.90").hasToString("119.90");
         assertThat(matricula.getDuracaoMeses()).isEqualTo(3);
         assertThat(matricula.getValorTotal()).isEqualByComparingTo("359.70");
@@ -121,6 +123,28 @@ class MatriculaTest {
     }
 
     @ParameterizedTest
+    @CsvSource(nullValues = "null", value = {"null", "''", "'   '"})
+    void nomeDoPlanoEhObrigatorio(String nome) {
+        PlanoContratado semNome = new PlanoContratado(UUID.randomUUID(), nome, BigDecimal.TEN, 1);
+
+        assertThatThrownBy(() -> Matricula.nova(ALUNO, semNome, null, em("2026-10-17T10:00")))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("nome do plano");
+    }
+
+    @Test
+    void nomeDoPlanoTemNoMaximo80Caracteres() {
+        Instant agora = em("2026-10-17T10:00");
+        PlanoContratado longo = new PlanoContratado(UUID.randomUUID(), "x".repeat(81), BigDecimal.TEN, 1);
+        PlanoContratado limite = new PlanoContratado(UUID.randomUUID(), "x".repeat(80), BigDecimal.TEN, 1);
+
+        assertThatThrownBy(() -> Matricula.nova(ALUNO, longo, null, agora))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("80");
+        assertThat(Matricula.nova(ALUNO, limite, null, agora).getPlanoNome()).hasSize(80);
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"0.01", "129.900", "99999999.99"})
     void aceitaValoresValidos(String valor) {
         assertThat(Matricula.nova(ALUNO, plano(valor, 1), null, em("2026-10-17T10:00")).getValorMensal().scale())
@@ -140,7 +164,7 @@ class MatriculaTest {
                 .isInstanceOf(DadosInvalidosException.class).hasMessageContaining("aluno");
         assertThatThrownBy(() -> Matricula.nova(ALUNO, null, null, agora))
                 .isInstanceOf(DadosInvalidosException.class).hasMessageContaining("plano");
-        assertThatThrownBy(() -> Matricula.nova(ALUNO, new PlanoContratado(null, BigDecimal.TEN, 1), null, agora))
+        assertThatThrownBy(() -> Matricula.nova(ALUNO, new PlanoContratado(null, "Mensal", BigDecimal.TEN, 1), null, agora))
                 .isInstanceOf(DadosInvalidosException.class).hasMessageContaining("plano");
     }
 

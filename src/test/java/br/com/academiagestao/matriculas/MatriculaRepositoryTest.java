@@ -76,7 +76,7 @@ class MatriculaRepositoryTest {
     }
 
     private Matricula matricula(UUID alunoId, String inicio, int meses) {
-        return Matricula.nova(alunoId, new PlanoContratado(plano, new BigDecimal("129.90"), meses),
+        return Matricula.nova(alunoId, new PlanoContratado(plano, "Mensal", new BigDecimal("129.90"), meses),
                 LocalDate.parse(inicio), em(inicio));
     }
 
@@ -86,6 +86,7 @@ class MatriculaRepositoryTest {
 
         Matricula lida = repository.findById(salva.getId()).orElseThrow();
         assertThat(lida.getValorMensal()).isEqualByComparingTo("129.90");
+        assertThat(lida.getPlanoNome()).isEqualTo("Mensal");
         assertThat(lida.getInicio()).isEqualTo(LocalDate.parse("2027-01-31"));
         assertThat(lida.getFim()).isEqualTo(LocalDate.parse("2027-02-27"));
         assertThat(lida.getCriadaEm()).isEqualTo(salva.getCriadaEm());
@@ -197,10 +198,21 @@ class MatriculaRepositoryTest {
                 .hasMessageContaining("ck_matriculas_motivo");
     }
 
+    @Test
+    void bancoRecusaNomeDoPlanoEmBranco() {
+        UUID id = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1)).getId();
+
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET plano_nome = '  ' WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_plano_nome");
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET plano_nome = NULL WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private void inserirDireto(String inicio, int meses, String fim) {
         jdbc.update("""
-                INSERT INTO matriculas (id, aluno_id, plano_id, valor_mensal, duracao_meses, inicio, fim, criada_em)
-                VALUES (?, ?, ?, 129.90, ?, ?, ?, now())""",
+                INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim, criada_em)
+                VALUES (?, ?, ?, 'Mensal', 129.90, ?, ?, ?, now())""",
                 UUID.randomUUID(), aluno, plano, meses,
                 Date.valueOf(LocalDate.parse(inicio)), Date.valueOf(LocalDate.parse(fim)));
     }

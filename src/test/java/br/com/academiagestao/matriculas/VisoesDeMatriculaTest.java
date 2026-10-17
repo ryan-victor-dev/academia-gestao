@@ -79,9 +79,9 @@ class VisoesDeMatriculaTest {
     private UUID matricula(UUID aluno, LocalDate inicio, boolean cancelada) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO matriculas (id, aluno_id, plano_id, valor_mensal, duracao_meses, inicio, fim, criada_em,
+                INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim, criada_em,
                                         cancelada_em, cancelada_por, motivo_cancelamento)
-                VALUES (?, ?, ?, 129.90, 1, ?, ?, now(), ?, ?, ?)""",
+                VALUES (?, ?, ?, 'Mensal', 129.90, 1, ?, ?, now(), ?, ?, ?)""",
                 id, aluno, plano, Date.valueOf(inicio), Date.valueOf(inicio.plusMonths(1).minusDays(1)),
                 cancelada ? new java.sql.Timestamp(System.currentTimeMillis()) : null,
                 cancelada ? usuario : null, cancelada ? "Desistiu" : null);
@@ -156,6 +156,7 @@ class VisoesDeMatriculaTest {
                 .andExpect(jsonPath("$[0].id").value(atual.toString()))
                 .andExpect(jsonPath("$[0].situacao").value("VIGENTE"))
                 .andExpect(jsonPath("$[0].valorMensal").value(129.90))
+                .andExpect(jsonPath("$[0].planoNome").value("Mensal"))
                 .andExpect(jsonPath("$[1].id").value(cancelada.toString()))
                 .andExpect(jsonPath("$[1].situacao").value("CANCELADA"))
                 .andExpect(jsonPath("$[1].motivoCancelamento").value("Desistiu"))

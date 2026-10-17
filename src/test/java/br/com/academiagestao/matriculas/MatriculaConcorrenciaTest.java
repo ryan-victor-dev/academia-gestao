@@ -159,8 +159,8 @@ class MatriculaConcorrenciaTest {
             CountDownLatch confirmar = new CountDownLatch(1);
             CompletableFuture<Void> porFora = CompletableFuture.runAsync(() -> transacao.executeWithoutResult(s -> {
                 jdbc.update("""
-                        INSERT INTO matriculas (id, aluno_id, plano_id, valor_mensal, duracao_meses, inicio, fim, criada_em)
-                        VALUES (?, ?, ?, 100, 1, ?, ?, now())""",
+                        INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim, criada_em)
+                        VALUES (?, ?, ?, 'Mensal', 100, 1, ?, ?, now())""",
                         UUID.randomUUID(), aluno, plano, Date.valueOf(hoje), Date.valueOf(hoje.plusMonths(1).minusDays(1)));
                 inserida.countDown();
                 try {

@@ -115,25 +115,27 @@ class MatriculaController {
     }
 
     /** Visão do aluno: o contrato dele, sem o id de quem da equipe cancelou. */
-    record MatriculaParaAluno(UUID id, UUID planoId, BigDecimal valorMensal, int duracaoMeses, BigDecimal valorTotal,
-                              LocalDate inicio, LocalDate fim, SituacaoMatricula situacao, Instant canceladaEm,
-                              String motivoCancelamento) {
+    record MatriculaParaAluno(UUID id, UUID planoId, String planoNome, BigDecimal valorMensal, int duracaoMeses,
+                              BigDecimal valorTotal, LocalDate inicio, LocalDate fim, SituacaoMatricula situacao,
+                              Instant canceladaEm, String motivoCancelamento) {
 
         static MatriculaParaAluno de(Matricula m, Instant agora) {
-            return new MatriculaParaAluno(m.getId(), m.getPlanoId(), m.getValorMensal(), m.getDuracaoMeses(),
-                    m.getValorTotal(), m.getInicio(), m.getFim(), m.situacao(agora), m.getCanceladaEm(),
-                    m.getMotivoCancelamento());
+            return new MatriculaParaAluno(m.getId(), m.getPlanoId(), m.getPlanoNome(), m.getValorMensal(),
+                    m.getDuracaoMeses(), m.getValorTotal(), m.getInicio(), m.getFim(), m.situacao(agora),
+                    m.getCanceladaEm(), m.getMotivoCancelamento());
         }
     }
 
-    record MatriculaResponse(UUID id, UUID alunoId, UUID planoId, BigDecimal valorMensal, int duracaoMeses,
-                             BigDecimal valorTotal, LocalDate inicio, LocalDate fim, SituacaoMatricula situacao,
-                             Instant criadaEm, Instant canceladaEm, UUID canceladaPor, String motivoCancelamento) {
+    record MatriculaResponse(UUID id, UUID alunoId, UUID planoId, String planoNome, BigDecimal valorMensal,
+                             int duracaoMeses, BigDecimal valorTotal, LocalDate inicio, LocalDate fim,
+                             SituacaoMatricula situacao, Instant criadaEm, Instant canceladaEm, UUID canceladaPor,
+                             String motivoCancelamento) {
 
         static MatriculaResponse de(Matricula m, Instant agora) {
-            return new MatriculaResponse(m.getId(), m.getAlunoId(), m.getPlanoId(), m.getValorMensal(),
-                    m.getDuracaoMeses(), m.getValorTotal(), m.getInicio(), m.getFim(), m.situacao(agora),
-                    m.getCriadaEm(), m.getCanceladaEm(), m.getCanceladaPor(), m.getMotivoCancelamento());
+            return new MatriculaResponse(m.getId(), m.getAlunoId(), m.getPlanoId(), m.getPlanoNome(),
+                    m.getValorMensal(), m.getDuracaoMeses(), m.getValorTotal(), m.getInicio(), m.getFim(),
+                    m.situacao(agora), m.getCriadaEm(), m.getCanceladaEm(), m.getCanceladaPor(),
+                    m.getMotivoCancelamento());
         }
     }
 }
