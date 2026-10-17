@@ -5,6 +5,7 @@ import br.com.academiagestao.auth.LoginsDeAlunos;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
@@ -19,6 +20,8 @@ import java.util.UUID;
 
 @Service
 class AlunoService {
+
+    private static final String INDICE_DO_CPF = "alunos_cpf_key";
 
     private final AlunoRepository repository;
     private final LoginsDeAlunos loginsDeAlunos;
@@ -118,11 +121,16 @@ class AlunoService {
 
     // A checagem existsByCpf dá uma mensagem clara no caso comum. Mas duas pessoas
     // cadastrando o mesmo CPF ao mesmo tempo passariam as duas pela checagem; aí quem
-    // barra é o UNIQUE do banco, e o erro dele vira o mesmo 409.
+    // barra é o UNIQUE do banco, e o erro dele vira o mesmo 409. Só o dele: antes, qualquer
+    // recusa do banco (como uma data fora do que ele guarda) virava "CPF já cadastrado".
     private Aluno gravar(Aluno aluno) {
         try {
             return repository.saveAndFlush(aluno);
         } catch (DataIntegrityViolationException e) {
+            if (!(e.getCause() instanceof ConstraintViolationException violacao)
+                    || !INDICE_DO_CPF.equals(violacao.getConstraintName())) {
+                throw e;
+            }
             throw new CpfJaCadastradoException();
         } catch (ObjectOptimisticLockingFailureException e) {
             // Duas edições com o mesmo If-Match ao mesmo tempo: as duas passam pela

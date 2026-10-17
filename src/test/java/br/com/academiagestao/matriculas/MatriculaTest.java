@@ -97,6 +97,22 @@ class MatriculaTest {
     }
 
     @Test
+    void inicioPodeSerAteUmAnoAFrente() {
+        assertThat(mensal("2027-10-17", "2026-10-17T10:00").getInicio()).isEqualTo(LocalDate.parse("2027-10-17"));
+        assertThatThrownBy(() -> mensal("2027-10-18", "2026-10-17T10:00"))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("1 ano à frente");
+    }
+
+    // Revisão de 2026-10-17: o ano máximo do Java estourava o cálculo do fim (DateTimeException, 500).
+    @Test
+    void anoGiganteEhRecusadoSemEstourarOCalculoDoFim() {
+        assertThatThrownBy(() -> mensal(LocalDate.MAX.toString(), "2026-10-17T10:00"))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("1 ano à frente");
+    }
+
+    @Test
     void hojeEhODiaEmSaoPauloENaoEmUtc() {
         // 23h30 de 17/10 em São Paulo já é 18/10 em UTC.
         Instant noiteDoDia17 = em("2026-10-17T23:30");

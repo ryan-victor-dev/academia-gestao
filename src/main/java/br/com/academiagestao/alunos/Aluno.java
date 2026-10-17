@@ -21,6 +21,8 @@ public class Aluno {
 
     static final int TAMANHO_MAXIMO_NOME = 150;
     static final int TAMANHO_MAXIMO_EMAIL = 150;
+    /** Nascimento mais antigo aceito (decisão do dono, revisão de 2026-10-17): pega erro de digitação. */
+    static final int IDADE_MAXIMA_ANOS = 120;
 
     @Id
     private UUID id;
@@ -111,8 +113,13 @@ public class Aluno {
         if (telefoneLimpo != null && !telefoneLimpo.matches("\\d{10,11}")) {
             throw new DadosInvalidosException("telefone deve ter DDD + número (10 ou 11 dígitos)");
         }
-        if (dados.dataNascimento() != null && dados.dataNascimento().isAfter(LocalDate.now())) {
+        LocalDate hoje = LocalDate.now();
+        if (dados.dataNascimento() != null && dados.dataNascimento().isAfter(hoje)) {
             throw new DadosInvalidosException("data de nascimento não pode estar no futuro");
+        }
+        if (dados.dataNascimento() != null && dados.dataNascimento().isBefore(hoje.minusYears(IDADE_MAXIMA_ANOS))) {
+            throw new DadosInvalidosException("data de nascimento pode ser de no máximo " + IDADE_MAXIMA_ANOS
+                    + " anos atrás");
         }
 
         this.nome = nomeLimpo;

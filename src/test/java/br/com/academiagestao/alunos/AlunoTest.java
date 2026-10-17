@@ -59,6 +59,20 @@ class AlunoTest {
     }
 
     @Test
+    void nascimentoDeAte120AnosAtras() {
+        LocalDate limite = LocalDate.now().minusYears(120);
+        assertThat(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, limite, null)).getDataNascimento())
+                .isEqualTo(limite);
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, null,
+                limite.minusDays(1), null)))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("120 anos");
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, LocalDate.MIN, null)))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("120 anos");
+    }
+
+    @Test
     void edicaoInvalidaNaoAlteraNada() {
         Aluno aluno = Aluno.novo(dados("Ana", "52998224725"));
 

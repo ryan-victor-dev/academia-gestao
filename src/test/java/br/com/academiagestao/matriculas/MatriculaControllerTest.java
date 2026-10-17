@@ -224,6 +224,20 @@ class MatriculaControllerTest {
     }
 
     @Test
+    void inicioDeAteUmAnoAFrente() throws Exception {
+        matricular(aluno, plano, hoje().plusYears(1).plusDays(1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("início pode ser no máximo 1 ano à frente"));
+        // Antes era 500: o ano gigante estourava o cálculo do fim.
+        matricular(aluno, plano, LocalDate.MAX)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("início pode ser no máximo 1 ano à frente"));
+        matricular(aluno, plano, hoje().plusYears(1))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.situacao").value("AGENDADA"));
+    }
+
+    @Test
     void alunoOuPlanoInexistenteEhRecusado() throws Exception {
         matricular(UUID.randomUUID(), plano, null)
                 .andExpect(status().isBadRequest())

@@ -4,6 +4,8 @@ import br.com.academiagestao.TestcontainersConfiguration;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -100,6 +102,17 @@ class AlunoControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erros[*].campo").value(hasItem("nome")))
                 .andExpect(jsonPath("$.erros[*].campo").value(hasItem("cpf")));
+    }
+
+    // Revisão de 2026-10-17: uma data que o banco não guarda respondia 409 "CPF já cadastrado".
+    @ParameterizedTest
+    @ValueSource(strings = {"-999999999-01-01", "-4714-01-01", "0001-01-01"})
+    void nascimentoAbsurdoDevolve400EnaoCpfJaCadastrado(String data) throws Exception {
+        cadastrar("RECEPCAO", """
+                {"nome": "Ana", "cpf": "%s", "dataNascimento": "%s"}
+                """.formatted(CPF_ANA, data))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("data de nascimento pode ser de no máximo 120 anos atrás"));
     }
 
     @Test

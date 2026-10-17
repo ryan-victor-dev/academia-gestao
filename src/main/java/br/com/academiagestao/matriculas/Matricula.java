@@ -47,6 +47,8 @@ public class Matricula {
     static final BigDecimal CEM = new BigDecimal("100");
     static final int DIAS_MINIMOS_TRANCAMENTO = 7;
     static final int DIAS_MAXIMOS_TRANCADOS = 90;
+    /** Até quando a matrícula pode ser agendada (decisão do dono, revisão de 2026-10-17). */
+    static final int ANTECEDENCIA_MAXIMA_ANOS = 1;
 
     @Id
     private UUID id;
@@ -130,7 +132,8 @@ public class Matricula {
     }
 
     /**
-     * @param inicio dia em que começa; {@code null} = hoje. Não pode ser no passado.
+     * @param inicio dia em que começa; {@code null} = hoje. Não pode ser no passado nem mais
+     *               de 1 ano à frente.
      * @param agora  momento do cadastro, de onde sai o "hoje" no fuso da academia.
      */
     static Matricula nova(UUID alunoId, PlanoContratado plano, LocalDate inicio, Instant agora) {
@@ -175,6 +178,10 @@ public class Matricula {
         LocalDate comeco = inicio == null ? hoje : inicio;
         if (comeco.isBefore(hoje)) {
             throw new DadosInvalidosException("início não pode ser no passado");
+        }
+        // Sem teto, 9999-12-31 era aceito, e um ano gigante estourava o cálculo do fim (500).
+        if (comeco.isAfter(hoje.plusYears(ANTECEDENCIA_MAXIMA_ANOS))) {
+            throw new DadosInvalidosException("início pode ser no máximo " + ANTECEDENCIA_MAXIMA_ANOS + " ano à frente");
         }
 
         Matricula matricula = new Matricula();
