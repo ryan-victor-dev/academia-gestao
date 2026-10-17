@@ -36,9 +36,11 @@ class AuthController {
      * quem entrou com senha temporária. Devolve um token novo, já sem a restrição.
      */
     @PostMapping("/trocar-senha")
-    LoginResponse trocarSenha(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody TrocaDeSenhaRequest request) {
+    LoginResponse trocarSenha(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody TrocaDeSenhaRequest request,
+                              HttpServletRequest requisicao) {
         return LoginResponse.de(autenticacaoService.trocarSenha(
-                UUID.fromString(jwt.getSubject()), request.senhaAtual(), request.novaSenha()));
+                UUID.fromString(jwt.getSubject()), request.senhaAtual(), request.novaSenha(),
+                requisicao.getRemoteAddr()));
     }
 
     // Mesmo tamanho máximo do e-mail cadastrado: e-mail maior não existe, e é o que vai

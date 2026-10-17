@@ -67,16 +67,31 @@ class AutenticacaoService {
         return geradorDeToken.gerar(usuario.get());
     }
 
+    /**
+     * Troca a senha do dono do token. A senha atual passa pelo mesmo limite de tentativas
+     * do login (mesma conta): sem isso, quem roubasse um token poderia descobrir a senha
+     * atual por tentativa e erro e ganhar acesso permanente, já que o token dura 15 minutos.
+     */
     @Transactional
-    GeradorDeToken.TokenEmitido trocarSenha(UUID usuarioId, String senhaAtual, String novaSenha) {
+    GeradorDeToken.TokenEmitido trocarSenha(UUID usuarioId, String senhaAtual, String novaSenha, String ip) {
         // O token pode ser de alguém desativado depois do login: aí, nada de trocar senha.
         Usuario usuario = repository.findById(usuarioId)
                 .filter(Usuario::isAtivo)
                 .orElseThrow(() -> new DisabledException("Usuário inativo ou removido"));
 
+        String conta = usuario.getEmail();
+        try {
+            limitador.verificarERegistrar(ip, conta);
+        } catch (MuitasTentativasException e) {
+            log.warn("Troca de senha bloqueada por excesso de tentativas: conta {} / IP {}", conta, ip);
+            throw e;
+        }
         if (!passwordEncoder.matches(senhaAtual, usuario.getSenhaHash())) {
+            limitador.registrarFalha(conta);
+            log.warn("Troca de senha recusada (senha atual errada): conta {} / IP {}", conta, ip);
             throw new DadosInvalidosException("senha atual incorreta");
         }
+        limitador.registrarSucesso(conta);
         PoliticaDeSenha.problemaCom(novaSenha).ifPresent(problema -> {
             throw new DadosInvalidosException(problema);
         });
