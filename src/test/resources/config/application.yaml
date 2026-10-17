@@ -8,6 +8,10 @@ academia:
     # são testados em LimiteDeLoginTest, que define os próprios valores.
     tentativas-por-ip: 100000
     falhas-por-conta: 100000
+  requisicoes:
+    # Os testes com token simulado são todos do mesmo usuário ("user"); o limite de verdade
+    # é testado em LimiteDeRequisicoesTest, que define o próprio valor.
+    por-minuto: 1000000
   banco:
     # Senha do usuário academia_app no Postgres descartável dos testes.
     senha-app: senha-do-app-so-para-testes

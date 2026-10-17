@@ -3,6 +3,7 @@ package br.com.academiagestao.auth;
 import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
@@ -23,6 +24,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -36,6 +38,7 @@ import java.util.List;
 @Configuration
 @ConditionalOnWebApplication
 @EnableMethodSecurity // liga o @PreAuthorize nos controllers
+@EnableConfigurationProperties(LimiteDeRequisicoesProperties.class)
 class SegurancaConfig {
 
     /** Autoridade de quem entrou com senha temporária; substitui o ROLE_ do perfil. */
@@ -45,7 +48,10 @@ class SegurancaConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                             JwtAuthenticationConverter jwtAuthenticationConverter,
                                             AuthenticationEntryPoint entryPoint,
-                                            AccessDeniedHandler accessDeniedHandler) throws Exception {
+                                            AccessDeniedHandler accessDeniedHandler,
+                                            LimiteDeRequisicoes limiteDeRequisicoes,
+                                            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver)
+            throws Exception {
         return http
                 // CSRF explora o envio automático de cookies pelo navegador. Esta API não usa
                 // cookie: o token vai no cabeçalho Authorization, que o navegador não anexa
@@ -79,6 +85,9 @@ class SegurancaConfig {
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
                         .permissionsPolicyHeader(permissoes -> permissoes
                                 .policy("camera=(), microphone=(), geolocation=(), payment=()")))
+                // Limite por usuário: depois do token validado, antes de chegar à rota.
+                .addFilterAfter(new FiltroDeLimiteDeRequisicoes(limiteDeRequisicoes, resolver),
+                        BearerTokenAuthenticationFilter.class)
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
                 .logout(logout -> logout.disable())

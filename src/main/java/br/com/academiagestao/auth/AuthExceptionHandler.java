@@ -11,6 +11,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.time.Duration;
+
 @RestControllerAdvice
 class AuthExceptionHandler {
 
@@ -28,9 +30,17 @@ class AuthExceptionHandler {
     ResponseEntity<ProblemDetail> muitasTentativas(MuitasTentativasException e) {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());
         problema.setTitle("Muitas tentativas");
-        long segundos = Math.max(1, (e.esperar().toMillis() + 999) / 1000);
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundos))
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundos(e.esperar())))
+                .body(problema);
+    }
+
+    @ExceptionHandler(MuitasRequisicoesException.class)
+    ResponseEntity<ProblemDetail> muitasRequisicoes(MuitasRequisicoesException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());
+        problema.setTitle("Muitas requisições");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundos(e.esperar())))
                 .body(problema);
     }
 
@@ -91,6 +101,11 @@ class AuthExceptionHandler {
                 HttpStatus.FORBIDDEN, "Seu perfil não tem permissão para este recurso.");
         problema.setTitle("Acesso negado");
         return problema;
+    }
+
+    // Arredonda para cima, nunca menos de 1: "Retry-After: 0" faria o cliente insistir na hora.
+    private static long segundos(Duration esperar) {
+        return Math.max(1, (esperar.toMillis() + 999) / 1000);
     }
 
     private static boolean estaComSenhaTemporaria() {
