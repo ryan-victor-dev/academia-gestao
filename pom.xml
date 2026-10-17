@@ -170,6 +170,7 @@
 								<param>br.com.academiagestao.alunos.Cpf</param>
 								<param>br.com.academiagestao.alunos.Aluno</param>
 								<param>br.com.academiagestao.planos.Plano</param>
+								<param>br.com.academiagestao.matriculas.Matricula</param>
 								<param>br.com.academiagestao.auth.Usuario</param>
 								<param>br.com.academiagestao.auth.PoliticaDeSenha</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>
@@ -182,6 +183,7 @@
 								<param>br.com.academiagestao.alunos.CpfTest</param>
 								<param>br.com.academiagestao.alunos.AlunoTest</param>
 								<param>br.com.academiagestao.planos.PlanoTest</param>
+								<param>br.com.academiagestao.matriculas.MatriculaTest</param>
 								<param>br.com.academiagestao.auth.UsuarioTest</param>
 								<param>br.com.academiagestao.auth.PoliticaDeSenhaTest</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporariaTest</param>
