@@ -69,6 +69,38 @@ services:
       # Só nesta máquina (diagnóstico); quem vem da rede entra pelo Caddy, com HTTPS.
       - "127.0.0.1:8090:8090"
 
+  # Backup diário do banco (ADR 0020): pg_dump a partir das 3h numa pasta do servidor
+  # (BACKUP_PASTA, padrão ./backups), com 7 diários e 4 semanais. Usa o dono do banco: o
+  # backup precisa do histórico das migrations, que o usuário da aplicação não lê (sem ele,
+  # o banco restaurado não sobe). Não abre porta nenhuma. Copie a pasta para fora do
+  # servidor; restaure com scripts/restaurar-backup.sh.
+  backup:
+    image: postgres:17-alpine
+    container_name: academia-backup
+    restart: unless-stopped
+    logging: *logs
+    security_opt: *sem-novos-privilegios
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Grava como o seu usuário, para a pasta de backups ser sua e fácil de copiar.
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    entrypoint: ["sh", "/rotina/rotina.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TZ: America/Sao_Paulo
+      PGHOST: postgres
+      PGDATABASE: academia
+      PGUSER: academia
+      PGPASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      BACKUP_HORA: ${BACKUP_HORA:-3}
+    volumes:
+      - ./scripts/backup:/rotina:ro
+      - ${BACKUP_PASTA:-./backups}:/backups
+
   # Roda uma vez antes do Caddy: entrega os volumes de certificados ao usuário sem
   # privilégios do Caddy (a imagem oficial os cria como root).
   caddy-permissoes:

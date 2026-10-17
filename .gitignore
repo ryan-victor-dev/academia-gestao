@@ -34,3 +34,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Backups do banco (dados pessoais): nunca no Git.
+backups/*
+!backups/.gitkeep

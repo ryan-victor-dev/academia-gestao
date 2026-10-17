@@ -224,6 +224,28 @@ desde o `GET`, 428 quando falta o `If-Match`, 413 para corpo acima de 64 KB e
 429 para excesso de tentativas de login (20 por minuto por IP; 10 senhas erradas
 em 15 minutos bloqueiam o e-mail), com o cabeçalho `Retry-After`.
 
+### Backup e restauração
+
+O serviço `backup` do Compose faz um `pg_dump` do banco todo dia, a partir das 3h
+(`BACKUP_HORA`), na pasta `BACKUP_PASTA` (padrão `./backups`, fora do Git). Guarda 7
+diários (`backups/diario`) e 4 semanais (`backups/semanal`). Se o servidor estiver
+desligado no horário, o backup é feito assim que ele voltar. Cada arquivo é conferido
+antes de valer, e o log mostra `Backup ok` ou `BACKUP FALHOU`
+(`docker logs academia-backup`).
+
+> **Copie a pasta de backups para fora do servidor** (HD externo, outro computador,
+> nuvem). Contra disco queimado ou servidor perdido, só uma cópia em outro lugar salva.
+
+```bash
+docker compose run --rm backup agora                                      # backup na hora
+scripts/restaurar-backup.sh backups/diario/academia-AAAA-MM-DD.dump --sim  # restaurar
+```
+
+Restaurar **apaga os dados atuais**: o script salva antes o estado atual em
+`backups/antes-de-restaurar-*.dump` (para desfazer), para a aplicação, restaura numa
+transação só (se falhar, nada muda) e sobe a aplicação de novo. O `scripts/e2e.sh`
+testa o backup e a restauração numa instalação do zero.
+
 ### Recuperar o acesso de um ADMIN
 
 Se um ADMIN esqueceu a senha, quem tem acesso ao servidor roda, na pasta do

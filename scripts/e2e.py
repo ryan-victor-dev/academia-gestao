@@ -217,5 +217,25 @@ time.sleep(3)
 confere("init de permissões roda de novo sem erro",
         sh("docker", "inspect", f"{PROJETO}-caddy-permissoes-1", "--format", "{{.State.ExitCode}}").stdout.strip() == "0")
 
+secao("backup e restauração")
+def sql(consulta):
+    return sh("docker", "exec", P + "postgres", "psql", "-U", "academia", "-d", "academia", "-At", "-c", consulta).stdout.strip()
+confere("rotina de backup no ar", "Rotina de backup" in sh("docker", "logs", P + "backup").stdout)
+r = sh("docker", "compose", "run", "--rm", "-T", "backup", "agora")
+dumps = sorted(os.listdir(os.path.join(PASTA, "backups", "diario"))) if r.returncode == 0 else []
+confere("backup na hora gera um arquivo legível", r.returncode == 0 and len(dumps) == 1, (r.returncode, r.stdout[-200:], r.stderr[-300:]))
+alunos_antes = sql("SELECT count(*) FROM alunos")
+sql("INSERT INTO planos (id, nome, valor_mensal, duracao_meses) VALUES (gen_random_uuid(), 'Depois do backup', 1, 1)")
+ambiente = {**os.environ, "PG_CONTAINER": P + "postgres", "APP_PORTA": "18090"}
+r = subprocess.run(["scripts/restaurar-backup.sh", os.path.join("backups", "diario", dumps[0]) if dumps else "x", "--sim"],
+                   capture_output=True, text=True, cwd=PASTA, env=ambiente)
+confere("restaurar sai com 0", r.returncode == 0, (r.returncode, r.stderr[-300:]))
+confere("o dado de depois do backup sumiu", sql("SELECT count(*) FROM planos WHERE nome = 'Depois do backup'") == "0")
+confere("os dados do backup voltaram", sql("SELECT count(*) FROM alunos") == alunos_antes, (alunos_antes, sql("SELECT count(*) FROM alunos")))
+confere("cópia de segurança do estado anterior", any(n.startswith("antes-de-restaurar-") for n in os.listdir(os.path.join(PASTA, "backups"))))
+confere("aplicação no ar depois de restaurar", req("GET", "/actuator/health")[0] == 200)
+confere("sem --sim, não restaura", subprocess.run(["scripts/restaurar-backup.sh", "x"], capture_output=True, text=True,
+                                                   cwd=PASTA, env=ambiente).returncode == 1)
+
 print(f"\nRESULTADO: {ok} ok, {falhas} falha(s)")
 sys.exit(1 if falhas else 0)

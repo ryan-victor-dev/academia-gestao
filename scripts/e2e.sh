@@ -27,7 +27,8 @@ sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -base64 24)|; \
         s|^DB_APP_SENHA=.*|DB_APP_SENHA=$(openssl rand -base64 24)|; \
         s|^ADMIN_SENHA=.*|ADMIN_SENHA=senha-primeiro-acesso-123|; \
         s|^JWT_SEGREDO=.*|JWT_SEGREDO=$(openssl rand -base64 32)|; \
-        s|^HTTP_PORTA=.*|HTTP_PORTA=$E2E_HTTP|; s|^HTTPS_PORTA=.*|HTTPS_PORTA=$E2E_HTTPS|" .env
+        s|^HTTP_PORTA=.*|HTTP_PORTA=$E2E_HTTP|; s|^HTTPS_PORTA=.*|HTTPS_PORTA=$E2E_HTTPS|; \
+        s|^BACKUP_UID=.*|BACKUP_UID=$(id -u)|; s|^BACKUP_GID=.*|BACKUP_GID=$(id -g)|" .env
 
 echo "Subindo a instalação de teste (https://localhost:$E2E_HTTPS)..."
 docker compose up --build -d >/dev/null 2>&1
