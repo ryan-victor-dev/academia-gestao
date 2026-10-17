@@ -41,6 +41,7 @@ class AtrasDoProxyTest {
 
     @BeforeEach
     void limpar() {
+        jdbc.update("DELETE FROM tentativas_login");
         jdbc.update("DELETE FROM usuarios");
     }
 

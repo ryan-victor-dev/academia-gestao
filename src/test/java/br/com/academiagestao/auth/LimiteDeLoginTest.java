@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -32,7 +31,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @ExtendWith(OutputCaptureExtension.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD) // contadores zerados a cada teste
 class LimiteDeLoginTest {
 
     private static final String SENHA = "senha-da-ana-123";
@@ -51,6 +49,7 @@ class LimiteDeLoginTest {
 
     @BeforeEach
     void cadastrar() {
+        jdbc.update("DELETE FROM tentativas_login"); // contadores zerados a cada teste
         jdbc.update("DELETE FROM usuarios");
         repository.save(Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), Perfil.RECEPCAO));
     }

@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,7 +41,9 @@ class AuthController {
                 UUID.fromString(jwt.getSubject()), request.senhaAtual(), request.novaSenha()));
     }
 
-    record LoginRequest(@NotBlank @Email String email, @NotBlank String senha) {
+    // Mesmo tamanho máximo do e-mail cadastrado: e-mail maior não existe, e é o que vai
+    // para a tabela do limite de tentativas.
+    record LoginRequest(@NotBlank @Email @Size(max = 150) String email, @NotBlank String senha) {
     }
 
     record TrocaDeSenhaRequest(@NotBlank(message = "é obrigatório") String senhaAtual,

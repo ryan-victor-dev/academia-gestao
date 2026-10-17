@@ -15,7 +15,7 @@ executado contra o sistema no Docker) antes de ser corrigido, e de novo depois.
 | # | Gravidade | Achado (comprovado) | Correção |
 |---|---|---|---|
 | 1 | Crítica | Postgres aceitava conexão pela rede, com senha `academia` fixa no repositório, como superusuário | Porta só em `127.0.0.1`; senha no `.env` (`POSTGRES_PASSWORD`), sem ela o Compose não sobe |
-| 2 | Alta | Login sem limite: 174 tentativas/s, 10 mil senhas comuns em ~1 min, CPU a 1000% | 20 tentativas/min por IP e 10 falhas/15 min por conta; 429 com `Retry-After`; checagem antes do BCrypt |
+| 2 | Alta | Login sem limite: 174 tentativas/s, 10 mil senhas comuns em ~1 min, CPU a 1000% | 20 tentativas/min por IP e 10 falhas/15 min por conta; 429 com `Retry-After`; checagem antes do BCrypt; contadores no banco (sobrevivem a reinícios) |
 | 3 | Alta | Tomcat 11.0.24 (3 CVEs críticas) e Jackson 3.1.5 (DoS sem login) | Fixados Tomcat 11.0.27 e Jackson 3.1.7 no `pom.xml` |
 | 4 | Alta | HTTP puro, aplicação ouvindo em todas as interfaces | Caddy com HTTPS automático como única entrada; aplicação só em `127.0.0.1` |
 | 5 | Média | Login aceitava corpo de 15 MB; 40 deles levaram a memória de 0,6 a 3,4 GB | Limite de 64 KB (inclusive em partes, sem `Content-Length`), 1 MB no Caddy, teto de memória e `restart` no Compose |
@@ -38,6 +38,13 @@ nunca entraram no git; chave JWT de teste não vai para o jar; container sem roo
   mas **só de proxies internos**: quem vem de fora não escolhe o próprio IP.
 - **Limite pelo e-mail digitado**, exista ele ou não, e com a senha certa
   também recusada durante o bloqueio: o bloqueio não revela e-mails nem senhas.
+- **Contadores do limite no banco** (tabela `tentativas_login`, migration V9):
+  um bloqueio sobrevive a reinícios e valeria para várias instâncias. Contar e
+  registrar acontecem com um lock por chave (`pg_advisory_xact_lock`): sem ele,
+  30 tentativas simultâneas do mesmo IP deixavam passar até 10 com limite de 3.
+  O limitador grava em transação própria, senão a falha seria desfeita junto
+  com a transação do login. Uma limpeza a cada minuto apaga o que tem mais de
+  15 minutos, porque os registros têm IP e e-mail.
 - **Usuário da aplicação no banco** é garantido a cada subida por um callback
   do Flyway em Java (`UsuarioDaAplicacaoNoBanco`): senha escapada, nome
   validado, sem senha em arquivo SQL.
@@ -47,8 +54,10 @@ nunca entraram no git; chave JWT de teste não vai para o jar; container sem roo
 - **Bloqueio de conta de propósito:** errar a senha de alguém 10 vezes trava o
   login dessa pessoa por 15 minutos. Contra uma força bruta que pode acertar a
   senha, é o mal menor.
-- **Contadores em memória:** reiniciar a aplicação zera os bloqueios; com mais
-  de uma instância, os contadores precisariam ir para o banco ou um Redis.
+- **Bloqueio por conta excede um pouco o limite sob concorrência:** a falha é
+  registrada depois de conferir a senha (~50 ms de BCrypt); tentativas
+  simultâneas da mesma conta, vindas de IPs diferentes, podem passar juntas da
+  10ª. O limite por IP continua exato.
 - **Senha do dono do banco no container da aplicação:** necessária para as
   migrations. Protege contra injeção de SQL (que usa o usuário restrito), mas
   não contra quem já executa código dentro do container.

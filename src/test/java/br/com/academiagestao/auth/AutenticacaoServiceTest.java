@@ -33,8 +33,7 @@ class AutenticacaoServiceTest {
     private final AutenticacaoService service = new AutenticacaoService(repository, passwordEncoder,
             new GeradorDeToken(new NimbusJwtEncoder(new ImmutableSecret<>(chave)),
                     new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao")),
-            new LimitadorDeTentativas(new LimitesDeLoginProperties(1000, Duration.ofMinutes(1), 1000,
-                    Duration.ofMinutes(15))));
+            mock(LimitadorDeTentativas.class));
 
     private Usuario cadastrar(Perfil perfil) {
         Usuario usuario = Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), perfil);

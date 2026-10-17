@@ -1,39 +1,48 @@
 package br.com.academiagestao.auth;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Janela deslizante em memória: por IP (todas as tentativas) e por conta (só as falhas).
- * Basta para uma instância da aplicação; com várias, o contador precisaria ir para um
- * lugar compartilhado (banco ou Redis).
+ * Janela deslizante no banco: por IP (todas as tentativas) e por conta (só as falhas).
+ * No banco, e não em memória, para os bloqueios sobreviverem a um reinício da aplicação
+ * e valerem para todas as instâncias, se um dia houver mais de uma.
+ *
+ * Tudo roda em transação própria (REQUIRES_NEW): o login acontece dentro de uma transação
+ * que é desfeita quando a senha está errada, e a falha registrada seria desfeita junto.
  */
 @Component
 class LimitadorDeTentativas {
 
-    // Acima disso, as entradas que já esvaziaram são removidas, para o mapa não crescer sem fim.
-    private static final int LIMPAR_ACIMA_DE = 10_000;
+    private static final String IP = "IP";
+    private static final String CONTA = "CONTA";
 
     private final LimitesDeLoginProperties limites;
+    private final JdbcTemplate jdbc;
+    private final TransactionTemplate transacaoPropria;
     private final Clock relogio;
-    private final Map<String, Deque<Instant>> tentativasPorIp = new ConcurrentHashMap<>();
-    private final Map<String, Deque<Instant>> falhasPorConta = new ConcurrentHashMap<>();
 
     @Autowired
-    LimitadorDeTentativas(LimitesDeLoginProperties limites) {
-        this(limites, Clock.systemUTC());
+    LimitadorDeTentativas(LimitesDeLoginProperties limites, JdbcTemplate jdbc, PlatformTransactionManager transacoes) {
+        this(limites, jdbc, transacoes, Clock.systemUTC());
     }
 
-    LimitadorDeTentativas(LimitesDeLoginProperties limites, Clock relogio) {
+    LimitadorDeTentativas(LimitesDeLoginProperties limites, JdbcTemplate jdbc,
+                          PlatformTransactionManager transacoes, Clock relogio) {
         this.limites = limites;
+        this.jdbc = jdbc;
+        this.transacaoPropria = new TransactionTemplate(transacoes);
+        this.transacaoPropria.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.relogio = relogio;
     }
 
@@ -43,79 +52,68 @@ class LimitadorDeTentativas {
      */
     void verificarERegistrar(String ip, String conta) {
         Instant agora = relogio.instant();
-        limparSeCresceuDemais(agora);
+        transacaoPropria.executeWithoutResult(status -> {
+            // Trava as duas chaves até o fim da transação (sempre na mesma ordem: sem deadlock).
+            // Duas tentativas simultâneas do mesmo IP não passam juntas pela contagem.
+            travar(CONTA, conta);
+            travar(IP, ip);
 
-        // Confere os dois limites antes de recusar, para o Retry-After dizer a maior espera:
-        // se só o do IP fosse informado, o cliente voltaria e esbarraria no da conta.
-        Duration esperarConta = Duration.ZERO;
-        Deque<Instant> daConta = falhasPorConta.get(conta);
-        if (daConta != null) {
-            synchronized (daConta) {
-                descartarAntigas(daConta, agora, limites.janelaPorConta());
-                if (daConta.size() >= limites.falhasPorConta()) {
-                    esperarConta = restante(daConta, agora, limites.janelaPorConta());
-                }
-            }
-        }
-
-        Deque<Instant> doIp = tentativasPorIp.computeIfAbsent(ip, k -> new ArrayDeque<>());
-        synchronized (doIp) {
-            descartarAntigas(doIp, agora, limites.janelaPorIp());
-            Duration esperarIp = doIp.size() >= limites.tentativasPorIp()
-                    ? restante(doIp, agora, limites.janelaPorIp())
-                    : Duration.ZERO;
+            // Os dois limites são conferidos antes de recusar, para o Retry-After dizer a
+            // maior espera: se só o do IP fosse informado, o cliente esbarraria no da conta.
+            Duration esperarConta = espera(CONTA, conta, limites.falhasPorConta(), limites.janelaPorConta(), agora);
+            Duration esperarIp = espera(IP, ip, limites.tentativasPorIp(), limites.janelaPorIp(), agora);
             Duration esperar = esperarIp.compareTo(esperarConta) > 0 ? esperarIp : esperarConta;
             if (!esperar.isZero()) {
                 throw new MuitasTentativasException(esperar);
             }
-            doIp.addLast(agora);
-        }
+            registrar(IP, ip, agora);
+        });
     }
 
     void registrarFalha(String conta) {
-        Deque<Instant> daConta = falhasPorConta.computeIfAbsent(conta, k -> new ArrayDeque<>());
-        synchronized (daConta) {
-            daConta.addLast(relogio.instant());
-        }
+        Instant agora = relogio.instant();
+        transacaoPropria.executeWithoutResult(status -> registrar(CONTA, conta, agora));
     }
 
     /** Login certo zera as falhas da conta. */
     void registrarSucesso(String conta) {
-        falhasPorConta.remove(conta);
+        transacaoPropria.executeWithoutResult(status ->
+                jdbc.update("DELETE FROM tentativas_login WHERE tipo = ? AND chave = ?", CONTA, conta));
     }
 
-    private static void descartarAntigas(Deque<Instant> fila, Instant agora, Duration janela) {
-        Instant limite = agora.minus(janela);
-        while (!fila.isEmpty() && !fila.peekFirst().isAfter(limite)) {
-            fila.pollFirst();
+    /** Apaga o que já saiu de todas as janelas: os registros têm IP e e-mail (LGPD). */
+    @Scheduled(fixedDelayString = "PT1M", initialDelayString = "PT1M")
+    void limparAntigos() {
+        Duration maiorJanela = limites.janelaPorConta().compareTo(limites.janelaPorIp()) > 0
+                ? limites.janelaPorConta() : limites.janelaPorIp();
+        jdbc.update("DELETE FROM tentativas_login WHERE momento <= ?",
+                Timestamp.from(relogio.instant().minus(maiorJanela)));
+    }
+
+    private void travar(String tipo, String chave) {
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", tipo + ":" + chave);
+    }
+
+    private void registrar(String tipo, String chave, Instant momento) {
+        jdbc.update("INSERT INTO tentativas_login (tipo, chave, momento) VALUES (?, ?, ?)",
+                tipo, chave, Timestamp.from(momento));
+    }
+
+    /**
+     * Zero se ainda há vaga na janela; senão, quanto falta para a tentativa mais antiga
+     * dentro do limite sair da janela e liberar uma vaga.
+     */
+    private Duration espera(String tipo, String chave, int limite, Duration janela, Instant agora) {
+        var momentos = jdbc.queryForList("""
+                        SELECT momento FROM tentativas_login
+                        WHERE tipo = ? AND chave = ? AND momento > ?
+                        ORDER BY momento DESC LIMIT ?""",
+                Timestamp.class, tipo, chave, Timestamp.from(agora.minus(janela)), limite);
+        if (momentos.size() < limite) {
+            return Duration.ZERO;
         }
-    }
-
-    // Quanto falta para a tentativa mais antiga sair da janela (e liberar uma vaga).
-    private static Duration restante(Deque<Instant> fila, Instant agora, Duration janela) {
-        Duration falta = Duration.between(agora, fila.peekFirst().plus(janela));
+        Instant liberaEm = momentos.getLast().toInstant().plus(janela);
+        Duration falta = Duration.between(agora, liberaEm);
         return falta.isNegative() ? Duration.ZERO : falta;
-    }
-
-    private void limparSeCresceuDemais(Instant agora) {
-        if (tentativasPorIp.size() > LIMPAR_ACIMA_DE) {
-            limpar(tentativasPorIp, agora, limites.janelaPorIp());
-        }
-        if (falhasPorConta.size() > LIMPAR_ACIMA_DE) {
-            limpar(falhasPorConta, agora, limites.janelaPorConta());
-        }
-    }
-
-    private static void limpar(Map<String, Deque<Instant>> mapa, Instant agora, Duration janela) {
-        mapa.entrySet().removeIf(entrada -> {
-            synchronized (entrada.getValue()) {
-                descartarAntigas(entrada.getValue(), agora, janela);
-                return entrada.getValue().isEmpty();
-            }
-        });
-    }
-
-    int tamanhoDosRegistros() {
-        return tentativasPorIp.size() + falhasPorConta.size();
     }
 }

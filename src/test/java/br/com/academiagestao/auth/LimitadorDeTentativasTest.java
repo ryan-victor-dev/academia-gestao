@@ -1,21 +1,36 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.TestcontainersConfiguration;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Limitador com os contadores no Postgres, e um relógio que o teste avança na mão. */
+@Import(TestcontainersConfiguration.class)
+@SpringBootTest
 class LimitadorDeTentativasTest {
 
-    /** Relógio que o teste avança na mão, para testar janelas de tempo sem esperar. */
     static final class RelogioDeTeste extends Clock {
-        Instant agora = Instant.parse("2026-10-16T12:00:00Z");
+        volatile Instant agora = Instant.parse("2026-10-16T12:00:00Z");
 
         void avancar(Duration d) {
             agora = agora.plus(d);
@@ -23,13 +38,35 @@ class LimitadorDeTentativasTest {
 
         @Override public Instant instant() { return agora; }
         @Override public ZoneOffset getZone() { return ZoneOffset.UTC; }
-        @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+        @Override public Clock withZone(ZoneId zone) { return this; }
     }
 
-    private final RelogioDeTeste relogio = new RelogioDeTeste();
     // 3 tentativas por IP por minuto; 2 falhas por conta em 15 minutos.
-    private final LimitadorDeTentativas limitador = new LimitadorDeTentativas(
-            new LimitesDeLoginProperties(3, Duration.ofMinutes(1), 2, Duration.ofMinutes(15)), relogio);
+    private static final LimitesDeLoginProperties LIMITES =
+            new LimitesDeLoginProperties(3, Duration.ofMinutes(1), 2, Duration.ofMinutes(15));
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @Autowired
+    PlatformTransactionManager transacoes;
+
+    private final RelogioDeTeste relogio = new RelogioDeTeste();
+    private LimitadorDeTentativas limitador;
+
+    @BeforeEach
+    void preparar() {
+        jdbc.update("DELETE FROM tentativas_login");
+        limitador = novoLimitador();
+    }
+
+    private LimitadorDeTentativas novoLimitador() {
+        return new LimitadorDeTentativas(LIMITES, jdbc, transacoes, relogio);
+    }
+
+    private int registros() {
+        return jdbc.queryForObject("SELECT count(*) FROM tentativas_login", Integer.class);
+    }
 
     @Test
     void ipPassaDoLimiteEEsperaAJanelaPassar() {
@@ -90,7 +127,6 @@ class LimitadorDeTentativasTest {
     void comIpEContaBloqueadosOTempoDeEsperaEhOMaior() {
         limitador.registrarFalha("ana@x.com");
         limitador.registrarFalha("ana@x.com");
-        // Esgota o IP com outras contas (a da Ana já está bloqueada e não registraria).
         for (int i = 0; i < 3; i++) {
             limitador.verificarERegistrar("1.1.1.1", "c" + i + "@x.com");
         }
@@ -108,21 +144,78 @@ class LimitadorDeTentativasTest {
             assertThatThrownBy(() -> limitador.verificarERegistrar("1.1.1.1", "ana@x.com"))
                     .isInstanceOf(MuitasTentativasException.class);
         }
-        // O IP continua com as 3 vagas: só tentativas que chegaram a conferir senha contam.
         for (int i = 0; i < 3; i++) {
             limitador.verificarERegistrar("1.1.1.1", "c" + i + "@x.com");
         }
     }
 
     @Test
-    void registrosAntigosSaoLimposQuandoOMapaCresceDemais() {
-        for (int i = 0; i < 10_001; i++) {
-            limitador.verificarERegistrar("10.0." + (i / 256) + "." + (i % 256), "c" + i + "@x.com");
+    void bloqueioSobreviveAoReinicioDaAplicacao() {
+        limitador.registrarFalha("ana@x.com");
+        limitador.registrarFalha("ana@x.com");
+
+        // Reiniciar a aplicação = um limitador novo, sem nada em memória, sobre o mesmo banco.
+        LimitadorDeTentativas depoisDoReinicio = novoLimitador();
+
+        assertThatThrownBy(() -> depoisDoReinicio.verificarERegistrar("1.1.1.1", "ana@x.com"))
+                .isInstanceOf(MuitasTentativasException.class);
+    }
+
+    @Test
+    void falhaFicaRegistradaMesmoQuandoATransacaoDoLoginEhDesfeita() {
+        // O login roda numa transação que é desfeita quando a senha está errada.
+        TransactionTemplate transacaoDoLogin = new TransactionTemplate(transacoes);
+        assertThatThrownBy(() -> transacaoDoLogin.executeWithoutResult(status -> {
+            limitador.registrarFalha("ana@x.com");
+            throw new CredenciaisInvalidasException();
+        })).isInstanceOf(CredenciaisInvalidasException.class);
+
+        assertThat(registros()).isEqualTo(1);
+    }
+
+    @Test
+    void limpezaApagaSoOQueJaSaiuDasJanelas() {
+        limitador.registrarFalha("antiga@x.com");
+        limitador.verificarERegistrar("1.1.1.1", "x@x.com");
+        relogio.avancar(Duration.ofMinutes(16));
+        limitador.registrarFalha("recente@x.com");
+
+        limitador.limparAntigos();
+
+        assertThat(jdbc.queryForList("SELECT chave FROM tentativas_login", String.class))
+                .containsExactly("recente@x.com");
+    }
+
+    @Test
+    void tentativasSimultaneasDoMesmoIpNaoFuramOLimite() throws Exception {
+        // Várias rodadas: uma só pode passar por sorte (sem o lock, uma rodada com o sistema
+        // ainda "frio" chegou a dar 3; as seguintes deram 10, o tamanho do pool de conexões).
+        for (int rodada = 0; rodada < 10; rodada++) {
+            jdbc.update("DELETE FROM tentativas_login");
+            assertThat(rodadaSimultanea(30)).as("tentativas que passaram na rodada %d", rodada).isEqualTo(3);
         }
-        relogio.avancar(Duration.ofMinutes(2));
+    }
 
-        limitador.verificarERegistrar("1.1.1.1", "nova@x.com");
-
-        assertThat(limitador.tamanhoDosRegistros()).isLessThan(10);
+    private int rodadaSimultanea(int quantas) throws Exception {
+        AtomicInteger passaram = new AtomicInteger();
+        CountDownLatch largada = new CountDownLatch(1);
+        CompletableFuture<?>[] tentativas = new CompletableFuture<?>[quantas];
+        for (int i = 0; i < tentativas.length; i++) {
+            String conta = "c" + i + "@x.com";
+            tentativas[i] = CompletableFuture.runAsync(() -> {
+                try {
+                    largada.await();
+                    limitador.verificarERegistrar("7.7.7.7", conta);
+                    passaram.incrementAndGet();
+                } catch (MuitasTentativasException e) {
+                    // esperado para quem passou do limite
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+        largada.countDown();
+        CompletableFuture.allOf(tentativas).get(30, TimeUnit.SECONDS);
+        return passaram.get();
     }
 }
