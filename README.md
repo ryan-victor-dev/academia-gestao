@@ -242,6 +242,17 @@ Para checar se os testes de domínio realmente pegam erros (teste de mutação):
 # relatório em target/pit-reports/index.html
 ```
 
+Teste de ponta a ponta numa instalação do zero, isolada do seu ambiente (outras portas
+e containers; tudo é apagado no final):
+
+```bash
+scripts/e2e.sh
+```
+
+`scripts/usuario-validacao.sh PERFIL` cria um usuário de teste direto no banco e devolve
+um token dele. É só para desenvolvimento: ele se recusa a rodar se o `.env` tiver um
+`DOMINIO` configurado.
+
 > Nenhuma senha real fica no repositório: tudo vem do `.env`. O banco só aceita
 > conexões desta máquina (`127.0.0.1`), nunca da rede. Os testes usam valores
 > próprios, em `src/test/resources/config/application.yaml`, e não precisam do `.env`.

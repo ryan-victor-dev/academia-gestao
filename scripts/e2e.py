@@ -1,0 +1,170 @@
+"""Teste de ponta a ponta contra uma instalação do zero. Rode pelo scripts/e2e.sh, que monta
+a instalação isolada, passa as portas e os nomes por variáveis de ambiente e desmonta tudo."""
+import json, os, ssl, subprocess, sys, time, urllib.request, urllib.error
+
+HTTPS = os.environ.get("E2E_HTTPS", "18443")
+HTTP = os.environ.get("E2E_HTTP", "18089")
+P = os.environ.get("E2E_PREFIXO", "e2e-")                    # prefixo dos containers
+PROJETO = os.environ.get("COMPOSE_PROJECT_NAME", "academia-e2e")
+BASE = f"https://localhost:{HTTPS}"
+CTX = ssl._create_unverified_context()  # certificado de desenvolvimento do Caddy
+PASTA = sys.argv[1]
+ok = falhas = 0
+
+
+def req(metodo, caminho, corpo=None, token=None, headers=None, bruto=None):
+    h = {"Content-Type": "application/json"}
+    if token:
+        h["Authorization"] = "Bearer " + token
+    h.update(headers or {})
+    dados = bruto if bruto is not None else (json.dumps(corpo).encode() if corpo is not None else None)
+    r = urllib.request.Request(BASE + caminho, data=dados, method=metodo, headers=h)
+    try:
+        with urllib.request.urlopen(r, context=CTX, timeout=30) as resp:
+            t = resp.read().decode()
+            return resp.status, (json.loads(t) if t.startswith(("{", "[")) else t), resp.headers
+    except urllib.error.HTTPError as e:
+        t = e.read().decode()
+        return e.code, (json.loads(t) if t.startswith(("{", "[")) else t), e.headers
+
+
+def sh(*cmd):
+    return subprocess.run(list(cmd), capture_output=True, text=True, cwd=PASTA)
+
+
+def confere(descricao, condicao, detalhe=""):
+    global ok, falhas
+    if condicao:
+        ok += 1
+    else:
+        falhas += 1
+        print(f"  FALHOU: {descricao} {detalhe}")
+
+
+def secao(nome):
+    print(f"- {nome}")
+
+
+def login(email, senha):
+    return req("POST", "/api/auth/login", {"email": email, "senha": senha})
+
+
+def ativar(email, temporaria, definitiva):
+    s, b, _ = login(email, temporaria)
+    confere(f"1º login de {email}", s == 200 and b["precisaTrocarSenha"] is True, (s, b))
+    s, b, _ = req("POST", "/api/auth/trocar-senha", {"senhaAtual": temporaria, "novaSenha": definitiva}, b["token"])
+    confere(f"troca de senha de {email}", s == 200 and b["precisaTrocarSenha"] is False, (s, b))
+    return b["token"]
+
+
+secao("containers endurecidos")
+uid_caddy = sh("docker", "top", P + "caddy").stdout.splitlines()[1].split()[0]
+confere("Caddy sem root", uid_caddy == "10001", uid_caddy)
+cap = sh("docker", "exec", P + "caddy", "sh", "-c", "grep CapEff /proc/1/status").stdout.split()[-1]
+confere("Caddy só com NET_BIND_SERVICE", cap == "0000000000000400", cap)
+r = sh("docker", "exec", P + "app", "sh", "-c", "touch /app/x")
+confere("app com sistema de arquivos só de leitura", r.returncode != 0 and "Read-only" in r.stderr, r.stderr)
+for c in (P + "app", P + "caddy", P + "postgres"):
+    info = sh("docker", "inspect", c, "--format", "{{.HostConfig.LogConfig.Config}} {{.HostConfig.SecurityOpt}}").stdout
+    confere(f"{c} com rotação de log e no-new-privileges", "max-size:10m" in info and "no-new-privileges" in info, info)
+confere("sem pebble na imagem", sh("docker", "exec", P + "app", "sh", "-c", "ls /usr/bin/pebble").returncode != 0)
+
+secao("entrada HTTPS")
+s, b, h = req("GET", "/actuator/health")
+confere("health via HTTPS", s == 200 and b["status"] == "UP")
+confere("HSTS", "max-age" in (h.get("Strict-Transport-Security") or ""))
+r = subprocess.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code} %{redirect_url}", f"http://localhost:{HTTP}/x"],
+                   capture_output=True, text=True).stdout
+confere("HTTP redireciona para HTTPS", r.startswith(f"301 https://localhost:{HTTPS}/x"), r)
+r = subprocess.run(["curl", "-sk", "--http2", "-o", "/dev/null", "-w", "%{http_version}", BASE + "/actuator/health"],
+                   capture_output=True, text=True).stdout
+confere("só HTTP/1.1", r == "1.1", r)
+
+secao("primeiro ADMIN")
+s, b, _ = login("admin@academia.local", "senha-primeiro-acesso-123")
+confere("login com a senha do .env exige troca", s == 200 and b["precisaTrocarSenha"])
+ADM = ativar("admin@academia.local", "senha-primeiro-acesso-123", "senha-definitiva-admin-1")
+
+secao("equipe")
+tokens = {}
+for nome, perfil in [("Rita", "RECEPCAO"), ("Caio", "INSTRUTOR")]:
+    s, b, h = req("POST", "/api/usuarios", {"nome": nome, "email": f"{nome.lower()}@academia.local", "perfil": perfil}, ADM)
+    confere(f"criar {perfil}", s == 201 and h.get("Cache-Control") == "no-store", (s, b))
+    tokens[perfil] = ativar(f"{nome.lower()}@academia.local", b["senhaTemporaria"], f"senha-definitiva-{nome.lower()}-1")
+REC, INS = tokens["RECEPCAO"], tokens["INSTRUTOR"]
+confere("recepção não cria usuário",
+        req("POST", "/api/usuarios", {"nome": "X", "email": "x@academia.local", "perfil": "ADMIN"}, REC)[0] == 403)
+
+secao("alunos")
+s, b, h = req("POST", "/api/alunos", {"nome": "José Antônio", "cpf": "529.982.247-25", "email": "jose@email.com",
+                                      "observacoes": "lesão no joelho"}, REC)
+confere("cadastrar aluno", s == 201 and h.get("ETag") == '"0"', (s, b))
+ALUNO = b["id"]
+confere("CPF inválido (só o 1º dígito errado)", req("POST", "/api/alunos", {"nome": "X", "cpf": "52998224733"}, REC)[0] == 400)
+confere("busca sem acento", req("GET", "/api/alunos?busca=jose", token=REC)[1]["totalElementos"] == 1)
+s, b, _ = req("GET", f"/api/alunos/{ALUNO}", token=INS)
+confere("instrutor sem CPF", s == 200 and "cpf" not in b)
+corpo = {"nome": "José Antônio Silva", "cpf": "52998224725", "email": "jose@email.com"}
+confere("PUT sem If-Match = 428", req("PUT", f"/api/alunos/{ALUNO}", corpo, REC)[0] == 428)
+confere("PUT com If-Match", req("PUT", f"/api/alunos/{ALUNO}", corpo, REC, {"If-Match": '"0"'})[0] == 200)
+confere("If-Match antigo = 412", req("PUT", f"/api/alunos/{ALUNO}", corpo, REC, {"If-Match": '"0"'})[0] == 412)
+s, b, _ = req("POST", f"/api/alunos/{ALUNO}/login", token=REC)
+TOK_ALUNO = ativar("jose@email.com", b["senhaTemporaria"], "senha-do-jose-123")
+confere("aluno vê o próprio cadastro", req("GET", "/api/alunos/me", token=TOK_ALUNO)[0] == 200)
+req("POST", f"/api/alunos/{ALUNO}/inativar", token=REC)
+confere("inativar derruba o token do aluno", req("GET", "/api/alunos/me", token=TOK_ALUNO)[0] == 401)
+
+secao("planos")
+s, b, _ = req("POST", "/api/planos", {"nome": "Mensal", "valorMensal": 129.9, "duracaoMeses": 1}, ADM)
+confere("criar plano", s == 201, (s, b))
+confere("nome repetido com acento", req("POST", "/api/planos", {"nome": "MÊNSAL", "valorMensal": 1, "duracaoMeses": 1}, ADM)[0] == 409)
+confere("recepção não cria plano", req("POST", "/api/planos", {"nome": "Z", "valorMensal": 1, "duracaoMeses": 1}, REC)[0] == 403)
+
+secao("cabeçalhos e JSON estrito")
+s, b, h = req("GET", "/actuator/health")
+confere("CSP", h.get("Content-Security-Policy") == "default-src 'none'; frame-ancestors 'none'", h.get("Content-Security-Policy"))
+confere("Referrer-Policy", h.get("Referrer-Policy") == "no-referrer")
+confere("duracaoMeses 1.5 recusado",
+        req("POST", "/api/planos", bruto=b'{"nome":"J1","valorMensal":10,"duracaoMeses":1.5}', token=ADM)[0] == 400)
+confere("valor como texto recusado",
+        req("POST", "/api/planos", bruto=b'{"nome":"J2","valorMensal":"10","duracaoMeses":1}', token=ADM)[0] == 400)
+
+secao("limites")
+confere("corpo grande = 413",
+        req("POST", "/api/auth/login", bruto=json.dumps({"email": "a@b.com", "senha": "x" * 200_000}).encode())[0] == 413)
+time.sleep(61)  # o roteiro sai de um IP só: espera a janela do limite por IP
+s, b, _ = login("caio@academia.local", "senha-definitiva-caio-1")
+TOK = b["token"]
+codigos = [req("POST", "/api/auth/trocar-senha", {"senhaAtual": f"chute-{i}-xxxxxx", "novaSenha": "nova-senha-x-123"}, TOK)[0]
+           for i in range(12)]
+confere("troca de senha: 10 chutes e depois 429", codigos == [400] * 10 + [429] * 2, codigos)
+sh("docker", "compose", "restart", "app")
+for _ in range(60):
+    try:
+        if req("GET", "/actuator/health")[0] == 200:
+            break
+    except Exception:
+        pass
+    time.sleep(2)
+confere("bloqueio sobrevive ao reinício (app só de leitura)", login("caio@academia.local", "senha-definitiva-caio-1")[0] == 429)
+
+secao("recuperação de ADMIN (container só de leitura)")
+time.sleep(61)
+r = sh("docker", "compose", "run", "--rm", "app", "--recuperar-admin=admin@academia.local")
+linha = [l for l in r.stdout.splitlines() if "Senha temporária do ADMIN" in l]
+confere("comando sai com 0 e mostra a senha uma vez", r.returncode == 0 and len(linha) == 1, (r.returncode, r.stderr[-300:]))
+temporaria = linha[0].split(": ")[-1] if linha else "nenhuma"
+s, b, _ = login("admin@academia.local", temporaria)
+confere("temporária exige troca", s == 200 and b.get("precisaTrocarSenha"), (s, b))
+
+secao("reinício do Caddy (permissões dos volumes)")
+sh("docker", "compose", "restart", "caddy")
+time.sleep(3)
+confere("Caddy volta depois de reiniciar", req("GET", "/actuator/health")[0] == 200)
+sh("docker", "compose", "up", "-d")
+time.sleep(3)
+confere("init de permissões roda de novo sem erro",
+        sh("docker", "inspect", f"{PROJETO}-caddy-permissoes-1", "--format", "{{.State.ExitCode}}").stdout.strip() == "0")
+
+print(f"\nRESULTADO: {ok} ok, {falhas} falha(s)")
+sys.exit(1 if falhas else 0)
