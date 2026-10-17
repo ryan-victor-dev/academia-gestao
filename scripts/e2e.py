@@ -1,6 +1,8 @@
 """Teste de ponta a ponta contra uma instalação do zero. Rode pelo scripts/e2e.sh, que monta
 a instalação isolada, passa as portas e os nomes por variáveis de ambiente e desmonta tudo."""
 import json, os, ssl, subprocess, sys, time, urllib.request, urllib.error
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 HTTPS = os.environ.get("E2E_HTTPS", "18443")
 HTTP = os.environ.get("E2E_HTTP", "18089")
@@ -119,6 +121,55 @@ s, b, _ = req("POST", "/api/planos", {"nome": "Mensal", "valorMensal": 129.9, "d
 confere("criar plano", s == 201, (s, b))
 confere("nome repetido com acento", req("POST", "/api/planos", {"nome": "MÊNSAL", "valorMensal": 1, "duracaoMeses": 1}, ADM)[0] == 409)
 confere("recepção não cria plano", req("POST", "/api/planos", {"nome": "Z", "valorMensal": 1, "duracaoMeses": 1}, REC)[0] == 403)
+
+secao("matrículas")
+hoje = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+MENSAL = next(p["id"] for p in req("GET", "/api/planos", token=REC)[1] if p["nome"] == "Mensal")
+s, b, _ = req("POST", "/api/planos", {"nome": "Anual", "valorMensal": 99.9, "duracaoMeses": 12, "fidelidade": True,
+                                      "percentualMulta": 20, "formaPagamento": "A_VISTA"}, ADM)
+confere("plano anual com fidelidade e à vista", s == 201 and b["fidelidade"] and b["formaPagamento"] == "A_VISTA", (s, b))
+ANUAL = b["id"]
+s, b, _ = req("POST", "/api/alunos", {"nome": "Maria", "cpf": "111.444.777-35", "email": "maria@email.com"}, REC)
+MARIA = b["id"]
+s, b, _ = req("POST", f"/api/alunos/{MARIA}/login", token=REC)
+TOK_MARIA = ativar("maria@email.com", b["senhaTemporaria"], "senha-da-maria-123")
+s, m, _ = req("POST", "/api/matriculas", {"alunoId": MARIA, "planoId": ANUAL}, REC)
+confere("matricular copia o plano", s == 201 and m["valorMensal"] == 99.9 and m["fidelidade"] and m["situacao"] == "VIGENTE"
+        and m["inicio"] == hoje.isoformat(), (s, m))
+s, _, h = req("GET", f"/api/planos/{ANUAL}", token=ADM)
+req("PUT", f"/api/planos/{ANUAL}", {"nome": "Anual", "valorMensal": 119.9, "duracaoMeses": 12}, ADM, {"If-Match": h["ETag"]})
+s, b, _ = req("GET", f"/api/matriculas/{m['id']}", token=REC)
+confere("reajuste e fim da fidelidade do plano não mudam o contrato", b["valorMensal"] == 99.9 and b["fidelidade"], b)
+fim = date.fromisoformat(m["fim"])
+confere("período ocupado = 409", req("POST", "/api/matriculas", {"alunoId": MARIA, "planoId": MENSAL,
+                                                                  "inicio": fim.isoformat()}, REC)[0] == 409)
+s, r, _ = req("POST", "/api/matriculas", {"alunoId": MARIA, "planoId": MENSAL, "inicio": (fim + timedelta(days=1)).isoformat()}, REC)
+confere("renovação agendada", s == 201 and r["situacao"] == "AGENDADA", (s, r))
+confere("trancar com renovação agendada = 409", req("POST", f"/api/matriculas/{m['id']}/trancar",
+        {"voltaPrevista": (hoje + timedelta(days=10)).isoformat(), "motivo": "Viagem"}, REC)[0] == 409)
+s, b, _ = req("POST", f"/api/matriculas/{r['id']}/cancelar", {"motivo": "Vai trancar antes"}, REC)
+confere("cancelar a renovação (agendada, sem multa)", s == 200 and b["situacao"] == "CANCELADA" and b["multa"] is None, (s, b))
+s, b, _ = req("POST", f"/api/matriculas/{m['id']}/trancar", {"voltaPrevista": (hoje + timedelta(days=10)).isoformat(),
+                                                            "motivo": "Viagem"}, REC)
+confere("trancar estende o fim", s == 200 and b["situacao"] == "TRANCADA" and b["diasTrancados"] == 10
+        and b["fim"] == (fim + timedelta(days=10)).isoformat(), (s, b))
+confere("instrutor: trancada não treina",
+        req("GET", f"/api/matriculas/vigente?alunoId={MARIA}", token=INS)[1] == {"alunoId": MARIA, "matriculaVigente": False})
+s, b, _ = req("POST", f"/api/matriculas/{m['id']}/registrar-volta", token=REC)
+confere("volta no mesmo dia desfaz o trancamento", s == 200 and b["diasTrancados"] == 0 and b["situacao"] == "VIGENTE", (s, b))
+s, nova, _ = req("POST", f"/api/matriculas/{m['id']}/trocar-plano", {"planoId": MENSAL}, REC)
+confere("trocar para o mensal sem fidelidade", s == 201 and nova["trocaDe"] == m["id"] and nova["inicio"] == hoje.isoformat(), (s, nova))
+s, b, _ = req("GET", f"/api/matriculas/{m['id']}", token=REC)
+confere("antiga TROCADA com multa (11 × 99,90 × 20% = 219,78)", b["situacao"] == "TROCADA" and b["multa"] == 219.78, b)
+s, b, _ = req("POST", f"/api/alunos/{MARIA}/inativar", token=REC)
+confere("inativar com matrícula vigente = 409", s == 409, (s, b))
+s, b, _ = req("GET", "/api/matriculas/me", token=TOK_MARIA)
+confere("aluna vê as próprias, sem quem cancelou", s == 200 and len(b) == 3 and all("canceladaPor" not in x for x in b), (s, b))
+confere("instrutor não vê o histórico", req("GET", f"/api/matriculas?alunoId={MARIA}", token=INS)[0] == 403)
+req("POST", f"/api/matriculas/{nova['id']}/cancelar", {"motivo": "Mudou de cidade"}, REC)
+confere("depois de cancelar, inativa", req("POST", f"/api/alunos/{MARIA}/inativar", token=REC)[0] == 200)
+confere("aluno inativo não é matriculado",
+        req("POST", "/api/matriculas", {"alunoId": ALUNO, "planoId": MENSAL}, REC)[0] == 409)
 
 secao("cabeçalhos e JSON estrito")
 s, b, h = req("GET", "/actuator/health")
