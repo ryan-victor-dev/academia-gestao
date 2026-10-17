@@ -76,6 +76,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0010](docs/adr/0010-revogacao-de-tokens-e-redefinicao-de-senha.md) | Revogação imediata de tokens e redefinição de senha |
 | [0011](docs/adr/0011-gestao-da-equipe-e-recuperacao-de-admin.md) | Gestão da equipe e recuperação de acesso de ADMIN |
 | [0012](docs/adr/0012-endurecimento-de-seguranca.md) | Endurecimento de segurança (revisão de 2026-10-16) |
+| [0013](docs/adr/0013-planos.md) | Planos: preço, nome único e quem vê o quê |
 
 ## Como rodar
 
@@ -169,11 +170,16 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/alunos/{id}/login` (cria o login com senha temporária) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/login/nova-senha` ("esqueci minha senha") | ADMIN, RECEPCAO |
 | `GET /api/alunos/me` | ALUNO (o próprio cadastro) |
+| `GET /api/planos?incluirInativos=`, `GET /api/planos/{id}` | Todos os perfis³ |
+| `POST /api/planos`, `PUT /api/planos/{id}` (exige `If-Match`²) | ADMIN |
+| `POST /api/planos/{id}/inativar`, `/reativar` | ADMIN |
 
 ¹ O instrutor recebe só nome, data de nascimento, observações e se está ativo,
 e busca apenas por nome.
 ² O `GET` devolve `ETag: "<versão>"`; o `PUT` precisa mandar
 `If-Match: "<versão>"`, para nenhuma edição apagar outra feita no meio tempo.
+³ O aluno vê só os planos ativos, sem `ativo` e `criadoEm`. Reajustar o valor de
+um plano vale para matrículas novas.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
@@ -235,7 +241,8 @@ Requer Docker ligado (o Testcontainers sobe um PostgreSQL descartável):
 - [x] **1. Fundação** — projeto, Postgres no Docker, Flyway, máquina de estados da mensalidade, Dockerfile, CI
 - [x] **2. Autenticação** — login com JWT, senhas em BCrypt, perfis (ADMIN, RECEPCAO, INSTRUTOR, ALUNO) e autorização por perfil
 - [x] **3. Alunos** — cadastro com validação de CPF, busca paginada, inativação e acesso por perfil
-- [ ] **4–8.** Planos, matrículas, cobrança, treinos e auditoria
+- [x] **4. Planos** — preço com duas casas, nome único entre os ativos, só o ADMIN altera, aluno vê os ativos
+- [ ] **5–8.** Matrículas, cobrança, treinos e auditoria
 
 ## Autor
 
