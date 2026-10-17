@@ -1,10 +1,12 @@
 package br.com.academiagestao.planos;
 
 import br.com.academiagestao.TestcontainersConfiguration;
+import br.com.academiagestao.alunos.CpfsParaTeste;
 import br.com.academiagestao.auth.Perfil;
 import br.com.academiagestao.auth.Usuario;
 import br.com.academiagestao.auth.UsuarioRepository;
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -57,6 +59,7 @@ class PermissoesDePlanosTest {
     JdbcTemplate jdbc;
 
     private final Map<Perfil, String> tokens = new EnumMap<>(Perfil.class);
+    private UUID alunoId;
     // Sempre ativo: alvo das consultas e da edição.
     private Plano alvo;
     // Alvo de inativar/reativar, para não afetar as consultas.
@@ -69,9 +72,9 @@ class PermissoesDePlanosTest {
         alvo = planoRepository.save(Plano.novo(new DadosPlano("Mensal", new BigDecimal("129.90"), 1)));
         alvoDeStatus = planoRepository.save(Plano.novo(new DadosPlano("Anual", new BigDecimal("99.90"), 12)));
 
-        UUID alunoId = UUID.randomUUID();
-        jdbc.update("INSERT INTO alunos (id, nome, cpf) VALUES (?, 'Aluno', '52998224725') ON CONFLICT DO NOTHING", alunoId);
-        alunoId = jdbc.queryForObject("SELECT id FROM alunos WHERE cpf = '52998224725'", UUID.class);
+        // CPF aleatório: este teste divide o banco com outros que usam CPFs fixos.
+        alunoId = UUID.randomUUID();
+        jdbc.update("INSERT INTO alunos (id, nome, cpf) VALUES (?, 'Aluno', ?)", alunoId, CpfsParaTeste.aleatorio());
         String hash = passwordEncoder.encode(SENHA);
         for (Perfil perfil : Perfil.values()) {
             String email = perfil.name().toLowerCase() + "@academia.com";
@@ -84,6 +87,14 @@ class PermissoesDePlanosTest {
                     .andReturn().getResponse().getContentAsString();
             tokens.put(perfil, JsonPath.read(corpo, "$.token"));
         }
+    }
+
+    /** Não deixa nada para trás: os outros testes rodam no mesmo banco, em ordem imprevisível. */
+    @AfterAll
+    void limpar() {
+        jdbc.update("DELETE FROM usuarios");
+        jdbc.update("DELETE FROM alunos WHERE id = ?", alunoId);
+        jdbc.update("DELETE FROM planos");
     }
 
     private MockHttpServletRequestBuilder requisicao(String operacao) {

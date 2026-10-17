@@ -1,6 +1,7 @@
 package br.com.academiagestao.auth;
 
 import br.com.academiagestao.TestcontainersConfiguration;
+import br.com.academiagestao.alunos.CpfsParaTeste;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -186,7 +187,8 @@ class EquipeTest {
     @Test
     void loginDeAlunoNaoEhDesativadoPorAqui() throws Exception {
         UUID alunoId = UUID.randomUUID();
-        jdbc.update("INSERT INTO alunos (id, nome, cpf) VALUES (?, 'Ana', '52998224725')", alunoId);
+        // CPF aleatório: outros testes, no mesmo banco, podem ter deixado alunos com CPFs fixos.
+        jdbc.update("INSERT INTO alunos (id, nome, cpf) VALUES (?, 'Ana', ?)", alunoId, CpfsParaTeste.aleatorio());
         Usuario loginDaAna = repository.save(Usuario.deAluno("Ana", "ana@email.com", "hash", alunoId));
 
         acao(tokenDoAdmin, loginDaAna.getId(), "desativar").andExpect(status().isBadRequest());

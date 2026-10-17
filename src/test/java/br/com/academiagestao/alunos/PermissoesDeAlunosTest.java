@@ -5,6 +5,7 @@ import br.com.academiagestao.auth.Perfil;
 import br.com.academiagestao.auth.Usuario;
 import br.com.academiagestao.auth.UsuarioRepository;
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -100,6 +101,13 @@ class PermissoesDeAlunosTest {
         Aluno aluno = alunoComEmail();
         usuarioRepository.save(Usuario.deAluno(aluno.getNome(), aluno.getEmail(), "hash", aluno.getId()));
         return aluno;
+    }
+
+    /** Não deixa nada para trás: os outros testes rodam no mesmo banco, em ordem imprevisível. */
+    @AfterAll
+    void limpar() {
+        jdbc.update("DELETE FROM usuarios");
+        alunoRepository.deleteAll();
     }
 
     private MockHttpServletRequestBuilder requisicao(String operacao) {

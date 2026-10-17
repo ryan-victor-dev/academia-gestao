@@ -3,12 +3,12 @@ package br.com.academiagestao.alunos;
 import java.util.concurrent.ThreadLocalRandom;
 
 /** Gera CPFs válidos (com dígitos verificadores certos) para os testes não colidirem. */
-final class CpfsParaTeste {
+public final class CpfsParaTeste {
 
     private CpfsParaTeste() {
     }
 
-    static String aleatorio() {
+    public static String aleatorio() {
         StringBuilder cpf = new StringBuilder();
         for (int i = 0; i < 9; i++) {
             cpf.append(ThreadLocalRandom.current().nextInt(10));
