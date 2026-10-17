@@ -12,6 +12,7 @@ import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,17 +40,36 @@ class PlanoController {
         this.service = service;
     }
 
-    /** Lista em ordem de nome. Por padrão só os ativos (os que podem ser contratados). */
+    /**
+     * Lista em ordem de nome. Por padrão só os ativos (os que podem ser contratados).
+     * O aluno vê só os ativos, mesmo pedindo os inativos, e numa versão resumida.
+     */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
-    List<PlanoResponse> listar(@RequestParam(defaultValue = "false") boolean incluirInativos) {
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR', 'ALUNO')")
+    List<? extends VisaoDoPlano> listar(Authentication autenticacao,
+                                        @RequestParam(defaultValue = "false") boolean incluirInativos) {
+        if (ehAluno(autenticacao)) {
+            return service.listar(false).stream().map(PlanoParaAluno::de).toList();
+        }
         return service.listar(incluirInativos).stream().map(PlanoResponse::de).toList();
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
-    ResponseEntity<PlanoResponse> buscar(@PathVariable UUID id) {
-        return comEtag(service.buscar(id));
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR', 'ALUNO')")
+    ResponseEntity<? extends VisaoDoPlano> buscar(Authentication autenticacao, @PathVariable UUID id) {
+        Plano plano = service.buscar(id);
+        if (ehAluno(autenticacao)) {
+            // 404, e não 403: para o aluno, um plano inativo simplesmente não existe.
+            if (!plano.isAtivo()) {
+                throw new PlanoNaoEncontradoException(id);
+            }
+            return ResponseEntity.ok(PlanoParaAluno.de(plano));
+        }
+        return comEtag(plano);
+    }
+
+    private static boolean ehAluno(Authentication autenticacao) {
+        return autenticacao.getAuthorities().stream().anyMatch(a -> "ROLE_ALUNO".equals(a.getAuthority()));
     }
 
     @PostMapping
@@ -110,8 +130,22 @@ class PlanoController {
         }
     }
 
+    /** O que a API mostra de um plano; o formato depende de quem pergunta. */
+    sealed interface VisaoDoPlano permits PlanoResponse, PlanoParaAluno {
+    }
+
+    /** Visão do aluno: só o que interessa para escolher ou renovar o plano. */
+    record PlanoParaAluno(UUID id, String nome, BigDecimal valorMensal, int duracaoMeses, BigDecimal valorTotal)
+            implements VisaoDoPlano {
+
+        static PlanoParaAluno de(Plano p) {
+            return new PlanoParaAluno(p.getId(), p.getNome(), p.getValorMensal(), p.getDuracaoMeses(),
+                    p.getValorTotal());
+        }
+    }
+
     record PlanoResponse(UUID id, String nome, BigDecimal valorMensal, int duracaoMeses, BigDecimal valorTotal,
-                         boolean ativo, Instant criadoEm) {
+                         boolean ativo, Instant criadoEm) implements VisaoDoPlano {
 
         static PlanoResponse de(Plano p) {
             return new PlanoResponse(p.getId(), p.getNome(), p.getValorMensal(), p.getDuracaoMeses(),
