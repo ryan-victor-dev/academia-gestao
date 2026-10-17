@@ -59,6 +59,8 @@ class MatriculaRepositoryTest {
     // precisam sair antes, senão a chave estrangeira quebra esses testes.
     @AfterEach
     void limpar() {
+        jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id IN (?, ?))",
+                aluno, outroAluno);
         jdbc.update("DELETE FROM matriculas WHERE aluno_id IN (?, ?)", aluno, outroAluno);
         jdbc.update("DELETE FROM usuarios WHERE id = ?", usuario);
         jdbc.update("DELETE FROM planos WHERE id = ?", plano);
@@ -255,5 +257,81 @@ class MatriculaRepositoryTest {
                 .hasMessageContaining("ck_matriculas_multa");
         assertThatCode(() -> jdbc.update("UPDATE matriculas SET multa_cancelamento = 0 WHERE id = ?", id))
                 .doesNotThrowAnyException();
+    }
+
+    // Trancamentos (V15)
+
+    @Test
+    void trancamentoEhGravadoEVemJuntoComAMatricula() {
+        Matricula matricula = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1));
+        matricula.trancar(LocalDate.parse("2027-01-15"), LocalDate.parse("2027-02-14"), "Viagem", usuario,
+                em("2027-01-12"));
+        repository.saveAndFlush(matricula);
+
+        Matricula lida = repository.findById(matricula.getId()).orElseThrow();
+        assertThat(lida.getDiasTrancados()).isEqualTo(30);
+        assertThat(lida.getFim()).isEqualTo(LocalDate.parse("2027-03-11"));
+        assertThat(lida.getTrancamentos()).hasSize(1);
+        assertThat(lida.getTrancamentos().getFirst().getCriadoPor()).isEqualTo(usuario);
+    }
+
+    @Test
+    void fimEstendidoContinuaOcupandoOPeriodo() {
+        Matricula matricula = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1));  // até 09/02
+        matricula.trancar(LocalDate.parse("2027-01-15"), LocalDate.parse("2027-02-14"), "Viagem", usuario,
+                em("2027-01-12"));
+        repository.saveAndFlush(matricula);  // até 11/03
+
+        assertThatThrownBy(() -> repository.saveAndFlush(matricula(aluno, "2027-03-01", 1)))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ex_matriculas_periodo_sobreposto");
+    }
+
+    @Test
+    void bancoConfereOsDiasTrancadosEOFim() {
+        UUID id = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1)).getId();
+
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET dias_trancados = 10 WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_matriculas_fim");
+        assertThatThrownBy(() -> jdbc.update(
+                "UPDATE matriculas SET dias_trancados = 91, fim = fim + 91 WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_matriculas_dias_trancados");
+        assertThatCode(() -> jdbc.update("UPDATE matriculas SET dias_trancados = 90, fim = fim + 90 WHERE id = ?", id))
+                .doesNotThrowAnyException();
+    }
+
+    private void inserirTrancamento(UUID matriculaId, String inicio, String voltaPrevista, String volta) {
+        jdbc.update("""
+                INSERT INTO trancamentos (id, matricula_id, inicio, volta_prevista, volta, motivo, criado_por,
+                                          criado_em, volta_registrada_por)
+                VALUES (?, ?, ?, ?, ?, 'Viagem', ?, now(), ?)""",
+                UUID.randomUUID(), matriculaId, Date.valueOf(inicio), Date.valueOf(voltaPrevista),
+                volta == null ? null : Date.valueOf(volta), usuario, volta == null ? null : usuario);
+    }
+
+    @Test
+    void bancoConfereOsTrancamentos() {
+        UUID id = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1)).getId();
+
+        assertThatThrownBy(() -> inserirTrancamento(id, "2027-01-10", "2027-01-16", null))  // 6 dias
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_trancamentos_duracao");
+        assertThatThrownBy(() -> inserirTrancamento(id, "2027-01-10", "2027-04-11", null))  // 91 dias
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_trancamentos_duracao");
+        assertThatThrownBy(() -> inserirTrancamento(id, "2027-01-10", "2027-01-20", "2027-01-20"))  // volta = prevista
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_trancamentos_volta");
+        assertThatThrownBy(() -> inserirTrancamento(id, "2027-01-10", "2027-01-20", "2027-01-09"))  // antes do início
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_trancamentos_volta");
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO trancamentos (id, matricula_id, inicio, volta_prevista, volta, motivo, criado_por, criado_em)
+                VALUES (?, ?, '2027-01-10', '2027-01-20', '2027-01-15', 'Viagem', ?, now())""",
+                UUID.randomUUID(), id, usuario))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_trancamentos_volta_registrada");
+
+        inserirTrancamento(id, "2027-01-10", "2027-01-20", null);
+        assertThatThrownBy(() -> inserirTrancamento(id, "2027-01-19", "2027-01-27", null))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ex_trancamentos_sobrepostos");
+        // Começar no dia da volta não se sobrepõe; um desfeito (volta = início) também não.
+        assertThatCode(() -> inserirTrancamento(id, "2027-01-20", "2027-01-27", null)).doesNotThrowAnyException();
+        assertThatCode(() -> inserirTrancamento(id, "2027-01-22", "2027-01-30", "2027-01-22")).doesNotThrowAnyException();
     }
 }

@@ -100,6 +100,8 @@ class MatriculaControllerTest {
     @AfterEach
     void limparAlunosEPlanos() {
         for (UUID id : alunos) {
+            jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id = ?)",
+                    id);
             jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", id);
             jdbc.update("DELETE FROM alunos WHERE id = ?", id);
         }
@@ -431,5 +433,76 @@ class MatriculaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fidelidade").value(false))
                 .andExpect(jsonPath("$.multaCancelamento").doesNotExist());
+    }
+
+    // Trancamento (ADR 0018)
+
+    private ResultActions trancar(String id, LocalDate inicio, LocalDate volta) throws Exception {
+        String corpoInicio = inicio == null ? "" : "\"inicio\": \"" + inicio + "\", ";
+        return mvc.perform(post("/api/matriculas/" + id + "/trancar").header("Authorization", "Bearer " + tokenRecepcao)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{%s\"voltaPrevista\": \"%s\", \"motivo\": \"Viagem\"}".formatted(corpoInicio, volta)));
+    }
+
+    @Test
+    void trancarEstendeOFimEMostraOTrancamento() throws Exception {
+        String id = idDe(matricular(aluno, plano, null));
+        LocalDate fim = hoje().plusMonths(1).minusDays(1);
+
+        trancar(id, null, hoje().plusDays(30))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.situacao").value("TRANCADA"))
+                .andExpect(jsonPath("$.diasTrancados").value(30))
+                .andExpect(jsonPath("$.fim").value(fim.plusDays(30).toString()))
+                .andExpect(jsonPath("$.trancamentos[0].inicio").value(hoje().toString()))
+                .andExpect(jsonPath("$.trancamentos[0].voltaPrevista").value(hoje().plusDays(30).toString()))
+                .andExpect(jsonPath("$.trancamentos[0].dias").value(30))
+                .andExpect(jsonPath("$.trancamentos[0].motivo").value("Viagem"));
+    }
+
+    @Test
+    void comRenovacaoAgendadaOTrancamentoEhRecusado() throws Exception {
+        String id = idDe(matricular(aluno, plano, null));
+        LocalDate renovacao = hoje().plusMonths(1);
+        matricular(aluno, plano, renovacao).andExpect(status().isCreated());
+
+        trancar(id, null, hoje().plusDays(10))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Trancamento recusado"))
+                .andExpect(jsonPath("$.detail").value(containsString("renovação agendada")))
+                .andExpect(jsonPath("$.detail").value(containsString("cancele")));
+        mvc.perform(get("/api/matriculas/" + id).header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(jsonPath("$.diasTrancados").value(0))
+                .andExpect(jsonPath("$.trancamentos.length()").value(0));
+    }
+
+    @Test
+    void registrarAVoltaContaSoOsDiasParados() throws Exception {
+        String id = idDe(matricular(aluno, plano, null));
+        trancar(id, hoje().plusDays(5), hoje().plusDays(20)).andExpect(status().isOk());
+
+        // Ainda não começou: registrar a volta desfaz o trancamento.
+        mvc.perform(post("/api/matriculas/" + id + "/registrar-volta").header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diasTrancados").value(0))
+                .andExpect(jsonPath("$.situacao").value("VIGENTE"))
+                .andExpect(jsonPath("$.trancamentos[0].dias").value(0));
+        mvc.perform(post("/api/matriculas/" + id + "/registrar-volta").header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Volta recusada"));
+    }
+
+    @Test
+    void dadosDoTrancamentoInvalidos() throws Exception {
+        String id = idDe(matricular(aluno, plano, null));
+
+        trancar(id, null, hoje().plusDays(6)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("7 a 90")));
+        mvc.perform(post("/api/matriculas/" + id + "/trancar").header("Authorization", "Bearer " + tokenRecepcao)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erros[?(@.campo == 'voltaPrevista')]").exists())
+                .andExpect(jsonPath("$.erros[?(@.campo == 'motivo')]").exists());
+        trancar(UUID.randomUUID().toString(), null, hoje().plusDays(10)).andExpect(status().isNotFound());
     }
 }

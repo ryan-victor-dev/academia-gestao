@@ -70,6 +70,8 @@ class InativacaoComMatriculaTest {
     @AfterEach
     void limpar() {
         for (UUID id : alunos) {
+            jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id = ?)",
+                    id);
             jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", id);
             jdbc.update("DELETE FROM alunos WHERE id = ?", id);
         }

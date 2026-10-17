@@ -2,11 +2,16 @@ package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.planos.FormaPagamento;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
@@ -16,6 +21,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -36,6 +45,8 @@ public class Matricula {
     // NUMERIC(10,2): até 8 dígitos antes da vírgula, como em planos.
     static final BigDecimal VALOR_MAXIMO = new BigDecimal("99999999.99");
     static final BigDecimal CEM = new BigDecimal("100");
+    static final int DIAS_MINIMOS_TRANCAMENTO = 7;
+    static final int DIAS_MAXIMOS_TRANCADOS = 90;
 
     @Id
     private UUID id;
@@ -69,8 +80,18 @@ public class Matricula {
     @Column(nullable = false, updatable = false)
     private LocalDate inicio;
 
-    @Column(nullable = false, updatable = false)
+    // Avança com os dias trancados (ADR 0018): início + N meses - 1 dia + dias trancados.
+    @Column(nullable = false)
     private LocalDate fim;
+
+    @Column(name = "dias_trancados", nullable = false)
+    private int diasTrancados;
+
+    // Poucos por matrícula, e a situação depende deles: vêm junto (open-in-view está desligado).
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JoinColumn(name = "matricula_id", nullable = false, updatable = false)
+    @OrderBy("inicio")
+    private List<Trancamento> trancamentos = new ArrayList<>();
 
     @Column(name = "criada_em", nullable = false, updatable = false)
     private Instant criadaEm;
@@ -179,34 +200,113 @@ public class Matricula {
         if (hoje.isBefore(inicio)) {
             return SituacaoMatricula.AGENDADA;
         }
-        return hoje.isAfter(fim) ? SituacaoMatricula.ENCERRADA : SituacaoMatricula.VIGENTE;
+        if (hoje.isAfter(fim)) {
+            return SituacaoMatricula.ENCERRADA;
+        }
+        return trancamentos.stream().anyMatch(t -> t.paradoEm(hoje))
+                ? SituacaoMatricula.TRANCADA : SituacaoMatricula.VIGENTE;
     }
 
     /**
-     * Só agendada ou vigente. Uma vigente termina hoje; uma agendada fica cancelada sem ter
-     * começado. Com fidelidade, grava a multa (ver {@link #multaSeEncerrarEm}). Valida tudo
-     * antes de alterar: ou o cancelamento inteiro é gravado, ou nada.
+     * Pausa a matrícula de {@code inicio} (null = hoje) até a véspera de {@code voltaPrevista}
+     * e estende o fim pelos dias parados (ADR 0018). Só vigente, um trancamento por vez, de 7 a
+     * 90 dias e no máximo 90 somados. Quem confere a renovação agendada é o service, porque
+     * envolve outra matrícula.
+     */
+    void trancar(LocalDate inicio, LocalDate voltaPrevista, String motivo, UUID usuarioId, Instant agora) {
+        LocalDate hoje = hoje(agora);
+        SituacaoMatricula situacao = situacao(agora);
+        if (situacao != SituacaoMatricula.VIGENTE) {
+            throw new MatriculaRecusadaException("Trancamento recusado",
+                    "Só se tranca matrícula vigente; esta está " + situacao.name().toLowerCase());
+        }
+        if (trancamentoEmAberto(hoje).isPresent()) {
+            throw new MatriculaRecusadaException("Trancamento recusado",
+                    "Já existe um trancamento agendado; registre a volta antes de marcar outro");
+        }
+        if (usuarioId == null) {
+            throw new DadosInvalidosException("quem trancou é obrigatório");
+        }
+        String motivoLimpo = limparMotivo(motivo);
+        LocalDate comeco = inicio == null ? hoje : inicio;
+        if (comeco.isBefore(hoje) || comeco.isAfter(fim)) {
+            throw new DadosInvalidosException("o trancamento começa entre hoje e o fim da matrícula");
+        }
+        if (voltaPrevista == null) {
+            throw new DadosInvalidosException("a volta prevista é obrigatória");
+        }
+        long dias = ChronoUnit.DAYS.between(comeco, voltaPrevista);
+        if (dias < DIAS_MINIMOS_TRANCAMENTO || dias > DIAS_MAXIMOS_TRANCADOS) {
+            throw new DadosInvalidosException("o trancamento precisa ter de " + DIAS_MINIMOS_TRANCAMENTO
+                    + " a " + DIAS_MAXIMOS_TRANCADOS + " dias");
+        }
+        if (diasTrancados + dias > DIAS_MAXIMOS_TRANCADOS) {
+            throw new MatriculaRecusadaException("Trancamento recusado", "A matrícula já tem %d dias trancados;"
+                    .formatted(diasTrancados) + " restam %d dos %d permitidos".formatted(
+                    DIAS_MAXIMOS_TRANCADOS - diasTrancados, DIAS_MAXIMOS_TRANCADOS));
+        }
+
+        trancamentos.add(new Trancamento(comeco, voltaPrevista, motivoLimpo, usuarioId, agora));
+        ajustarDiasTrancados((int) dias);
+    }
+
+    /**
+     * O aluno voltou antes da data prevista: contam só os dias realmente parados, e o fim é
+     * recalculado. Antes de o trancamento começar, ele é desfeito (0 dias).
+     */
+    void registrarVolta(UUID usuarioId, Instant agora) {
+        if (usuarioId == null) {
+            throw new DadosInvalidosException("quem registrou a volta é obrigatório");
+        }
+        LocalDate hoje = hoje(agora);
+        Trancamento trancamento = trancamentoEmAberto(hoje).orElseThrow(() -> new MatriculaRecusadaException(
+                "Volta recusada", "A matrícula não tem trancamento em andamento nem agendado"));
+        ajustarDiasTrancados(-trancamento.voltarEm(hoje, usuarioId));
+    }
+
+    private Optional<Trancamento> trancamentoEmAberto(LocalDate hoje) {
+        return trancamentos.stream().filter(t -> t.emAbertoEm(hoje)).findFirst();
+    }
+
+    private void ajustarDiasTrancados(int diferenca) {
+        this.diasTrancados += diferenca;
+        this.fim = fim.plusDays(diferenca);
+    }
+
+    /**
+     * Agendada, vigente ou trancada. Uma vigente termina hoje; uma agendada fica cancelada sem
+     * ter começado; um trancamento em aberto termina junto (só contam os dias já parados).
+     * Com fidelidade, grava a multa (ver {@link #multaSeEncerrarEm}). Valida tudo antes de
+     * alterar: ou o cancelamento inteiro é gravado, ou nada.
      */
     void cancelar(UUID usuarioId, String motivo, Instant agora) {
         SituacaoMatricula situacao = situacao(agora);
-        if (situacao != SituacaoMatricula.AGENDADA && situacao != SituacaoMatricula.VIGENTE) {
+        if (situacao != SituacaoMatricula.AGENDADA && situacao != SituacaoMatricula.VIGENTE
+                && situacao != SituacaoMatricula.TRANCADA) {
             throw new MatriculaNaoCancelavelException(situacao);
         }
         if (usuarioId == null) {
             throw new DadosInvalidosException("quem cancelou é obrigatório");
         }
+        String motivoLimpo = limparMotivo(motivo);
+
+        LocalDate hoje = hoje(agora);
+        trancamentoEmAberto(hoje).ifPresent(t -> ajustarDiasTrancados(-t.voltarEm(hoje, usuarioId)));
+        this.canceladaEm = agora.truncatedTo(ChronoUnit.MICROS);
+        this.canceladaPor = usuarioId;
+        this.motivoCancelamento = motivoLimpo;
+        this.multaCancelamento = situacao == SituacaoMatricula.AGENDADA ? null : multaSeEncerrarEm(hoje);
+    }
+
+    private static String limparMotivo(String motivo) {
         String motivoLimpo = motivo == null ? "" : motivo.trim();
         if (motivoLimpo.isEmpty()) {
-            throw new DadosInvalidosException("motivo do cancelamento é obrigatório");
+            throw new DadosInvalidosException("o motivo é obrigatório");
         }
         if (motivoLimpo.length() > TAMANHO_MAXIMO_MOTIVO) {
             throw new DadosInvalidosException("motivo pode ter no máximo " + TAMANHO_MAXIMO_MOTIVO + " caracteres");
         }
-
-        this.canceladaEm = agora.truncatedTo(ChronoUnit.MICROS);
-        this.canceladaPor = usuarioId;
-        this.motivoCancelamento = motivoLimpo;
-        this.multaCancelamento = situacao == SituacaoMatricula.VIGENTE ? multaSeEncerrarEm(hoje(agora)) : null;
+        return motivoLimpo;
     }
 
     /**
@@ -245,6 +345,8 @@ public class Matricula {
     public FormaPagamento getFormaPagamento() { return formaPagamento; }
     public LocalDate getInicio() { return inicio; }
     public LocalDate getFim() { return fim; }
+    public int getDiasTrancados() { return diasTrancados; }
+    public List<Trancamento> getTrancamentos() { return Collections.unmodifiableList(trancamentos); }
     public Instant getCriadaEm() { return criadaEm; }
     public Instant getCanceladaEm() { return canceladaEm; }
     public UUID getCanceladaPor() { return canceladaPor; }

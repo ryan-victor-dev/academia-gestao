@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
@@ -59,6 +60,8 @@ class MatriculaConcorrenciaTest {
     @AfterEach
     void limpar() {
         for (UUID id : alunos) {
+            jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id = ?)",
+                    id);
             jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", id);
             jdbc.update("DELETE FROM alunos WHERE id = ?", id);
         }
@@ -192,5 +195,50 @@ class MatriculaConcorrenciaTest {
             Thread.sleep(25);
         }
         throw new AssertionError("o INSERT do service não chegou a esperar pela outra transação");
+    }
+
+    /**
+     * Trancar (que estende o fim) e criar a renovação para o dia seguinte ao fim, ao mesmo
+     * tempo. Só um pode ficar: com o trancamento, a renovação invade o fim estendido; com a
+     * renovação, o trancamento invadiria ela. Nunca um 500, nunca os dois.
+     */
+    @Test
+    void trancarERenovarAoMesmoTempo() throws Exception {
+        LocalDate hoje = LocalDate.now(Matricula.FUSO);
+        int trancadas = 0;
+        int renovadas = 0;
+        for (int rodada = 0; rodada < RODADAS; rodada++) {
+            UUID aluno = criarAluno();
+            Matricula atual = service.matricular(aluno, plano, null);
+            LocalDate diaDaRenovacao = atual.getFim().plusDays(1);
+            long atraso = ThreadLocalRandom.current().nextLong(4);
+
+            List<String> resultados = aoMesmoTempo(2, i -> {
+                try {
+                    if (i == 0) {
+                        service.trancar(atual.getId(), null, hoje.plusDays(10), "Viagem", usuario);
+                        return "trancada";
+                    }
+                    // O trancar faz uma consulta a mais antes de travar o aluno e chegaria sempre
+                    // depois; um atraso aleatório faz cada lado ganhar em parte das rodadas.
+                    Thread.sleep(atraso);
+                    service.matricular(aluno, plano, diaDaRenovacao);
+                    return "renovada";
+                } catch (MatriculaRecusadaException e) {
+                    return "409 " + e.titulo();
+                } catch (Exception e) {
+                    return "outro erro: " + e.getClass().getSimpleName();
+                }
+            });
+
+            if (resultados.get(0).equals("trancada")) {
+                trancadas++;
+                assertThat(resultados.get(1)).as("rodada %d", rodada).isEqualTo("409 Período ocupado");
+            } else {
+                renovadas++;
+                assertThat(resultados).as("rodada %d", rodada).containsExactly("409 Trancamento recusado", "renovada");
+            }
+        }
+        System.out.printf("trancarERenovarAoMesmoTempo: %d trancadas, %d renovadas%n", trancadas, renovadas);
     }
 }

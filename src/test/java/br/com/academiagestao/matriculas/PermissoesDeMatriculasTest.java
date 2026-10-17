@@ -90,6 +90,8 @@ class PermissoesDeMatriculasTest {
     @AfterEach
     void limparMatriculas() {
         for (UUID id : alunos) {
+            jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id = ?)",
+                    id);
             jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", id);
         }
     }
@@ -122,6 +124,18 @@ class PermissoesDeMatriculasTest {
         return id;
     }
 
+    /** Trancada de ontem até daqui a 9 dias. */
+    private UUID criarMatriculaTrancada() {
+        UUID id = criarMatricula();
+        LocalDate hoje = LocalDate.now(Matricula.FUSO);
+        jdbc.update("UPDATE matriculas SET dias_trancados = 10, fim = fim + 10 WHERE id = ?", id);
+        jdbc.update("""
+                INSERT INTO trancamentos (id, matricula_id, inicio, volta_prevista, motivo, criado_por, criado_em)
+                VALUES (?, ?, ?, ?, 'Viagem', ?, now())""",
+                UUID.randomUUID(), id, Date.valueOf(hoje.minusDays(1)), Date.valueOf(hoje.plusDays(9)), usuarios.getFirst());
+        return id;
+    }
+
     private MockHttpServletRequestBuilder requisicao(String operacao) {
         return switch (operacao) {
             case "matricular" -> post("/api/matriculas").contentType(MediaType.APPLICATION_JSON)
@@ -130,6 +144,11 @@ class PermissoesDeMatriculasTest {
             case "listar" -> get("/api/matriculas").param("alunoId", alunoDoLogin.toString());
             case "vigente" -> get("/api/matriculas/vigente").param("alunoId", alunoDoLogin.toString());
             case "minhas" -> get("/api/matriculas/me");
+            case "trancar" -> post("/api/matriculas/" + criarMatricula() + "/trancar")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"voltaPrevista\": \"%s\", \"motivo\": \"Viagem\"}"
+                            .formatted(LocalDate.now(Matricula.FUSO).plusDays(10)));
+            case "registrar-volta" -> post("/api/matriculas/" + criarMatriculaTrancada() + "/registrar-volta");
             case "cancelar" -> post("/api/matriculas/" + criarMatricula() + "/cancelar")
                     .contentType(MediaType.APPLICATION_JSON).content("{\"motivo\": \"Teste de permissão\"}");
             default -> throw new IllegalArgumentException(operacao);
@@ -171,6 +190,16 @@ class PermissoesDeMatriculasTest {
             "minhas,     RECEPCAO,  403",
             "minhas,     INSTRUTOR, 403",
             "minhas,     ALUNO,     200",
+
+            "trancar,         ADMIN,     200",
+            "trancar,         RECEPCAO,  200",
+            "trancar,         INSTRUTOR, 403",
+            "trancar,         ALUNO,     403",
+
+            "registrar-volta, ADMIN,     200",
+            "registrar-volta, RECEPCAO,  200",
+            "registrar-volta, INSTRUTOR, 403",
+            "registrar-volta, ALUNO,     403",
     })
     void matrizDePermissoes(String operacao, Perfil perfil, int statusEsperado) throws Exception {
         mvc.perform(requisicao(operacao).header("Authorization", "Bearer " + tokens.get(perfil)))
@@ -178,7 +207,7 @@ class PermissoesDeMatriculasTest {
     }
 
     @ParameterizedTest(name = "{0} sem token -> 401")
-    @CsvSource({"matricular", "consultar", "listar", "cancelar", "vigente", "minhas"})
+    @CsvSource({"matricular", "consultar", "listar", "cancelar", "vigente", "minhas", "trancar", "registrar-volta"})
     void semTokenNadaFunciona(String operacao) throws Exception {
         mvc.perform(requisicao(operacao)).andExpect(status().isUnauthorized());
     }

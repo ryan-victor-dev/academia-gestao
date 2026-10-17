@@ -374,4 +374,209 @@ class MatriculaTest {
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("forma de pagamento");
     }
+
+    // Trancamento (ADR 0018)
+
+    /** Mensal de 17/10 a 16/11/2026, vigente. */
+    private static Matricula vigente() {
+        return mensal("2026-10-17", "2026-10-17T10:00");
+    }
+
+    private static void trancar(Matricula m, String inicio, String volta, String agora) {
+        m.trancar(inicio == null ? null : LocalDate.parse(inicio), LocalDate.parse(volta), "Viagem", USUARIO,
+                em(agora));
+    }
+
+    @Test
+    void trancarEstendeOFimPelosDiasParados() {
+        Matricula matricula = vigente();
+
+        trancar(matricula, null, "2026-11-19", "2026-10-20T10:00");  // de 20/10 a 18/11: 30 dias
+
+        assertThat(matricula.getDiasTrancados()).isEqualTo(30);
+        assertThat(matricula.getFim()).isEqualTo(LocalDate.parse("2026-12-16"));
+        Trancamento t = matricula.getTrancamentos().getFirst();
+        assertThat(t.getInicio()).isEqualTo(LocalDate.parse("2026-10-20"));
+        assertThat(t.getVoltaPrevista()).isEqualTo(LocalDate.parse("2026-11-19"));
+        assertThat(t.getMotivo()).isEqualTo("Viagem");
+        assertThat(t.getCriadoPor()).isEqualTo(USUARIO);
+        assertThat(t.dias()).isEqualTo(30);
+        assertThat(t.getId()).isNotNull();
+        assertThat(t.getCriadoEm()).isEqualTo(em("2026-10-20T10:00"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-10-24T23:59, VIGENTE",   // véspera do trancamento agendado
+            "2026-10-25T00:00, TRANCADA",  // primeiro dia parado
+            "2026-11-23T23:59, TRANCADA",  // véspera da volta
+            "2026-11-24T00:00, VIGENTE",   // dia da volta
+            "2026-12-16T12:00, VIGENTE",   // último dia do fim estendido
+            "2026-12-17T00:00, ENCERRADA",
+    })
+    void situacaoDuranteOTrancamento(String agora, SituacaoMatricula esperada) {
+        Matricula matricula = vigente();
+        trancar(matricula, "2026-10-25", "2026-11-24", "2026-10-20T10:00");  // 30 dias, agendado
+
+        assertThat(matricula.situacao(em(agora))).isEqualTo(esperada);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"6, false", "7, true", "90, true", "91, false"})
+    void trancamentoDe7a90Dias(int dias, boolean aceito) {
+        Matricula matricula = vigente();
+        String volta = LocalDate.parse("2026-10-20").plusDays(dias).toString();
+
+        if (aceito) {
+            trancar(matricula, "2026-10-20", volta, "2026-10-20T10:00");
+            assertThat(matricula.getDiasTrancados()).isEqualTo(dias);
+        } else {
+            assertThatThrownBy(() -> trancar(matricula, "2026-10-20", volta, "2026-10-20T10:00"))
+                    .isInstanceOf(DadosInvalidosException.class)
+                    .hasMessageContaining("7 a 90 dias");
+            assertThat(matricula.getDiasTrancados()).isZero();
+            assertThat(matricula.getTrancamentos()).isEmpty();
+        }
+    }
+
+    @Test
+    void noMaximo90DiasSomadosNaMatricula() {
+        Matricula matricula = Matricula.nova(ALUNO, anualComFidelidade("20"), null, em("2026-10-17T10:00"));
+        trancar(matricula, "2026-10-20", "2026-12-19", "2026-10-20T10:00");  // 60 dias
+        LocalDate fimDepoisDoPrimeiro = matricula.getFim();
+
+        // Em 20/12 ele já voltou; pede mais 31: passaria de 90.
+        assertThatThrownBy(() -> trancar(matricula, "2027-01-05", "2027-02-05", "2026-12-20T10:00"))
+                .isInstanceOf(MatriculaRecusadaException.class)
+                .hasMessageContaining("60 dias trancados")
+                .hasMessageContaining("restam 30");
+        assertThat(matricula.getFim()).isEqualTo(fimDepoisDoPrimeiro);
+
+        trancar(matricula, "2027-01-05", "2027-02-04", "2026-12-20T10:00");  // exatamente 30
+        assertThat(matricula.getDiasTrancados()).isEqualTo(90);
+    }
+
+    @Test
+    void umTrancamentoPorVez() {
+        Matricula matricula = vigente();
+        trancar(matricula, "2026-10-25", "2026-11-01", "2026-10-20T10:00");  // agendado
+
+        assertThatThrownBy(() -> trancar(matricula, "2026-11-05", "2026-11-12", "2026-10-21T10:00"))
+                .isInstanceOf(MatriculaRecusadaException.class)
+                .hasMessageContaining("já existe um trancamento".substring(1));
+        // Durante o trancamento, a matrícula não está vigente.
+        assertThatThrownBy(() -> trancar(matricula, null, "2026-11-12", "2026-10-26T10:00"))
+                .isInstanceOf(MatriculaRecusadaException.class)
+                .hasMessageContaining("trancada");
+    }
+
+    @Test
+    void soSeTrancaMatriculaVigente() {
+        Matricula agendada = mensal("2026-11-01", "2026-10-17T10:00");
+        assertThatThrownBy(() -> trancar(agendada, null, "2026-10-30", "2026-10-20T10:00"))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("agendada");
+
+        Matricula encerrada = vigente();
+        assertThatThrownBy(() -> trancar(encerrada, null, "2026-12-01", "2026-11-20T10:00"))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("encerrada");
+
+        Matricula cancelada = vigente();
+        cancelada.cancelar(USUARIO, "Motivo", em("2026-10-18T10:00"));
+        assertThatThrownBy(() -> trancar(cancelada, null, "2026-10-30", "2026-10-20T10:00"))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("cancelada");
+    }
+
+    @Test
+    void datasEMotivoDoTrancamento() {
+        Matricula matricula = vigente();
+        Instant agora = em("2026-10-20T10:00");
+
+        assertThatThrownBy(() -> trancar(matricula, "2026-10-19", "2026-11-19", "2026-10-20T10:00"))
+                .isInstanceOf(DadosInvalidosException.class).hasMessageContaining("entre hoje e o fim");
+        assertThatThrownBy(() -> trancar(matricula, "2026-11-17", "2026-11-30", "2026-10-20T10:00"))
+                .isInstanceOf(DadosInvalidosException.class).hasMessageContaining("entre hoje e o fim");
+        assertThatThrownBy(() -> matricula.trancar(null, null, "Viagem", USUARIO, agora))
+                .isInstanceOf(DadosInvalidosException.class).hasMessageContaining("volta prevista");
+        assertThatThrownBy(() -> matricula.trancar(null, LocalDate.parse("2026-11-19"), "  ", USUARIO, agora))
+                .isInstanceOf(DadosInvalidosException.class).hasMessageContaining("motivo");
+        assertThatThrownBy(() -> matricula.trancar(null, LocalDate.parse("2026-11-19"), "Viagem", null, agora))
+                .isInstanceOf(DadosInvalidosException.class);
+        assertThat(matricula.getTrancamentos()).isEmpty();
+
+        // O último dia do período ainda pode começar um trancamento.
+        trancar(matricula, "2026-11-16", "2026-11-23", "2026-10-20T10:00");
+        assertThat(matricula.getFim()).isEqualTo(LocalDate.parse("2026-11-23"));
+    }
+
+    @Test
+    void voltaAntesDoPrevistoContaSoOsDiasParados() {
+        Matricula matricula = vigente();
+        trancar(matricula, "2026-10-20", "2026-11-19", "2026-10-20T10:00");  // 30 dias
+
+        matricula.registrarVolta(USUARIO, em("2026-10-30T09:00"));  // voltou no 11º dia: 10 parados
+
+        assertThat(matricula.getDiasTrancados()).isEqualTo(10);
+        assertThat(matricula.getFim()).isEqualTo(LocalDate.parse("2026-11-26"));
+        assertThat(matricula.situacao(em("2026-10-30T09:00"))).isEqualTo(SituacaoMatricula.VIGENTE);
+        Trancamento t = matricula.getTrancamentos().getFirst();
+        assertThat(t.getVolta()).isEqualTo(LocalDate.parse("2026-10-30"));
+        assertThat(t.getVoltaRegistradaPor()).isEqualTo(USUARIO);
+        assertThat(t.dias()).isEqualTo(10);
+    }
+
+    @Test
+    void voltaAntesDeComecarDesfazOTrancamento() {
+        Matricula matricula = vigente();
+        trancar(matricula, "2026-11-01", "2026-11-15", "2026-10-20T10:00");
+
+        matricula.registrarVolta(USUARIO, em("2026-10-25T10:00"));
+
+        assertThat(matricula.getDiasTrancados()).isZero();
+        assertThat(matricula.getFim()).isEqualTo(LocalDate.parse("2026-11-16"));
+        assertThat(matricula.getTrancamentos().getFirst().getVolta()).isEqualTo(LocalDate.parse("2026-11-01"));
+        // Desfeito, ele não impede um novo trancamento.
+        trancar(matricula, "2026-11-02", "2026-11-09", "2026-10-25T10:00");
+        assertThat(matricula.getDiasTrancados()).isEqualTo(7);
+    }
+
+    @Test
+    void voltaSemTrancamentoEmAbertoEhRecusada() {
+        Matricula matricula = vigente();
+        assertThatThrownBy(() -> matricula.registrarVolta(USUARIO, em("2026-10-20T10:00")))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("não tem trancamento");
+
+        trancar(matricula, "2026-10-20", "2026-10-27", "2026-10-20T10:00");
+        // No dia da volta prevista, o trancamento já terminou.
+        assertThatThrownBy(() -> matricula.registrarVolta(USUARIO, em("2026-10-27T10:00")))
+                .isInstanceOf(MatriculaRecusadaException.class);
+        assertThatThrownBy(() -> matricula.registrarVolta(null, em("2026-10-21T10:00")))
+                .isInstanceOf(DadosInvalidosException.class);
+        assertThat(matricula.getDiasTrancados()).isEqualTo(7);
+    }
+
+    @Test
+    void cancelarDuranteOTrancamentoContaSoOsDiasParadosEAplicaAMulta() {
+        Matricula matricula = Matricula.nova(ALUNO, anualComFidelidade("20"), null, em("2026-10-17T10:00"));
+        trancar(matricula, "2027-01-10", "2027-03-11", "2027-01-05T10:00");  // 60 dias
+
+        matricula.cancelar(USUARIO, "Não vai voltar", em("2027-01-20T10:00"));  // 10 dias parados
+
+        assertThat(matricula.situacao(em("2027-01-20T10:00"))).isEqualTo(SituacaoMatricula.CANCELADA);
+        assertThat(matricula.getDiasTrancados()).isEqualTo(10);
+        assertThat(matricula.getFim()).isEqualTo(LocalDate.parse("2027-10-26"));
+        assertThat(matricula.getTrancamentos().getFirst().getVolta()).isEqualTo(LocalDate.parse("2027-01-20"));
+        // De 21/01 até 27/10 (fim + 1): 9 meses inteiros. 9 × 99,90 × 20% = 179,82.
+        assertThat(matricula.getMultaCancelamento()).hasToString("179.82");
+    }
+
+    @Test
+    void cancelarComTrancamentoAgendadoODesfaz() {
+        Matricula matricula = vigente();
+        trancar(matricula, "2026-11-01", "2026-11-15", "2026-10-20T10:00");
+
+        matricula.cancelar(USUARIO, "Desistiu", em("2026-10-25T10:00"));
+
+        assertThat(matricula.getDiasTrancados()).isZero();
+        assertThat(matricula.getFim()).isEqualTo(LocalDate.parse("2026-11-16"));
+    }
 }

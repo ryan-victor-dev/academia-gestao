@@ -55,6 +55,8 @@ class VisoesDeMatriculaTest {
     @AfterEach
     void limpar() {
         for (UUID id : alunos) {
+            jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id = ?)",
+                    id);
             jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", id);
             jdbc.update("DELETE FROM alunos WHERE id = ?", id);
         }
@@ -201,5 +203,22 @@ class VisoesDeMatriculaTest {
                 .andExpect(jsonPath("$[0].fidelidade").value(true))
                 .andExpect(jsonPath("$[0].percentualMulta").value(20.00))
                 .andExpect(jsonPath("$[0].multaCancelamento").value(179.82));
+    }
+
+    @Test
+    void instrutorVeQueAlunoTrancadoNaoPodeTreinarEAlunoVeOTrancamento() throws Exception {
+        UUID ana = criarAluno(true);
+        UUID id = matricula(ana, hoje().minusDays(5), false);
+        jdbc.update("UPDATE matriculas SET dias_trancados = 20, fim = fim + 20 WHERE id = ?", id);
+        jdbc.update("""
+                INSERT INTO trancamentos (id, matricula_id, inicio, volta_prevista, motivo, criado_por, criado_em)
+                VALUES (?, ?, ?, ?, 'Lesão', ?, now())""",
+                UUID.randomUUID(), id, Date.valueOf(hoje().minusDays(2)), Date.valueOf(hoje().plusDays(18)), usuario);
+
+        assertThat(vigenteParaOInstrutor(ana)).isFalse();
+        mvc.perform(get("/api/matriculas/me").with(tokenDeAluno(ana)))
+                .andExpect(jsonPath("$[0].situacao").value("TRANCADA"))
+                .andExpect(jsonPath("$[0].diasTrancados").value(20))
+                .andExpect(jsonPath("$[0].trancamentos[0].motivo").value("Lesão"));
     }
 }

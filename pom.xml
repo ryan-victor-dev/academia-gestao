@@ -171,6 +171,7 @@
 								<param>br.com.academiagestao.alunos.Aluno</param>
 								<param>br.com.academiagestao.planos.Plano</param>
 								<param>br.com.academiagestao.matriculas.Matricula</param>
+								<param>br.com.academiagestao.matriculas.Trancamento</param>
 								<param>br.com.academiagestao.auth.Usuario</param>
 								<param>br.com.academiagestao.auth.PoliticaDeSenha</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>

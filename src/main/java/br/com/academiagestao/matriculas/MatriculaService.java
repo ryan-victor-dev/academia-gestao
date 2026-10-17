@@ -97,11 +97,52 @@ class MatriculaService {
         return repository.findByAlunoIdOrderByInicioDesc(alunoId);
     }
 
-    /** Hoje cai dentro de uma matrícula não cancelada? É o que o instrutor precisa saber. */
+    /** Hoje cai numa matrícula vigente (não cancelada nem trancada)? É o que o instrutor precisa saber. */
     @Transactional(readOnly = true)
     boolean temMatriculaVigente(UUID alunoId) {
-        LocalDate hoje = Matricula.hoje(relogio.instant());
-        return !repository.sobrepostas(alunoId, hoje, hoje).isEmpty();
+        Instant agora = relogio.instant();
+        LocalDate hoje = Matricula.hoje(agora);
+        return repository.sobrepostas(alunoId, hoje, hoje).stream()
+                .anyMatch(m -> m.situacao(agora) == SituacaoMatricula.VIGENTE);
+    }
+
+    /**
+     * Tranca e estende o fim (ADR 0018). Trava o aluno antes, como a matrícula nova: assim uma
+     * renovação criada ao mesmo tempo espera, e a conferência abaixo vê o que existe de fato.
+     */
+    @Transactional
+    Matricula trancar(UUID id, LocalDate inicio, LocalDate voltaPrevista, String motivo, UUID usuarioId) {
+        UUID alunoId = repository.alunoDaMatricula(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
+        alunos.travar(alunoId);
+        Matricula matricula = repository.travarPorId(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
+        // Consultada ANTES de alterar a matrícula: com o fim já estendido, o auto-flush do
+        // Hibernate gravaria a alteração antes da consulta e a restrição do banco estouraria nela.
+        var renovacao = repository.findFirstByAlunoIdAndCanceladaEmIsNullAndInicioAfterOrderByInicio(
+                alunoId, matricula.getFim());
+
+        matricula.trancar(inicio, voltaPrevista, motivo, usuarioId, relogio.instant());
+        if (renovacao.isPresent() && !renovacao.get().getInicio().isAfter(matricula.getFim())) {
+            throw new MatriculaRecusadaException("Trancamento recusado",
+                    "O aluno tem renovação agendada a partir de %s, e o fim estendido a invadiria; cancele-a antes"
+                            .formatted(renovacao.get().getInicio().format(DATA)));
+        }
+        try {
+            return repository.saveAndFlush(matricula);
+        } catch (DataIntegrityViolationException e) {
+            if (String.valueOf(e.getMessage()).contains(RESTRICAO_DE_PERIODO)) {
+                throw new MatriculaRecusadaException("Trancamento recusado",
+                        "O fim estendido invadiria outra matrícula do aluno");
+            }
+            throw e;
+        }
+    }
+
+    /** O aluno voltou antes do previsto (ou desistiu do trancamento agendado). */
+    @Transactional
+    Matricula registrarVolta(UUID id, UUID usuarioId) {
+        Matricula matricula = repository.travarPorId(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
+        matricula.registrarVolta(usuarioId, relogio.instant());
+        return repository.saveAndFlush(matricula);
     }
 
     /** Trava a matrícula: um segundo cancelamento simultâneo espera e recebe 409 (já cancelada). */

@@ -96,6 +96,44 @@ class MatriculaController {
         return MatriculaResponse.de(matricula, service.agora());
     }
 
+    /** Pausa a matrícula; o fim avança pelos dias parados. Sem {@code inicio}, começa hoje. */
+    @PostMapping("/{id}/trancar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    MatriculaResponse trancar(@PathVariable UUID id, @Valid @RequestBody TrancamentoRequest request,
+                              @AuthenticationPrincipal Jwt jwt) {
+        Matricula matricula = service.trancar(id, request.inicio(), request.voltaPrevista(), request.motivo(),
+                UUID.fromString(jwt.getSubject()));
+        return MatriculaResponse.de(matricula, service.agora());
+    }
+
+    /** O aluno voltou antes do previsto: contam só os dias parados. */
+    @PostMapping("/{id}/registrar-volta")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    MatriculaResponse registrarVolta(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return MatriculaResponse.de(service.registrarVolta(id, UUID.fromString(jwt.getSubject())), service.agora());
+    }
+
+    record TrancamentoRequest(
+            LocalDate inicio,
+
+            @NotNull(message = "é obrigatória")
+            LocalDate voltaPrevista,
+
+            @NotBlank(message = "é obrigatório")
+            @Size(max = Matricula.TAMANHO_MAXIMO_MOTIVO, message = "pode ter no máximo {max} caracteres")
+            String motivo) {
+    }
+
+    record TrancamentoResponse(LocalDate inicio, LocalDate voltaPrevista, LocalDate volta, int dias, String motivo) {
+
+        static List<TrancamentoResponse> de(Matricula m) {
+            return m.getTrancamentos().stream()
+                    .map(t -> new TrancamentoResponse(t.getInicio(), t.getVoltaPrevista(), t.getVolta(), t.dias(),
+                            t.getMotivo()))
+                    .toList();
+        }
+    }
+
     record MatriculaRequest(
             @NotNull(message = "é obrigatório")
             UUID alunoId,
@@ -119,27 +157,30 @@ class MatriculaController {
     record MatriculaParaAluno(UUID id, UUID planoId, String planoNome, BigDecimal valorMensal, int duracaoMeses,
                               BigDecimal valorTotal, boolean fidelidade, BigDecimal percentualMulta,
                               FormaPagamento formaPagamento, LocalDate inicio, LocalDate fim,
+                              int diasTrancados, List<TrancamentoResponse> trancamentos,
                               SituacaoMatricula situacao, Instant canceladaEm, String motivoCancelamento,
                               BigDecimal multaCancelamento) {
 
         static MatriculaParaAluno de(Matricula m, Instant agora) {
             return new MatriculaParaAluno(m.getId(), m.getPlanoId(), m.getPlanoNome(), m.getValorMensal(),
                     m.getDuracaoMeses(), m.getValorTotal(), m.isFidelidade(), m.getPercentualMulta(),
-                    m.getFormaPagamento(), m.getInicio(), m.getFim(), m.situacao(agora), m.getCanceladaEm(),
-                    m.getMotivoCancelamento(), m.getMultaCancelamento());
+                    m.getFormaPagamento(), m.getInicio(), m.getFim(), m.getDiasTrancados(), TrancamentoResponse.de(m),
+                    m.situacao(agora), m.getCanceladaEm(), m.getMotivoCancelamento(), m.getMultaCancelamento());
         }
     }
 
     record MatriculaResponse(UUID id, UUID alunoId, UUID planoId, String planoNome, BigDecimal valorMensal,
                              int duracaoMeses, BigDecimal valorTotal, boolean fidelidade, BigDecimal percentualMulta,
-                             FormaPagamento formaPagamento, LocalDate inicio, LocalDate fim,
-                             SituacaoMatricula situacao, Instant criadaEm, Instant canceladaEm, UUID canceladaPor,
-                             String motivoCancelamento, BigDecimal multaCancelamento) {
+                             FormaPagamento formaPagamento, LocalDate inicio, LocalDate fim, int diasTrancados,
+                             List<TrancamentoResponse> trancamentos, SituacaoMatricula situacao, Instant criadaEm,
+                             Instant canceladaEm, UUID canceladaPor, String motivoCancelamento,
+                             BigDecimal multaCancelamento) {
 
         static MatriculaResponse de(Matricula m, Instant agora) {
             return new MatriculaResponse(m.getId(), m.getAlunoId(), m.getPlanoId(), m.getPlanoNome(),
                     m.getValorMensal(), m.getDuracaoMeses(), m.getValorTotal(), m.isFidelidade(),
-                    m.getPercentualMulta(), m.getFormaPagamento(), m.getInicio(), m.getFim(), m.situacao(agora),
+                    m.getPercentualMulta(), m.getFormaPagamento(), m.getInicio(), m.getFim(), m.getDiasTrancados(),
+                    TrancamentoResponse.de(m), m.situacao(agora),
                     m.getCriadaEm(), m.getCanceladaEm(), m.getCanceladaPor(), m.getMotivoCancelamento(),
                     m.getMultaCancelamento());
         }

@@ -26,6 +26,12 @@ interface MatriculaRepository extends JpaRepository<Matricula, UUID> {
     Optional<Matricula> findFirstByAlunoIdAndCanceladaEmIsNullAndFimGreaterThanEqualOrderByInicio(UUID alunoId,
                                                                                                  LocalDate hoje);
 
+    @Query("SELECT m.alunoId FROM Matricula m WHERE m.id = :id")
+    Optional<UUID> alunoDaMatricula(UUID id);
+
+    /** A primeira matrícula não cancelada do aluno que começa depois do dia informado (renovação). */
+    Optional<Matricula> findFirstByAlunoIdAndCanceladaEmIsNullAndInicioAfterOrderByInicio(UUID alunoId, LocalDate dia);
+
     /** SELECT ... FOR UPDATE: dois cancelamentos da mesma matrícula não passam juntos. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM Matricula m WHERE m.id = :id")
