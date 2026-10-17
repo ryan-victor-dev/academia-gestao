@@ -1,6 +1,6 @@
 # ADR 0013 — Planos: preço, nome único e quem vê o quê
 
-- **Status:** Aceito
+- **Status:** Aceito; fidelidade e forma de pagamento acrescentadas pelo [ADR 0018](0018-fidelidade-trancamento-troca-e-vencimento.md)
 - **Data:** 2026-10-16
 
 ## Contexto

@@ -1,6 +1,6 @@
 # ADR 0016 — Matrículas: preço congelado, períodos sem sobreposição e quem vê o quê
 
-- **Status:** Aceito; complementado pelo [ADR 0017](0017-matriculas-decisoes-da-implementacao.md)
+- **Status:** Aceito; complementado pelos ADRs [0017](0017-matriculas-decisoes-da-implementacao.md) e [0018](0018-fidelidade-trancamento-troca-e-vencimento.md) (o fim passa a incluir os dias trancados)
 - **Data:** 2026-10-17
 
 ## Contexto
