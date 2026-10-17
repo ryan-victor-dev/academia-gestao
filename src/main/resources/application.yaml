@@ -10,6 +10,14 @@ spring:
     # As migrations rodam com o dono do banco, que pode criar e alterar tabelas.
     user: academia
     password: ${POSTGRES_PASSWORD:}
+  jackson:
+    # JSON estrito: valor no tipo errado é recusado (400), em vez de convertido sem aviso.
+    # Sem isso, "duracaoMeses": 1.5 virava 1 e "12" (texto) virava 12.
+    deserialization:
+      accept-float-as-int: false
+      fail-on-trailing-tokens: true
+    mapper:
+      allow-coercion-of-scalars: false
   mvc:
     # Erros da API no formato padrão RFC 9457 (application/problem+json)
     problemdetails:

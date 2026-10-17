@@ -2,6 +2,8 @@ package br.com.academiagestao.compartilhado;
 
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -78,5 +80,18 @@ class ErrosDaApiTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Rota não encontrada"))
                 .andExpect(jsonPath("$.detail").value("Esta rota não existe."));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {
+            "{\"nome\": \"P\", \"valorMensal\": 100, \"duracaoMeses\": 1.5}",     // decimal num inteiro
+            "{\"nome\": \"P\", \"valorMensal\": 100, \"duracaoMeses\": \"12\"}",  // texto num inteiro
+            "{\"nome\": \"P\", \"valorMensal\": \"129.90\", \"duracaoMeses\": 1}", // texto num valor
+            "{\"nome\": \"P\", \"valorMensal\": 100, \"duracaoMeses\": 1} lixo",    // lixo depois do JSON
+    })
+    void valorNoTipoErradoEhRecusadoEmVezDeConvertidoSemAviso(String corpo) throws Exception {
+        mvc.perform(post("/api/planos").with(ADMIN).contentType(MediaType.APPLICATION_JSON).content(corpo))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Corpo da requisição inválido"));
     }
 }
