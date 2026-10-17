@@ -2,6 +2,8 @@ package br.com.academiagestao.planos;
 
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -123,10 +125,21 @@ class PlanoController {
             @NotNull(message = "é obrigatório")
             @Min(value = 1, message = "precisa ser de pelo menos {value} mês")
             @Max(value = Plano.DURACAO_MAXIMA_MESES, message = "pode ser no máximo {value} meses")
-            Integer duracaoMeses) {
+            Integer duracaoMeses,
+
+            // Ausente: sem fidelidade. Com fidelidade, o percentual é obrigatório (ADR 0018).
+            Boolean fidelidade,
+
+            @DecimalMin(value = "0.01", message = "precisa ser de pelo menos {value}%")
+            @DecimalMax(value = "100", message = "pode ser no máximo {value}%")
+            @Digits(integer = 3, fraction = 2, message = "até 2 casas decimais")
+            BigDecimal percentualMulta,
+
+            // Ausente: mensal.
+            FormaPagamento formaPagamento) {
 
         DadosPlano paraDados() {
-            return new DadosPlano(nome, valorMensal, duracaoMeses);
+            return new DadosPlano(nome, valorMensal, duracaoMeses, fidelidade, percentualMulta, formaPagamento);
         }
     }
 
@@ -134,22 +147,28 @@ class PlanoController {
     sealed interface VisaoDoPlano permits PlanoResponse, PlanoParaAluno {
     }
 
-    /** Visão do aluno: só o que interessa para escolher ou renovar o plano. */
-    record PlanoParaAluno(UUID id, String nome, BigDecimal valorMensal, int duracaoMeses, BigDecimal valorTotal)
+    /**
+     * Visão do aluno: só o que interessa para escolher ou renovar o plano, inclusive a
+     * fidelidade e a multa, que ele precisa conhecer antes de contratar.
+     */
+    record PlanoParaAluno(UUID id, String nome, BigDecimal valorMensal, int duracaoMeses, BigDecimal valorTotal,
+                          boolean fidelidade, BigDecimal percentualMulta, FormaPagamento formaPagamento)
             implements VisaoDoPlano {
 
         static PlanoParaAluno de(Plano p) {
             return new PlanoParaAluno(p.getId(), p.getNome(), p.getValorMensal(), p.getDuracaoMeses(),
-                    p.getValorTotal());
+                    p.getValorTotal(), p.isFidelidade(), p.getPercentualMulta(), p.getFormaPagamento());
         }
     }
 
     record PlanoResponse(UUID id, String nome, BigDecimal valorMensal, int duracaoMeses, BigDecimal valorTotal,
+                         boolean fidelidade, BigDecimal percentualMulta, FormaPagamento formaPagamento,
                          boolean ativo, Instant criadoEm) implements VisaoDoPlano {
 
         static PlanoResponse de(Plano p) {
             return new PlanoResponse(p.getId(), p.getNome(), p.getValorMensal(), p.getDuracaoMeses(),
-                    p.getValorTotal(), p.isAtivo(), p.getCriadoEm());
+                    p.getValorTotal(), p.isFidelidade(), p.getPercentualMulta(), p.getFormaPagamento(),
+                    p.isAtivo(), p.getCriadoEm());
         }
     }
 }

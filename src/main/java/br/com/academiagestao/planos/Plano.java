@@ -3,6 +3,8 @@ package br.com.academiagestao.planos;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -24,6 +26,7 @@ public class Plano {
     static final int DURACAO_MAXIMA_MESES = 60;
     // NUMERIC(10,2): até 8 dígitos antes da vírgula.
     static final BigDecimal VALOR_MAXIMO = new BigDecimal("99999999.99");
+    static final BigDecimal PERCENTUAL_MAXIMO_MULTA = new BigDecimal("100");
 
     @Id
     private UUID id;
@@ -36,6 +39,17 @@ public class Plano {
 
     @Column(name = "duracao_meses", nullable = false)
     private int duracaoMeses;
+
+    // Com fidelidade, quem cancela antes do fim paga o percentual sobre o saldo (ADR 0018).
+    @Column(nullable = false)
+    private boolean fidelidade;
+
+    @Column(name = "percentual_multa", precision = 5, scale = 2)
+    private BigDecimal percentualMulta;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "forma_pagamento", nullable = false, length = 10)
+    private FormaPagamento formaPagamento;
 
     @Column(nullable = false)
     private boolean ativo;
@@ -105,10 +119,25 @@ public class Plano {
         if (duracao == null || duracao < 1 || duracao > DURACAO_MAXIMA_MESES) {
             throw new DadosInvalidosException("duração precisa ser de 1 a " + DURACAO_MAXIMA_MESES + " meses");
         }
+        boolean comFidelidade = Boolean.TRUE.equals(dados.fidelidade());
+        BigDecimal multa = dados.percentualMulta();
+        if (comFidelidade) {
+            if (multa == null || multa.signum() <= 0 || multa.compareTo(PERCENTUAL_MAXIMO_MULTA) > 0) {
+                throw new DadosInvalidosException("plano com fidelidade precisa de percentual de multa de 0,01 a 100");
+            }
+            if (multa.stripTrailingZeros().scale() > 2) {
+                throw new DadosInvalidosException("percentual de multa pode ter no máximo 2 casas decimais");
+            }
+        } else if (multa != null) {
+            throw new DadosInvalidosException("percentual de multa só existe em plano com fidelidade");
+        }
 
         this.nome = nomeLimpo;
         this.valorMensal = valor.setScale(2);
         this.duracaoMeses = duracao;
+        this.fidelidade = comFidelidade;
+        this.percentualMulta = comFidelidade ? multa.setScale(2) : null;
+        this.formaPagamento = dados.formaPagamento() == null ? FormaPagamento.MENSAL : dados.formaPagamento();
     }
 
     /** Sem espaços nas pontas nem repetidos: "  Plano   Anual " vira "Plano Anual". */
@@ -120,6 +149,9 @@ public class Plano {
     public String getNome() { return nome; }
     public BigDecimal getValorMensal() { return valorMensal; }
     public int getDuracaoMeses() { return duracaoMeses; }
+    public boolean isFidelidade() { return fidelidade; }
+    public BigDecimal getPercentualMulta() { return percentualMulta; }
+    public FormaPagamento getFormaPagamento() { return formaPagamento; }
     public boolean isAtivo() { return ativo; }
     public Instant getCriadoEm() { return criadoEm; }
     public long getVersao() { return versao; }

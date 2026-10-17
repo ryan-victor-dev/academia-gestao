@@ -85,4 +85,35 @@ class PlanoRepositoryTest {
                 UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    void fidelidadeEFormaDePagamentoSaoGravadas() {
+        Plano anual = repository.saveAndFlush(Plano.novo(new DadosPlano("Anual", new BigDecimal("99.90"), 12, true,
+                new BigDecimal("20"), FormaPagamento.A_VISTA)));
+
+        Plano lido = repository.findById(anual.getId()).orElseThrow();
+        assertThat(lido.isFidelidade()).isTrue();
+        assertThat(lido.getPercentualMulta()).isEqualByComparingTo("20.00");
+        assertThat(lido.getFormaPagamento()).isEqualTo(FormaPagamento.A_VISTA);
+    }
+
+    @Test
+    void bancoRecusaFidelidadeIncoerenteMesmoSemPassarPeloJava() {
+        String sql = "INSERT INTO planos (id, nome, valor_mensal, duracao_meses, fidelidade, percentual_multa)"
+                + " VALUES (?, ?, 10, 1, ?, ?)";
+        assertThatThrownBy(() -> jdbc.update(sql, UUID.randomUUID(), "A", true, null))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_planos_multa");
+        assertThatThrownBy(() -> jdbc.update(sql, UUID.randomUUID(), "B", true, new BigDecimal("0")))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_planos_multa");
+        assertThatThrownBy(() -> jdbc.update(sql, UUID.randomUUID(), "C", true, new BigDecimal("100.01")))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_planos_multa");
+        assertThatThrownBy(() -> jdbc.update(sql, UUID.randomUUID(), "D", false, new BigDecimal("10")))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_planos_multa");
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO planos (id, nome, valor_mensal, duracao_meses, forma_pagamento) VALUES (?, 'E', 10, 1, 'BOLETO')",
+                UUID.randomUUID()))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_planos_forma_pagamento");
+        assertThatCode(() -> jdbc.update(sql, UUID.randomUUID(), "F", true, new BigDecimal("100")))
+                .doesNotThrowAnyException();
+    }
 }

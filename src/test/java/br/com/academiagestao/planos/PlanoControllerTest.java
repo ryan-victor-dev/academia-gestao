@@ -177,4 +177,55 @@ class PlanoControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Plano não encontrado"));
     }
+
+    // Fidelidade e forma de pagamento (ADR 0018)
+
+    @Test
+    void cadastraPlanoComFidelidadeEPagamentoAVista() throws Exception {
+        cadastrar("""
+                {"nome": "Anual", "valorMensal": 99.90, "duracaoMeses": 12,
+                 "fidelidade": true, "percentualMulta": 12.5, "formaPagamento": "A_VISTA"}""")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.fidelidade").value(true))
+                .andExpect(jsonPath("$.percentualMulta").value(12.50))
+                .andExpect(jsonPath("$.formaPagamento").value("A_VISTA"));
+    }
+
+    @Test
+    void semOsCamposNovosFicaSemFidelidadeEMensal() throws Exception {
+        cadastrar(json("Mensal", "129.90", 1))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.fidelidade").value(false))
+                .andExpect(jsonPath("$.percentualMulta").doesNotExist())
+                .andExpect(jsonPath("$.formaPagamento").value("MENSAL"));
+    }
+
+    @Test
+    void regrasDeFidelidadeInvalidasDao400() throws Exception {
+        cadastrar("{\"nome\": \"A\", \"valorMensal\": 100, \"duracaoMeses\": 12, \"fidelidade\": true}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("percentual")));
+        cadastrar("{\"nome\": \"B\", \"valorMensal\": 100, \"duracaoMeses\": 12, \"percentualMulta\": 20}")
+                .andExpect(status().isBadRequest());
+        cadastrar("{\"nome\": \"C\", \"valorMensal\": 100, \"duracaoMeses\": 12, \"fidelidade\": true,"
+                + " \"percentualMulta\": 12.345}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erros[0].campo").value("percentualMulta"));
+        cadastrar("{\"nome\": \"D\", \"valorMensal\": 100, \"duracaoMeses\": 12, \"formaPagamento\": \"BOLETO\"}")
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void alunoVeAFidelidadeEAMultaAntesDeContratar() throws Exception {
+        String id = JsonPath.read(cadastrar("""
+                {"nome": "Anual", "valorMensal": 99.90, "duracaoMeses": 12,
+                 "fidelidade": true, "percentualMulta": 20}""")
+                .andReturn().getResponse().getContentAsString(), "$.id");
+
+        mvc.perform(get("/api/planos/" + id).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ALUNO"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fidelidade").value(true))
+                .andExpect(jsonPath("$.percentualMulta").value(20.00))
+                .andExpect(jsonPath("$.formaPagamento").value("MENSAL"));
+    }
 }

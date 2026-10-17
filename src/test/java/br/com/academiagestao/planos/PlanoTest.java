@@ -91,4 +91,83 @@ class PlanoTest {
         assertThat(Plano.novo(dados("Mensal", "100", 60)).getDuracaoMeses()).isEqualTo(60);
         assertThat(Plano.novo(dados("Mensal", "100", 1)).getDuracaoMeses()).isEqualTo(1);
     }
+
+    // Fidelidade e forma de pagamento (ADR 0018)
+
+    private static DadosPlano comRegras(Boolean fidelidade, String multa, FormaPagamento forma) {
+        return new DadosPlano("Anual", new BigDecimal("99.90"), 12, fidelidade,
+                multa == null ? null : new BigDecimal(multa), forma);
+    }
+
+    @Test
+    void semInformarFicaSemFidelidadeEMensal() {
+        Plano plano = Plano.novo(dados("Mensal", "100", 1));
+
+        assertThat(plano.isFidelidade()).isFalse();
+        assertThat(plano.getPercentualMulta()).isNull();
+        assertThat(plano.getFormaPagamento()).isEqualTo(FormaPagamento.MENSAL);
+    }
+
+    @Test
+    void comFidelidadeGuardaOPercentualComDuasCasas() {
+        Plano plano = Plano.novo(comRegras(true, "12.5", FormaPagamento.A_VISTA));
+
+        assertThat(plano.isFidelidade()).isTrue();
+        assertThat(plano.getPercentualMulta()).hasToString("12.50");
+        assertThat(plano.getFormaPagamento()).isEqualTo(FormaPagamento.A_VISTA);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0.01", "100", "100.00", "20"})
+    void percentuaisNosLimitesSaoAceitos(String multa) {
+        assertThat(Plano.novo(comRegras(true, multa, null)).getPercentualMulta().scale()).isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @CsvSource(nullValues = "null", value = {
+            "null,   0,01 a 100",
+            "0,      0,01 a 100",
+            "-5,     0,01 a 100",
+            "100.01, 0,01 a 100",
+            "12.345, 2 casas",
+    })
+    void comFidelidadeOPercentualEhObrigatorioEValido(String multa, String mensagem) {
+        assertThatThrownBy(() -> Plano.novo(comRegras(true, multa, null)))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining(mensagem);
+    }
+
+    @Test
+    void semFidelidadeNaoTemPercentual() {
+        assertThatThrownBy(() -> Plano.novo(comRegras(false, "20", null)))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("só existe em plano com fidelidade");
+        assertThatThrownBy(() -> Plano.novo(comRegras(null, "20", null)))
+                .isInstanceOf(DadosInvalidosException.class);
+        assertThat(Plano.novo(comRegras(false, null, null)).isFidelidade()).isFalse();
+    }
+
+    @Test
+    void tirarAFidelidadeApagaOPercentual() {
+        Plano plano = Plano.novo(comRegras(true, "20", FormaPagamento.A_VISTA));
+
+        plano.atualizar(comRegras(false, null, null));
+
+        assertThat(plano.isFidelidade()).isFalse();
+        assertThat(plano.getPercentualMulta()).isNull();
+        assertThat(plano.getFormaPagamento()).isEqualTo(FormaPagamento.MENSAL);
+    }
+
+    @Test
+    void edicaoInvalidaDaFidelidadeNaoAlteraNada() {
+        Plano plano = Plano.novo(comRegras(true, "20", FormaPagamento.A_VISTA));
+
+        assertThatThrownBy(() -> plano.atualizar(new DadosPlano("Outro", new BigDecimal("50"), 1, true, null,
+                FormaPagamento.MENSAL)))
+                .isInstanceOf(DadosInvalidosException.class);
+
+        assertThat(plano.getNome()).isEqualTo("Anual");
+        assertThat(plano.getPercentualMulta()).isEqualByComparingTo("20");
+        assertThat(plano.getFormaPagamento()).isEqualTo(FormaPagamento.A_VISTA);
+    }
 }
