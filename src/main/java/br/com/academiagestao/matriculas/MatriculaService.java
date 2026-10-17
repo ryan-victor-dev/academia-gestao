@@ -96,6 +96,13 @@ class MatriculaService {
         return repository.findByAlunoIdOrderByInicioDesc(alunoId);
     }
 
+    /** Hoje cai dentro de uma matrícula não cancelada? É o que o instrutor precisa saber. */
+    @Transactional(readOnly = true)
+    boolean temMatriculaVigente(UUID alunoId) {
+        LocalDate hoje = Matricula.hoje(relogio.instant());
+        return !repository.sobrepostas(alunoId, hoje, hoje).isEmpty();
+    }
+
     /** Trava a matrícula: um segundo cancelamento simultâneo espera e recebe 409 (já cancelada). */
     @Transactional
     Matricula cancelar(UUID id, String motivo, UUID usuarioId) {

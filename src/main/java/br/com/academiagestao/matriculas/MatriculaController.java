@@ -1,10 +1,12 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.auth.ClaimsDoToken;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -44,6 +46,32 @@ class MatriculaController {
         return ResponseEntity.created(location).body(MatriculaResponse.de(matricula, service.agora()));
     }
 
+    /**
+     * As matrículas do próprio aluno, mesmo inativo (é direito dele, LGPD art. 18). O id vem
+     * do token, nunca da URL: não há como pedir as matrículas de outra pessoa.
+     */
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('ALUNO')")
+    List<MatriculaParaAluno> minhas(@AuthenticationPrincipal Jwt jwt) {
+        String alunoId = jwt.getClaimAsString(ClaimsDoToken.ALUNO_ID);
+        if (alunoId == null) {
+            throw new AccessDeniedException("Token de aluno sem alunoId");
+        }
+        Instant agora = service.agora();
+        return service.listarDoAluno(UUID.fromString(alunoId)).stream()
+                .map(m -> MatriculaParaAluno.de(m, agora)).toList();
+    }
+
+    /**
+     * Se o aluno pode treinar hoje. É tudo o que o instrutor vê de matrícula: valores e
+     * histórico não são da conta dele (LGPD, minimização). Aluno inexistente: false.
+     */
+    @GetMapping("/vigente")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
+    MatriculaVigente vigente(@RequestParam UUID alunoId) {
+        return new MatriculaVigente(alunoId, service.temMatriculaVigente(alunoId));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
     MatriculaResponse buscar(@PathVariable UUID id) {
@@ -81,6 +109,21 @@ class MatriculaController {
             @NotBlank(message = "é obrigatório")
             @Size(max = Matricula.TAMANHO_MAXIMO_MOTIVO, message = "pode ter no máximo {max} caracteres")
             String motivo) {
+    }
+
+    record MatriculaVigente(UUID alunoId, boolean matriculaVigente) {
+    }
+
+    /** Visão do aluno: o contrato dele, sem o id de quem da equipe cancelou. */
+    record MatriculaParaAluno(UUID id, UUID planoId, BigDecimal valorMensal, int duracaoMeses, BigDecimal valorTotal,
+                              LocalDate inicio, LocalDate fim, SituacaoMatricula situacao, Instant canceladaEm,
+                              String motivoCancelamento) {
+
+        static MatriculaParaAluno de(Matricula m, Instant agora) {
+            return new MatriculaParaAluno(m.getId(), m.getPlanoId(), m.getValorMensal(), m.getDuracaoMeses(),
+                    m.getValorTotal(), m.getInicio(), m.getFim(), m.situacao(agora), m.getCanceladaEm(),
+                    m.getMotivoCancelamento());
+        }
     }
 
     record MatriculaResponse(UUID id, UUID alunoId, UUID planoId, BigDecimal valorMensal, int duracaoMeses,

@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Quem pode fazer o quê com as matrículas, com tokens de verdade. A tabela abaixo é a
- * regra de negócio (ADR 0016). As visões do instrutor e do aluno vêm em rotas próprias.
+ * regra de negócio (ADR 0016).
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -128,6 +128,8 @@ class PermissoesDeMatriculasTest {
                     .content("{\"alunoId\": \"%s\", \"planoId\": \"%s\"}".formatted(criarAluno(), plano));
             case "consultar" -> get("/api/matriculas/" + criarMatricula());
             case "listar" -> get("/api/matriculas").param("alunoId", alunoDoLogin.toString());
+            case "vigente" -> get("/api/matriculas/vigente").param("alunoId", alunoDoLogin.toString());
+            case "minhas" -> get("/api/matriculas/me");
             case "cancelar" -> post("/api/matriculas/" + criarMatricula() + "/cancelar")
                     .contentType(MediaType.APPLICATION_JSON).content("{\"motivo\": \"Teste de permissão\"}");
             default -> throw new IllegalArgumentException(operacao);
@@ -157,6 +159,18 @@ class PermissoesDeMatriculasTest {
             "cancelar,   RECEPCAO,  200",
             "cancelar,   INSTRUTOR, 403",
             "cancelar,   ALUNO,     403",
+
+            // O instrutor só sabe se o aluno pode treinar hoje.
+            "vigente,    ADMIN,     200",
+            "vigente,    RECEPCAO,  200",
+            "vigente,    INSTRUTOR, 200",
+            "vigente,    ALUNO,     403",
+
+            // As próprias, pelo id do token.
+            "minhas,     ADMIN,     403",
+            "minhas,     RECEPCAO,  403",
+            "minhas,     INSTRUTOR, 403",
+            "minhas,     ALUNO,     200",
     })
     void matrizDePermissoes(String operacao, Perfil perfil, int statusEsperado) throws Exception {
         mvc.perform(requisicao(operacao).header("Authorization", "Bearer " + tokens.get(perfil)))
@@ -164,7 +178,7 @@ class PermissoesDeMatriculasTest {
     }
 
     @ParameterizedTest(name = "{0} sem token -> 401")
-    @CsvSource({"matricular", "consultar", "listar", "cancelar"})
+    @CsvSource({"matricular", "consultar", "listar", "cancelar", "vigente", "minhas"})
     void semTokenNadaFunciona(String operacao) throws Exception {
         mvc.perform(requisicao(operacao)).andExpect(status().isUnauthorized());
     }
