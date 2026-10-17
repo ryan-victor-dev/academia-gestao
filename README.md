@@ -79,6 +79,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0013](docs/adr/0013-planos.md) | Planos: preço, nome único e quem vê o quê |
 | [0014](docs/adr/0014-segunda-revisao-de-seguranca.md) | Segunda revisão de segurança (2026-10-17) |
 | [0015](docs/adr/0015-testes-de-arquitetura-e-mutacao.md) | Testes de arquitetura (ArchUnit) e de mutação (PIT) |
+| [0016](docs/adr/0016-matriculas.md) | Matrículas: preço congelado, períodos sem sobreposição e quem vê o quê |
 
 ## Como rodar
 
