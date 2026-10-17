@@ -7,6 +7,12 @@
 {
 	http_port {$HTTP_PORTA:80}
 	https_port {$HTTPS_PORTA:443}
+	servers {
+		# Só HTTP/1.1, até sair um Caddy compilado com Go 1.26.9 ou mais novo: o Caddy
+		# 2.11.7 tem a CVE-2026-78669 (negação de serviço por HTTP/2). Para uma API de
+		# academia, a perda de desempenho é irrelevante. Ver ADR 0014.
+		protocols h1
+	}
 }
 
 # HTTP só redireciona para HTTPS, com a porta certa mesmo quando não é a 443.

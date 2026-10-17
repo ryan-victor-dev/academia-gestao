@@ -43,7 +43,7 @@ services:
       - "127.0.0.1:8090:8090"
 
   caddy:
-    image: caddy:2.10-alpine
+    image: caddy:2.11-alpine
     container_name: academia-caddy
     restart: unless-stopped
     depends_on:

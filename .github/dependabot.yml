@@ -16,6 +16,12 @@ updates:
     schedule:
       interval: weekly
 
+  # Imagens declaradas no docker-compose.yml (Postgres e Caddy).
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
