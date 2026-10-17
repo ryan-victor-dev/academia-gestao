@@ -1,4 +1,4 @@
-package br.com.academiagestao.alunos;
+package br.com.academiagestao.compartilhado;
 
 import java.util.Arrays;
 
@@ -9,18 +9,19 @@ import java.util.Arrays;
  * - lista de ETags: aceita se alguma for igual à versão atual. ETag fraco (W/"...")
  *   nunca é aceito, porque If-Match exige comparação forte.
  */
-final class VersaoEsperada {
+public final class VersaoEsperada {
 
     private VersaoEsperada() {
     }
 
-    static String etag(long versao) {
+    public static String etag(long versao) {
         return "\"" + versao + "\"";
     }
 
-    static void conferir(String ifMatch, long versaoAtual) {
+    /** @param recurso nome do registro com artigo, para as mensagens: "o aluno", "o plano" */
+    public static void conferir(String ifMatch, long versaoAtual, String recurso) {
         if (ifMatch == null || ifMatch.isBlank()) {
-            throw new IfMatchAusenteException();
+            throw new IfMatchAusenteException(recurso);
         }
         if (ifMatch.trim().equals("*")) {
             return;
@@ -29,7 +30,7 @@ final class VersaoEsperada {
                 .map(String::trim)
                 .anyMatch(etag(versaoAtual)::equals);
         if (!confere) {
-            throw new AlunoModificadoException();
+            throw new RecursoModificadoException(recurso);
         }
     }
 }

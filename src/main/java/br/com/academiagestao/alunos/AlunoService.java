@@ -3,6 +3,8 @@ package br.com.academiagestao.alunos;
 import br.com.academiagestao.auth.CredenciaisTemporarias;
 import br.com.academiagestao.auth.LoginsDeAlunos;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import br.com.academiagestao.compartilhado.RecursoModificadoException;
+import br.com.academiagestao.compartilhado.VersaoEsperada;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
@@ -89,7 +91,7 @@ class AlunoService {
     @Transactional
     Aluno atualizar(UUID id, DadosAluno dados, String ifMatch) {
         Aluno aluno = buscar(id);
-        VersaoEsperada.conferir(ifMatch, aluno.getVersao());
+        VersaoEsperada.conferir(ifMatch, aluno.getVersao(), "o aluno");
         String cpfNovo = Cpf.normalizar(dados.cpf());
         if (!cpfNovo.equals(aluno.getCpf()) && repository.existsByCpf(cpfNovo)) {
             throw new CpfJaCadastradoException();
@@ -109,7 +111,7 @@ class AlunoService {
         } catch (ObjectOptimisticLockingFailureException e) {
             // Duas edições com o mesmo If-Match ao mesmo tempo: as duas passam pela
             // conferência acima, mas só o primeiro UPDATE acha a versão; o segundo cai aqui.
-            throw new AlunoModificadoException();
+            throw new RecursoModificadoException("o aluno");
         }
     }
 }

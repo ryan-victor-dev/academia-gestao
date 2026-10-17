@@ -76,6 +76,20 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(e, problema, headers, status, request);
     }
 
+    @ExceptionHandler(RecursoModificadoException.class)
+    ProblemDetail recursoModificado(RecursoModificadoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.PRECONDITION_FAILED, e.getMessage());
+        problema.setTitle(e.titulo());
+        return problema;
+    }
+
+    @ExceptionHandler(IfMatchAusenteException.class)
+    ProblemDetail ifMatchAusente(IfMatchAusenteException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.PRECONDITION_REQUIRED, e.getMessage());
+        problema.setTitle("Cabeçalho If-Match obrigatório");
+        return problema;
+    }
+
     // Regras que só o domínio confere (ex.: telefone sem DDD).
     @ExceptionHandler(DadosInvalidosException.class)
     ProblemDetail dadosInvalidos(DadosInvalidosException e) {

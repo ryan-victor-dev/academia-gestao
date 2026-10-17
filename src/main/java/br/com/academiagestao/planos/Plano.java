@@ -83,7 +83,7 @@ public class Plano {
         if (dados == null) {
             throw new DadosInvalidosException("dados do plano são obrigatórios");
         }
-        String nomeLimpo = dados.nome() == null ? "" : dados.nome().trim().replaceAll("\\s+", " ");
+        String nomeLimpo = limparNome(dados.nome());
         if (nomeLimpo.isEmpty()) {
             throw new DadosInvalidosException("nome é obrigatório");
         }
@@ -109,6 +109,11 @@ public class Plano {
         this.nome = nomeLimpo;
         this.valorMensal = valor.setScale(2);
         this.duracaoMeses = duracao;
+    }
+
+    /** Sem espaços nas pontas nem repetidos: "  Plano   Anual " vira "Plano Anual". */
+    static String limparNome(String nome) {
+        return nome == null ? "" : nome.trim().replaceAll("\\s+", " ");
     }
 
     public UUID getId() { return id; }

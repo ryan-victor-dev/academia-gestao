@@ -1,6 +1,7 @@
 package br.com.academiagestao.alunos;
 
 import br.com.academiagestao.auth.LoginsDeAlunos;
+import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import org.junit.jupiter.api.Test;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
@@ -25,6 +26,6 @@ class AlunoServiceTest {
 
         assertThatThrownBy(() -> service.atualizar(ana.getId(),
                 new DadosAluno("Ana Maria", "52998224725", null, null, null, null), "\"0\""))
-                .isInstanceOf(AlunoModificadoException.class);
+                .isInstanceOf(RecursoModificadoException.class);
     }
 }
