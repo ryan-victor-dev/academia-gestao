@@ -15,8 +15,11 @@ RUN ./mvnw -B -q package -DskipTests
 FROM eclipse-temurin:25-jre
 WORKDIR /app
 
-# Usuário sem privilégios: o sistema não roda como root
-RUN groupadd --system app && useradd --system --gid app app
+# Usuário sem privilégios: o sistema não roda como root.
+# O pebble (gerenciador de serviços da Canonical, que vem na imagem base) nunca é usado
+# aqui e é compilado com um Go com vulnerabilidades conhecidas: menos superfície de ataque.
+RUN groupadd --system app && useradd --system --gid app app \
+    && rm -f /usr/bin/pebble
 
 COPY --from=build /app/target/academia-gestao-*.jar app.jar
 USER app
