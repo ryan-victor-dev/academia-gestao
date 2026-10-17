@@ -33,7 +33,7 @@ class AutenticacaoServiceTest {
     private final AutenticacaoService service = new AutenticacaoService(repository, passwordEncoder,
             new GeradorDeToken(new NimbusJwtEncoder(new ImmutableSecret<>(chave)),
                     new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao")),
-            mock(LimitadorDeTentativas.class));
+            mock(LimitadorDeTentativas.class), mock(org.springframework.transaction.PlatformTransactionManager.class));
 
     private Usuario cadastrar(Perfil perfil) {
         Usuario usuario = Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), perfil);
@@ -101,5 +101,20 @@ class AutenticacaoServiceTest {
 
         assertThatThrownBy(() -> service.autenticar("ana@academia.com", "a".repeat(200), IP))
                 .isInstanceOf(CredenciaisInvalidasException.class);
+    }
+
+    // ADR 0020: a troca confere a senha fora de transação e grava numa transação curta. Se
+    // a senha mudar no meio (outra troca, uma redefinição), a atual digitada já não vale.
+    @Test
+    void senhaTrocadaPorOutroNoMeioDaConferenciaEhRecusada() {
+        Usuario ana = Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), Perfil.RECEPCAO);
+        Usuario anaComOutraSenha = Usuario.daEquipe("Ana", "ana@academia.com",
+                passwordEncoder.encode("redefinida-no-meio-123"), Perfil.RECEPCAO);
+        when(repository.findById(ana.getId())).thenReturn(Optional.of(ana), Optional.of(anaComOutraSenha));
+
+        assertThatThrownBy(() -> service.trocarSenha(ana.getId(), SENHA, "uma-senha-nova-123", "10.0.0.1"))
+                .isInstanceOf(br.com.academiagestao.compartilhado.DadosInvalidosException.class)
+                .hasMessageContaining("senha atual incorreta");
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
     }
 }
