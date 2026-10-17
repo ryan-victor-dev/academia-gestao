@@ -63,12 +63,16 @@ class PermissoesDeMatriculasTest {
     private final List<UUID> alunos = new ArrayList<>();
     private UUID alunoDoLogin;
     private UUID plano;
+    private UUID outroPlano;
 
     @BeforeAll
     void prepararUmUsuarioDeCadaPerfil() throws Exception {
         plano = UUID.randomUUID();
         jdbc.update("INSERT INTO planos (id, nome, valor_mensal, duracao_meses) VALUES (?, ?, 100, 1)",
                 plano, "Plano " + plano);
+        outroPlano = UUID.randomUUID();
+        jdbc.update("INSERT INTO planos (id, nome, valor_mensal, duracao_meses) VALUES (?, ?, 150, 1)",
+                outroPlano, "Plano " + outroPlano);
         alunoDoLogin = criarAluno();
         String hash = passwordEncoder.encode(SENHA);
         String sufixo = UUID.randomUUID().toString();
@@ -104,7 +108,7 @@ class PermissoesDeMatriculasTest {
         for (UUID id : alunos) {
             jdbc.update("DELETE FROM alunos WHERE id = ?", id);
         }
-        jdbc.update("DELETE FROM planos WHERE id = ?", plano);
+        jdbc.update("DELETE FROM planos WHERE id IN (?, ?)", plano, outroPlano);
     }
 
     private UUID criarAluno() {
@@ -148,6 +152,8 @@ class PermissoesDeMatriculasTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"voltaPrevista\": \"%s\", \"motivo\": \"Viagem\"}"
                             .formatted(LocalDate.now(Matricula.FUSO).plusDays(10)));
+            case "trocar-plano" -> post("/api/matriculas/" + criarMatricula() + "/trocar-plano")
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"planoId\": \"%s\"}".formatted(outroPlano));
             case "registrar-volta" -> post("/api/matriculas/" + criarMatriculaTrancada() + "/registrar-volta");
             case "cancelar" -> post("/api/matriculas/" + criarMatricula() + "/cancelar")
                     .contentType(MediaType.APPLICATION_JSON).content("{\"motivo\": \"Teste de permissão\"}");
@@ -200,6 +206,11 @@ class PermissoesDeMatriculasTest {
             "registrar-volta, RECEPCAO,  200",
             "registrar-volta, INSTRUTOR, 403",
             "registrar-volta, ALUNO,     403",
+
+            "trocar-plano,    ADMIN,     201",
+            "trocar-plano,    RECEPCAO,  201",
+            "trocar-plano,    INSTRUTOR, 403",
+            "trocar-plano,    ALUNO,     403",
     })
     void matrizDePermissoes(String operacao, Perfil perfil, int statusEsperado) throws Exception {
         mvc.perform(requisicao(operacao).header("Authorization", "Bearer " + tokens.get(perfil)))
@@ -207,7 +218,7 @@ class PermissoesDeMatriculasTest {
     }
 
     @ParameterizedTest(name = "{0} sem token -> 401")
-    @CsvSource({"matricular", "consultar", "listar", "cancelar", "vigente", "minhas", "trancar", "registrar-volta"})
+    @CsvSource({"matricular", "consultar", "listar", "cancelar", "vigente", "minhas", "trancar", "registrar-volta", "trocar-plano"})
     void semTokenNadaFunciona(String operacao) throws Exception {
         mvc.perform(requisicao(operacao)).andExpect(status().isUnauthorized());
     }

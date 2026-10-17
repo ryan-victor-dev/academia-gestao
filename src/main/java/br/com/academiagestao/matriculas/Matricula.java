@@ -105,8 +105,20 @@ public class Matricula {
     @Column(name = "motivo_cancelamento", length = TAMANHO_MAXIMO_MOTIVO)
     private String motivoCancelamento;
 
-    @Column(name = "multa_cancelamento", precision = 10, scale = 2)
-    private BigDecimal multaCancelamento;
+    // Saída antes do fim de uma matrícula com fidelidade: cancelamento ou troca (ADR 0018).
+    @Column(precision = 10, scale = 2)
+    private BigDecimal multa;
+
+    // Na matrícula trocada: o dia da troca (ela vale até a véspera) e quem fez.
+    @Column(name = "trocada_em")
+    private LocalDate trocadaEm;
+
+    @Column(name = "trocada_por")
+    private UUID trocadaPor;
+
+    // Na matrícula nova: de qual ela veio.
+    @Column(name = "troca_de", updatable = false)
+    private UUID trocaDe;
 
     // Dois cancelamentos simultâneos: só um grava, o outro falha no UPDATE ... WHERE versao = ?.
     @Version
@@ -147,13 +159,13 @@ public class Matricula {
         if (duracao < 1 || duracao > DURACAO_MAXIMA_MESES) {
             throw new DadosInvalidosException("duração precisa ser de 1 a " + DURACAO_MAXIMA_MESES + " meses");
         }
-        BigDecimal multa = plano.percentualMulta();
+        BigDecimal percentual = plano.percentualMulta();
         if (plano.fidelidade()) {
-            if (multa == null || multa.signum() <= 0 || multa.compareTo(CEM) > 0
-                    || multa.stripTrailingZeros().scale() > 2) {
+            if (percentual == null || percentual.signum() <= 0 || percentual.compareTo(CEM) > 0
+                    || percentual.stripTrailingZeros().scale() > 2) {
                 throw new DadosInvalidosException("plano com fidelidade precisa de percentual de multa de 0,01 a 100");
             }
-        } else if (multa != null) {
+        } else if (percentual != null) {
             throw new DadosInvalidosException("percentual de multa só existe em plano com fidelidade");
         }
         if (plano.formaPagamento() == null) {
@@ -173,7 +185,7 @@ public class Matricula {
         matricula.valorMensal = valor.setScale(2);
         matricula.duracaoMeses = duracao;
         matricula.fidelidade = plano.fidelidade();
-        matricula.percentualMulta = plano.fidelidade() ? multa.setScale(2) : null;
+        matricula.percentualMulta = plano.fidelidade() ? percentual.setScale(2) : null;
         matricula.formaPagamento = plano.formaPagamento();
         matricula.inicio = comeco;
         matricula.fim = fimDoPeriodo(comeco, duracao);
@@ -195,6 +207,9 @@ public class Matricula {
     public SituacaoMatricula situacao(Instant agora) {
         if (canceladaEm != null) {
             return SituacaoMatricula.CANCELADA;
+        }
+        if (trocadaEm != null) {
+            return SituacaoMatricula.TROCADA;
         }
         LocalDate hoje = hoje(agora);
         if (hoje.isBefore(inicio)) {
@@ -295,7 +310,40 @@ public class Matricula {
         this.canceladaEm = agora.truncatedTo(ChronoUnit.MICROS);
         this.canceladaPor = usuarioId;
         this.motivoCancelamento = motivoLimpo;
-        this.multaCancelamento = situacao == SituacaoMatricula.AGENDADA ? null : multaSeEncerrarEm(hoje);
+        this.multa = situacao == SituacaoMatricula.AGENDADA ? null : multaSeEncerrarEm(hoje);
+    }
+
+    /**
+     * Encerra esta matrícula na véspera de hoje porque o aluno trocou de plano (ADR 0018). Só
+     * vigente e sem trancamento em aberto. Com fidelidade, a troca não tem multa só se o novo
+     * plano também tiver fidelidade e valor mensal igual ou maior; nos outros casos, aplica a
+     * multa desta, como num cancelamento (senão, trocar para um mensal sem fidelidade e
+     * cancelar anularia a fidelidade).
+     */
+    void encerrarPorTroca(Matricula nova, UUID usuarioId, Instant agora) {
+        LocalDate hoje = hoje(agora);
+        SituacaoMatricula situacao = situacao(agora);
+        // Trancada ou com trancamento agendado: os dois têm um trancamento em aberto.
+        if (trancamentoEmAberto(hoje).isPresent()) {
+            throw new MatriculaRecusadaException("Troca recusada",
+                    "A matrícula tem trancamento em aberto; registre a volta antes de trocar de plano");
+        }
+        if (situacao != SituacaoMatricula.VIGENTE) {
+            throw new MatriculaRecusadaException("Troca recusada",
+                    "Só se troca o plano de matrícula vigente; esta está " + situacao.name().toLowerCase());
+        }
+        if (nova.planoId.equals(planoId)) {
+            throw new MatriculaRecusadaException("Troca recusada", "A matrícula já é deste plano");
+        }
+        if (usuarioId == null) {
+            throw new DadosInvalidosException("quem trocou é obrigatório");
+        }
+        boolean mantemOCompromisso = nova.fidelidade && nova.valorMensal.compareTo(valorMensal) >= 0;
+
+        this.multa = mantemOCompromisso ? null : multaSeEncerrarEm(hoje);
+        this.trocadaEm = hoje;
+        this.trocadaPor = usuarioId;
+        nova.trocaDe = this.id;
     }
 
     private static String limparMotivo(String motivo) {
@@ -351,6 +399,9 @@ public class Matricula {
     public Instant getCanceladaEm() { return canceladaEm; }
     public UUID getCanceladaPor() { return canceladaPor; }
     public String getMotivoCancelamento() { return motivoCancelamento; }
-    public BigDecimal getMultaCancelamento() { return multaCancelamento; }
+    public BigDecimal getMulta() { return multa; }
+    public LocalDate getTrocadaEm() { return trocadaEm; }
+    public UUID getTrocadaPor() { return trocadaPor; }
+    public UUID getTrocaDe() { return trocaDe; }
     public long getVersao() { return versao; }
 }

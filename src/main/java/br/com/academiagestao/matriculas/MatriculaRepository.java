@@ -15,16 +15,24 @@ interface MatriculaRepository extends JpaRepository<Matricula, UUID> {
     /** Histórico do aluno, da mais recente para a mais antiga (inclusive as canceladas). */
     List<Matricula> findByAlunoIdOrderByInicioDesc(UUID alunoId);
 
-    /** Matrículas não canceladas do aluno cujo período cruza com [inicio, fim]: a regra do banco. */
+    /**
+     * Matrículas não canceladas do aluno cujo período cruza com [inicio, fim]: a regra do banco.
+     * A trocada fica de fora: ela vale só até a véspera da troca, e as consultas são de hoje
+     * em diante.
+     */
     @Query("""
             SELECT m FROM Matricula m
-            WHERE m.alunoId = :alunoId AND m.canceladaEm IS NULL AND m.inicio <= :fim AND m.fim >= :inicio
+            WHERE m.alunoId = :alunoId AND m.canceladaEm IS NULL AND m.trocadaEm IS NULL
+              AND m.inicio <= :fim AND m.fim >= :inicio
             ORDER BY m.inicio""")
     List<Matricula> sobrepostas(UUID alunoId, LocalDate inicio, LocalDate fim);
 
-    /** A primeira matrícula não cancelada que ainda não terminou (vigente ou agendada). */
-    Optional<Matricula> findFirstByAlunoIdAndCanceladaEmIsNullAndFimGreaterThanEqualOrderByInicio(UUID alunoId,
-                                                                                                 LocalDate hoje);
+    /** Não canceladas nem trocadas que ainda não terminaram: vigente, trancada ou agendada. */
+    @Query("""
+            SELECT m FROM Matricula m
+            WHERE m.alunoId = :alunoId AND m.canceladaEm IS NULL AND m.trocadaEm IS NULL AND m.fim >= :hoje
+            ORDER BY m.inicio""")
+    List<Matricula> pendentes(UUID alunoId, LocalDate hoje);
 
     @Query("SELECT m.alunoId FROM Matricula m WHERE m.id = :id")
     Optional<UUID> alunoDaMatricula(UUID id);

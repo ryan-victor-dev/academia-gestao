@@ -285,7 +285,7 @@ class MatriculaTest {
         assertThat(matricula.isFidelidade()).isTrue();
         assertThat(matricula.getPercentualMulta()).hasToString("12.50");
         assertThat(matricula.getFormaPagamento()).isEqualTo(FormaPagamento.A_VISTA);
-        assertThat(matricula.getMultaCancelamento()).isNull();
+        assertThat(matricula.getMulta()).isNull();
         Matricula semFidelidade = mensal("2026-10-17", "2026-10-17T10:00");
         assertThat(semFidelidade.isFidelidade()).isFalse();
         assertThat(semFidelidade.getPercentualMulta()).isNull();
@@ -307,7 +307,7 @@ class MatriculaTest {
 
         matricula.cancelar(USUARIO, "Mudou de cidade", em(dia + "T15:00"));
 
-        assertThat(matricula.getMultaCancelamento()).hasToString(multa);
+        assertThat(matricula.getMulta()).hasToString(multa);
         assertThat(new BigDecimal("99.90").multiply(BigDecimal.valueOf(meses)).multiply(new BigDecimal("0.20"))
                 .setScale(2, java.math.RoundingMode.HALF_UP)).hasToString(multa);
     }
@@ -319,7 +319,7 @@ class MatriculaTest {
         // 1 mês restante: 99,90 × 12,5% = 12,4875, que vira 12,49.
         matricula.cancelar(USUARIO, "Motivo", em("2027-08-20T10:00"));
 
-        assertThat(matricula.getMultaCancelamento()).hasToString("12.49");
+        assertThat(matricula.getMulta()).hasToString("12.49");
     }
 
     @Test
@@ -328,7 +328,7 @@ class MatriculaTest {
 
         matricula.cancelar(USUARIO, "Motivo", em("2026-10-20T10:00"));
 
-        assertThat(matricula.getMultaCancelamento()).isNull();
+        assertThat(matricula.getMulta()).isNull();
     }
 
     @Test
@@ -338,7 +338,7 @@ class MatriculaTest {
 
         matricula.cancelar(USUARIO, "Desistiu antes de começar", em("2026-10-20T10:00"));
 
-        assertThat(matricula.getMultaCancelamento()).isNull();
+        assertThat(matricula.getMulta()).isNull();
     }
 
     @ParameterizedTest
@@ -566,7 +566,7 @@ class MatriculaTest {
         assertThat(matricula.getFim()).isEqualTo(LocalDate.parse("2027-10-26"));
         assertThat(matricula.getTrancamentos().getFirst().getVolta()).isEqualTo(LocalDate.parse("2027-01-20"));
         // De 21/01 até 27/10 (fim + 1): 9 meses inteiros. 9 × 99,90 × 20% = 179,82.
-        assertThat(matricula.getMultaCancelamento()).hasToString("179.82");
+        assertThat(matricula.getMulta()).hasToString("179.82");
     }
 
     @Test
@@ -578,5 +578,95 @@ class MatriculaTest {
 
         assertThat(matricula.getDiasTrancados()).isZero();
         assertThat(matricula.getFim()).isEqualTo(LocalDate.parse("2026-11-16"));
+    }
+
+    // Troca de plano (ADR 0018)
+
+    private static Matricula novaDoPlano(boolean fidelidade, String valor) {
+        PlanoContratado plano = new PlanoContratado(UUID.randomUUID(), "Novo", new BigDecimal(valor), 12, fidelidade,
+                fidelidade ? new BigDecimal("10") : null, FormaPagamento.MENSAL);
+        return Matricula.nova(ALUNO, plano, null, em("2027-01-20T10:00"));
+    }
+
+    @ParameterizedTest(name = "atual com fidelidade -> novo com fidelidade={0} e valor {1}: multa {2}")
+    @CsvSource(nullValues = "null", value = {
+            "true,  99.90,  null",    // mantém o compromisso, mesmo valor
+            "true,  129.90, null",    // mantém o compromisso, mais caro
+            "true,  89.90,  159.84",  // mais barato: quebra a fidelidade
+            "false, 129.90, 159.84",  // sem fidelidade: a brecha do ADR 0018
+            "false, 89.90,  159.84",
+    })
+    void multaNaTrocaDeUmaMatriculaComFidelidade(boolean fidelidadeNova, String valorNovo, String multa) {
+        Matricula atual = Matricula.nova(ALUNO, anualComFidelidade("20"), null, em("2026-10-17T10:00"));
+        Matricula nova = novaDoPlano(fidelidadeNova, valorNovo);
+
+        atual.encerrarPorTroca(nova, USUARIO, em("2027-01-20T10:00"));  // faltam 8 meses: 8 × 99,90 × 20%
+
+        assertThat(atual.getMulta() == null ? null : atual.getMulta().toString()).isEqualTo(multa);
+    }
+
+    @Test
+    void trocaDeMatriculaSemFidelidadeNuncaTemMulta() {
+        Matricula atual = vigente();
+
+        atual.encerrarPorTroca(novaDoPlano(false, "50"), USUARIO, em("2026-10-20T10:00"));
+
+        assertThat(atual.getMulta()).isNull();
+    }
+
+    @Test
+    void trocaEncerraNaVesperaELigaANova() {
+        Matricula atual = vigente();
+        Matricula nova = novaDoPlano(false, "150");
+
+        atual.encerrarPorTroca(nova, USUARIO, em("2026-10-20T10:00"));
+
+        assertThat(atual.situacao(em("2026-10-20T10:00"))).isEqualTo(SituacaoMatricula.TROCADA);
+        assertThat(atual.getTrocadaEm()).isEqualTo(LocalDate.parse("2026-10-20"));
+        assertThat(atual.getTrocadaPor()).isEqualTo(USUARIO);
+        assertThat(atual.getFim()).isEqualTo(LocalDate.parse("2026-11-16"));  // o contratado continua registrado
+        assertThat(nova.getTrocaDe()).isEqualTo(atual.getId());
+        assertThat(atual.getTrocaDe()).isNull();
+        // Trocada é final.
+        assertThatThrownBy(() -> atual.cancelar(USUARIO, "Motivo", em("2026-10-21T10:00")))
+                .isInstanceOf(MatriculaNaoCancelavelException.class).hasMessageContaining("trocada");
+        assertThatThrownBy(() -> trancar(atual, null, "2026-11-01", "2026-10-21T10:00"))
+                .isInstanceOf(MatriculaRecusadaException.class);
+    }
+
+    @Test
+    void trocaRecusadaComTrancamentoEmAberto() {
+        Matricula trancada = vigente();
+        trancar(trancada, "2026-10-20", "2026-10-30", "2026-10-20T10:00");
+        assertThatThrownBy(() -> trancada.encerrarPorTroca(novaDoPlano(false, "150"), USUARIO, em("2026-10-22T10:00")))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("registre a volta");
+
+        Matricula comTrancamentoAgendado = vigente();
+        trancar(comTrancamentoAgendado, "2026-11-01", "2026-11-10", "2026-10-20T10:00");
+        assertThatThrownBy(() -> comTrancamentoAgendado.encerrarPorTroca(novaDoPlano(false, "150"), USUARIO,
+                em("2026-10-22T10:00")))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("registre a volta");
+        assertThat(comTrancamentoAgendado.getTrocadaEm()).isNull();
+    }
+
+    @Test
+    void soTrocaMatriculaVigenteParaOutroPlano() {
+        Matricula agendada = mensal("2026-11-01", "2026-10-17T10:00");
+        assertThatThrownBy(() -> agendada.encerrarPorTroca(novaDoPlano(false, "150"), USUARIO, em("2026-10-20T10:00")))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("agendada");
+
+        Matricula encerrada = vigente();
+        assertThatThrownBy(() -> encerrada.encerrarPorTroca(novaDoPlano(false, "150"), USUARIO, em("2026-11-20T10:00")))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("encerrada");
+
+        Matricula atual = vigente();
+        Matricula mesmoPlano = Matricula.nova(ALUNO, new PlanoContratado(atual.getPlanoId(), "Mensal",
+                new BigDecimal("129.90"), 1), null, em("2026-10-20T10:00"));
+        assertThatThrownBy(() -> atual.encerrarPorTroca(mesmoPlano, USUARIO, em("2026-10-20T10:00")))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("já é deste plano");
+        assertThatThrownBy(() -> atual.encerrarPorTroca(novaDoPlano(false, "150"), null, em("2026-10-20T10:00")))
+                .isInstanceOf(DadosInvalidosException.class);
+        assertThat(atual.getTrocadaEm()).isNull();
+        assertThat(atual.situacao(em("2026-10-20T10:00"))).isEqualTo(SituacaoMatricula.VIGENTE);
     }
 }

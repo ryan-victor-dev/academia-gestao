@@ -18,6 +18,8 @@ import java.sql.Date;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +44,7 @@ class MatriculaRepositoryTest {
     private UUID outroAluno;
     private UUID plano;
     private UUID usuario;
+    private final List<UUID> planosExtras = new ArrayList<>();
 
     @BeforeEach
     void preparar() {
@@ -61,9 +64,14 @@ class MatriculaRepositoryTest {
     void limpar() {
         jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id IN (?, ?))",
                 aluno, outroAluno);
+        jdbc.update("DELETE FROM matriculas WHERE aluno_id IN (?, ?) AND troca_de IS NOT NULL", aluno, outroAluno);
         jdbc.update("DELETE FROM matriculas WHERE aluno_id IN (?, ?)", aluno, outroAluno);
         jdbc.update("DELETE FROM usuarios WHERE id = ?", usuario);
         jdbc.update("DELETE FROM planos WHERE id = ?", plano);
+        for (UUID id : planosExtras) {
+            jdbc.update("DELETE FROM planos WHERE id = ?", id);
+        }
+        planosExtras.clear();
         jdbc.update("DELETE FROM alunos WHERE id IN (?, ?)", aluno, outroAluno);
     }
 
@@ -232,7 +240,7 @@ class MatriculaRepositoryTest {
         assertThat(lida.isFidelidade()).isTrue();
         assertThat(lida.getPercentualMulta()).isEqualByComparingTo("20");
         assertThat(lida.getFormaPagamento()).isEqualTo(br.com.academiagestao.planos.FormaPagamento.A_VISTA);
-        assertThat(lida.getMultaCancelamento()).isEqualByComparingTo("219.78");
+        assertThat(lida.getMulta()).isEqualByComparingTo("219.78");
     }
 
     @Test
@@ -245,17 +253,17 @@ class MatriculaRepositoryTest {
         assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET percentual_multa = 10 WHERE id = ?", id))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_matriculas_percentual_multa");
-        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET multa_cancelamento = 10 WHERE id = ?", id))
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET multa = 10 WHERE id = ?", id))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_matriculas_multa");
         assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET forma_pagamento = 'PIX' WHERE id = ?", id))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_matriculas_forma_pagamento");
         jdbc.update("UPDATE matriculas SET fidelidade = true, percentual_multa = 20 WHERE id = ?", id);
-        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET multa_cancelamento = -1 WHERE id = ?", id))
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET multa = -1 WHERE id = ?", id))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_matriculas_multa");
-        assertThatCode(() -> jdbc.update("UPDATE matriculas SET multa_cancelamento = 0 WHERE id = ?", id))
+        assertThatCode(() -> jdbc.update("UPDATE matriculas SET multa = 0 WHERE id = ?", id))
                 .doesNotThrowAnyException();
     }
 
@@ -333,5 +341,66 @@ class MatriculaRepositoryTest {
         // Começar no dia da volta não se sobrepõe; um desfeito (volta = início) também não.
         assertThatCode(() -> inserirTrancamento(id, "2027-01-20", "2027-01-27", null)).doesNotThrowAnyException();
         assertThatCode(() -> inserirTrancamento(id, "2027-01-22", "2027-01-30", "2027-01-22")).doesNotThrowAnyException();
+    }
+
+    // Troca de plano (V16)
+
+    private Matricula trocar(Matricula atual, String dia) {
+        Matricula nova = Matricula.nova(atual.getAlunoId(), new PlanoContratado(outroPlano(), "Outro",
+                new BigDecimal("150"), 1), LocalDate.parse(dia), em(dia));
+        atual.encerrarPorTroca(nova, usuario, em(dia));
+        repository.saveAndFlush(atual);
+        return repository.saveAndFlush(nova);
+    }
+
+    private UUID outroPlano() {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO planos (id, nome, valor_mensal, duracao_meses) VALUES (?, ?, 150, 1)", id, "Plano " + id);
+        planosExtras.add(id);
+        return id;
+    }
+
+    @Test
+    void trocadaOcupaSoAteAVesperaETrocaNoPrimeiroDiaNaoOcupaNada() {
+        Matricula atual = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1));
+        Matricula nova = trocar(atual, "2027-01-20");
+
+        Matricula lida = repository.findById(atual.getId()).orElseThrow();
+        assertThat(lida.getTrocadaEm()).isEqualTo(LocalDate.parse("2027-01-20"));
+        assertThat(lida.getTrocadaPor()).isEqualTo(usuario);
+        assertThat(repository.findById(nova.getId()).orElseThrow().getTrocaDe()).isEqualTo(atual.getId());
+
+        Matricula noPrimeiroDia = repository.saveAndFlush(matricula(outroAluno, "2027-01-10", 1));
+        assertThatCode(() -> trocar(noPrimeiroDia, "2027-01-10")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void bancoConfereATroca() {
+        UUID id = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1)).getId();
+
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET trocada_em = '2027-01-15' WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_matriculas_troca");
+        assertThatThrownBy(() -> jdbc.update(
+                "UPDATE matriculas SET trocada_em = '2027-01-09', trocada_por = ? WHERE id = ?", usuario, id))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_matriculas_dia_da_troca");
+        assertThatThrownBy(() -> jdbc.update(
+                "UPDATE matriculas SET trocada_em = '2027-02-10', trocada_por = ? WHERE id = ?", usuario, id))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_matriculas_dia_da_troca");
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE matriculas SET trocada_em = '2027-01-15', trocada_por = ?, cancelada_em = now(),
+                                      cancelada_por = ?, motivo_cancelamento = 'x' WHERE id = ?""", usuario, usuario, id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_trocada_ou_cancelada");
+    }
+
+    @Test
+    void umaMatriculaSoPodeVirarUmaNova() {
+        Matricula atual = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1));
+        Matricula nova = trocar(atual, "2027-01-20");
+        Matricula outra = repository.saveAndFlush(matricula(outroAluno, "2027-01-10", 1));
+
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET troca_de = ? WHERE id = ?", atual.getId(), outra.getId()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(nova.getTrocaDe()).isEqualTo(atual.getId());
     }
 }

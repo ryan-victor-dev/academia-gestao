@@ -403,12 +403,12 @@ class MatriculaControllerTest {
                 .andExpect(jsonPath("$.fidelidade").value(true))
                 .andExpect(jsonPath("$.percentualMulta").value(20.00))
                 .andExpect(jsonPath("$.formaPagamento").value("A_VISTA"))
-                .andExpect(jsonPath("$.multaCancelamento").doesNotExist()));
+                .andExpect(jsonPath("$.multa").doesNotExist()));
 
         // Cancelada no primeiro dia: o 1º mês já está em curso; faltam 11. 11 × 99,90 × 20% = 219,78.
         cancelar(id, "{\"motivo\": \"Mudou de cidade\"}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.multaCancelamento").value(219.78));
+                .andExpect(jsonPath("$.multa").value(219.78));
     }
 
     @Test
@@ -432,7 +432,7 @@ class MatriculaControllerTest {
         cancelar(id, "{\"motivo\": \"Desistiu\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fidelidade").value(false))
-                .andExpect(jsonPath("$.multaCancelamento").doesNotExist());
+                .andExpect(jsonPath("$.multa").doesNotExist());
     }
 
     // Trancamento (ADR 0018)
@@ -504,5 +504,97 @@ class MatriculaControllerTest {
                 .andExpect(jsonPath("$.erros[?(@.campo == 'voltaPrevista')]").exists())
                 .andExpect(jsonPath("$.erros[?(@.campo == 'motivo')]").exists());
         trancar(UUID.randomUUID().toString(), null, hoje().plusDays(10)).andExpect(status().isNotFound());
+    }
+
+    // Troca de plano (ADR 0018)
+
+    private ResultActions trocarPlano(String id, UUID novoPlano) throws Exception {
+        return mvc.perform(post("/api/matriculas/" + id + "/trocar-plano").header("Authorization", "Bearer " + tokenRecepcao)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"planoId\": \"%s\"}".formatted(novoPlano)));
+    }
+
+    @Test
+    void trocaImediataEncerraAAtualNaVesperaECriaANovaHoje() throws Exception {
+        String atual = idDe(matricular(aluno, plano, null));
+        UUID anual = criarPlanoComFidelidade("99.90", 12, "20");
+
+        ResultActions troca = trocarPlano(atual, anual)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.planoId").value(anual.toString()))
+                .andExpect(jsonPath("$.valorMensal").value(99.90))
+                .andExpect(jsonPath("$.fidelidade").value(true))
+                .andExpect(jsonPath("$.inicio").value(hoje().toString()))
+                .andExpect(jsonPath("$.situacao").value("VIGENTE"))
+                .andExpect(jsonPath("$.trocaDe").value(atual));
+        String nova = idDe(troca);
+        troca.andExpect(header().string("Location", endsWith("/api/matriculas/" + nova)));
+
+        mvc.perform(get("/api/matriculas/" + atual).header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(jsonPath("$.situacao").value("TROCADA"))
+                .andExpect(jsonPath("$.trocadaEm").value(hoje().toString()))
+                .andExpect(jsonPath("$.trocadaPor").value(recepcaoId.toString()))
+                .andExpect(jsonPath("$.multa").doesNotExist());
+    }
+
+    @Test
+    void renovarANovaDentroDoFimOriginalDaTrocadaEhAceito() throws Exception {
+        // Anual trocado por mensal: o fim original do anual fica 11 meses à frente, mas a
+        // trocada só vale até a véspera da troca. Renovar o mensal no mês seguinte é aceito.
+        String anual = idDe(matricular(aluno, criarPlanoComFidelidade("99.90", 12, "20"), null));
+        UUID mensalComFidelidade = criarPlanoComFidelidade("129.90", 1, "10");
+        trocarPlano(anual, mensalComFidelidade).andExpect(status().isCreated());
+
+        matricular(aluno, mensalComFidelidade, hoje().plusMonths(1)).andExpect(status().isCreated());
+    }
+
+    @Test
+    void trocadaNaoImpedeInativarDepoisQueANovaEhCancelada() throws Exception {
+        String atual = idDe(matricular(aluno, plano, null));
+        String nova = idDe(trocarPlano(atual, criarPlano("150", 1, true)));
+        cancelar(nova, "{\"motivo\": \"Desistiu\"}").andExpect(status().isOk());
+
+        mvc.perform(post("/api/alunos/" + aluno + "/inativar").header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void trocaParaPlanoSemFidelidadeAplicaAMulta() throws Exception {
+        String atual = idDe(matricular(aluno, criarPlanoComFidelidade("99.90", 12, "20"), null));
+
+        trocarPlano(atual, criarPlano("129.90", 1, true)).andExpect(status().isCreated());
+
+        // Trocada no 1º dia: faltam 11 meses. 11 × 99,90 × 20% = 219,78.
+        mvc.perform(get("/api/matriculas/" + atual).header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(jsonPath("$.multa").value(219.78));
+    }
+
+    @Test
+    void trocaRecusada() throws Exception {
+        String comRenovacao = idDe(matricular(aluno, plano, null));
+        matricular(aluno, plano, hoje().plusMonths(1)).andExpect(status().isCreated());
+        trocarPlano(comRenovacao, criarPlano("150", 1, true))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("renovação agendada")));
+
+        UUID outroAluno = criarAluno(true);
+        String trancada = idDe(matricular(outroAluno, plano, null));
+        trancar(trancada, null, hoje().plusDays(10)).andExpect(status().isOk());
+        trocarPlano(trancada, criarPlano("150", 1, true))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("registre a volta")));
+
+        UUID terceiro = criarAluno(true);
+        String atual = idDe(matricular(terceiro, plano, null));
+        trocarPlano(atual, plano).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("já é deste plano")));
+        trocarPlano(atual, criarPlano("150", 1, false)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Plano inativo"));
+        trocarPlano(atual, UUID.randomUUID()).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/matriculas/" + atual + "/trocar-plano").header("Authorization", "Bearer " + tokenRecepcao)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erros[0].campo").value("planoId"));
+        mvc.perform(get("/api/matriculas/" + atual).header("Authorization", "Bearer " + tokenRecepcao))
+                .andExpect(jsonPath("$.situacao").value("VIGENTE"));
     }
 }

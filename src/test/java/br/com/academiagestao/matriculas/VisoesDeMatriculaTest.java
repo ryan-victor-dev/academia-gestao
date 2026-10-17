@@ -193,7 +193,7 @@ class VisoesDeMatriculaTest {
         jdbc.update("""
                 INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim,
                                         criada_em, fidelidade, percentual_multa, forma_pagamento, cancelada_em,
-                                        cancelada_por, motivo_cancelamento, multa_cancelamento)
+                                        cancelada_por, motivo_cancelamento, multa)
                 VALUES (?, ?, ?, 'Anual', 99.90, 12, ?, ?, now(), true, 20, 'MENSAL', now(), ?, 'Mudou de cidade', 179.82)""",
                 UUID.randomUUID(), ana, plano, Date.valueOf(inicio), Date.valueOf(inicio.plusMonths(12).minusDays(1)),
                 usuario);
@@ -202,7 +202,7 @@ class VisoesDeMatriculaTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].fidelidade").value(true))
                 .andExpect(jsonPath("$[0].percentualMulta").value(20.00))
-                .andExpect(jsonPath("$[0].multaCancelamento").value(179.82));
+                .andExpect(jsonPath("$[0].multa").value(179.82));
     }
 
     @Test

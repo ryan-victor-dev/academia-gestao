@@ -137,6 +137,39 @@ class MatriculaService {
         }
     }
 
+    /**
+     * Troca imediata de plano (ADR 0018): a atual termina na véspera e a nova começa hoje, com
+     * nome, preço e regras do novo plano. Trava o aluno, como matricular e trancar.
+     */
+    @Transactional
+    Matricula trocarPlano(UUID id, UUID novoPlanoId, UUID usuarioId) {
+        UUID alunoId = repository.alunoDaMatricula(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
+        alunos.travar(alunoId);
+        Matricula atual = repository.travarPorId(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
+        PlanoOfertado plano = planos.buscar(novoPlanoId)
+                .orElseThrow(() -> new DadosInvalidosException("plano " + novoPlanoId + " não encontrado"));
+        if (!plano.ativo()) {
+            throw new MatriculaRecusadaException("Plano inativo", "O plano não está mais sendo oferecido");
+        }
+        // Consultada antes de alterar a atual (auto-flush, ver trancar).
+        var renovacao = repository.findFirstByAlunoIdAndCanceladaEmIsNullAndInicioAfterOrderByInicio(
+                alunoId, atual.getFim());
+        if (renovacao.isPresent()) {
+            throw new MatriculaRecusadaException("Troca recusada",
+                    "O aluno tem renovação agendada a partir de %s; cancele-a antes de trocar de plano"
+                            .formatted(renovacao.get().getInicio().format(DATA)));
+        }
+
+        Instant agora = relogio.instant();
+        PlanoContratado contratado = new PlanoContratado(plano.id(), plano.nome(), plano.valorMensal(),
+                plano.duracaoMeses(), plano.fidelidade(), plano.percentualMulta(), plano.formaPagamento());
+        Matricula nova = Matricula.nova(alunoId, contratado, null, agora);
+        atual.encerrarPorTroca(nova, usuarioId, agora);
+        // A atual é gravada primeiro: encurtada, ela libera o período para a nova, que começa hoje.
+        repository.saveAndFlush(atual);
+        return repository.saveAndFlush(nova);
+    }
+
     /** O aluno voltou antes do previsto (ou desistiu do trancamento agendado). */
     @Transactional
     Matricula registrarVolta(UUID id, UUID usuarioId) {

@@ -241,4 +241,34 @@ class MatriculaConcorrenciaTest {
         }
         System.out.printf("trancarERenovarAoMesmoTempo: %d trancadas, %d renovadas%n", trancadas, renovadas);
     }
+
+    @Test
+    void duasTrocasSimultaneasDaMesmaMatricula() throws Exception {
+        UUID outroPlano = UUID.randomUUID();
+        jdbc.update("INSERT INTO planos (id, nome, valor_mensal, duracao_meses) VALUES (?, ?, 150, 1)",
+                outroPlano, "Plano " + outroPlano);
+        try {
+            for (int rodada = 0; rodada < RODADAS; rodada++) {
+                UUID id = service.matricular(criarAluno(), plano, null).getId();
+
+                List<String> resultados = aoMesmoTempo(2, i -> {
+                    try {
+                        service.trocarPlano(id, outroPlano, usuario);
+                        return "trocada";
+                    } catch (MatriculaRecusadaException e) {
+                        return "409 " + e.titulo();
+                    } catch (Exception e) {
+                        return "outro erro: " + e.getClass().getSimpleName();
+                    }
+                });
+
+                assertThat(resultados).as("rodada %d", rodada).containsExactlyInAnyOrder("trocada", "409 Troca recusada");
+            }
+        } finally {
+            for (UUID aluno : alunos) {
+                jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", aluno);
+            }
+            jdbc.update("DELETE FROM planos WHERE id = ?", outroPlano);
+        }
+    }
 }

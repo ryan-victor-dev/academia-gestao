@@ -29,8 +29,8 @@ class MatriculaImpedeInativacao implements ImpedimentoParaInativar {
     @Override
     public Optional<String> verificar(UUID alunoId) {
         LocalDate hoje = Matricula.hoje(relogio.instant());
-        // Não cancelada e ainda não terminou: vigente (já começou) ou agendada (começa depois).
-        return repository.findFirstByAlunoIdAndCanceladaEmIsNullAndFimGreaterThanEqualOrderByInicio(alunoId, hoje)
+        // Vigente, trancada ou agendada: ainda não terminou e não foi cancelada nem trocada.
+        return repository.pendentes(alunoId, hoje).stream().findFirst()
                 .map(m -> "O aluno tem matrícula de %s a %s; cancele-a antes de inativar".formatted(
                         m.getInicio().format(DATA), m.getFim().format(DATA)));
     }

@@ -113,6 +113,22 @@ class MatriculaController {
         return MatriculaResponse.de(service.registrarVolta(id, UUID.fromString(jwt.getSubject())), service.agora());
     }
 
+    /** Troca imediata: a atual termina na véspera, e a nova (devolvida aqui) começa hoje. */
+    @PostMapping("/{id}/trocar-plano")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    ResponseEntity<MatriculaResponse> trocarPlano(@PathVariable UUID id, @Valid @RequestBody TrocaRequest request,
+                                                  @AuthenticationPrincipal Jwt jwt) {
+        Matricula nova = service.trocarPlano(id, request.planoId(), UUID.fromString(jwt.getSubject()));
+        var location = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/matriculas/{id}").buildAndExpand(nova.getId()).toUri();
+        return ResponseEntity.created(location).body(MatriculaResponse.de(nova, service.agora()));
+    }
+
+    record TrocaRequest(
+            @NotNull(message = "é obrigatório")
+            UUID planoId) {
+    }
+
     record TrancamentoRequest(
             LocalDate inicio,
 
@@ -159,13 +175,14 @@ class MatriculaController {
                               FormaPagamento formaPagamento, LocalDate inicio, LocalDate fim,
                               int diasTrancados, List<TrancamentoResponse> trancamentos,
                               SituacaoMatricula situacao, Instant canceladaEm, String motivoCancelamento,
-                              BigDecimal multaCancelamento) {
+                              LocalDate trocadaEm, UUID trocaDe, BigDecimal multa) {
 
         static MatriculaParaAluno de(Matricula m, Instant agora) {
             return new MatriculaParaAluno(m.getId(), m.getPlanoId(), m.getPlanoNome(), m.getValorMensal(),
                     m.getDuracaoMeses(), m.getValorTotal(), m.isFidelidade(), m.getPercentualMulta(),
                     m.getFormaPagamento(), m.getInicio(), m.getFim(), m.getDiasTrancados(), TrancamentoResponse.de(m),
-                    m.situacao(agora), m.getCanceladaEm(), m.getMotivoCancelamento(), m.getMultaCancelamento());
+                    m.situacao(agora), m.getCanceladaEm(), m.getMotivoCancelamento(), m.getTrocadaEm(), m.getTrocaDe(),
+                    m.getMulta());
         }
     }
 
@@ -174,15 +191,15 @@ class MatriculaController {
                              FormaPagamento formaPagamento, LocalDate inicio, LocalDate fim, int diasTrancados,
                              List<TrancamentoResponse> trancamentos, SituacaoMatricula situacao, Instant criadaEm,
                              Instant canceladaEm, UUID canceladaPor, String motivoCancelamento,
-                             BigDecimal multaCancelamento) {
+                             LocalDate trocadaEm, UUID trocadaPor, UUID trocaDe, BigDecimal multa) {
 
         static MatriculaResponse de(Matricula m, Instant agora) {
             return new MatriculaResponse(m.getId(), m.getAlunoId(), m.getPlanoId(), m.getPlanoNome(),
                     m.getValorMensal(), m.getDuracaoMeses(), m.getValorTotal(), m.isFidelidade(),
                     m.getPercentualMulta(), m.getFormaPagamento(), m.getInicio(), m.getFim(), m.getDiasTrancados(),
-                    TrancamentoResponse.de(m), m.situacao(agora),
-                    m.getCriadaEm(), m.getCanceladaEm(), m.getCanceladaPor(), m.getMotivoCancelamento(),
-                    m.getMultaCancelamento());
+                    TrancamentoResponse.de(m), m.situacao(agora), m.getCriadaEm(), m.getCanceladaEm(),
+                    m.getCanceladaPor(), m.getMotivoCancelamento(), m.getTrocadaEm(), m.getTrocadaPor(),
+                    m.getTrocaDe(), m.getMulta());
         }
     }
 }
