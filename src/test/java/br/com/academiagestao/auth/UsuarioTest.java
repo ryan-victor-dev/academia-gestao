@@ -127,4 +127,40 @@ class UsuarioTest {
         assertThat(u.getVersaoToken()).isEqualTo(versao);
         assertThatThrownBy(() -> u.renomear(" ")).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void recusaDadosObrigatoriosVaziosOuInvalidos() {
+        UUID aluno = UUID.randomUUID();
+        for (String nome : new String[]{null, "  "}) {
+            assertThatThrownBy(() -> Usuario.daEquipe(nome, "a@x.com", HASH, Perfil.RECEPCAO))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("nome");
+            assertThatThrownBy(() -> Usuario.deAluno(nome, "a@x.com", HASH, aluno))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("nome");
+        }
+        for (String email : new String[]{null, "sem-arroba.com"}) {
+            assertThatThrownBy(() -> Usuario.daEquipe("Ana", email, HASH, Perfil.RECEPCAO))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("e-mail");
+            assertThatThrownBy(() -> Usuario.deAluno("Ana", email, HASH, aluno))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("e-mail");
+        }
+        for (String hash : new String[]{null, " "}) {
+            assertThatThrownBy(() -> Usuario.daEquipe("Ana", "a@x.com", hash, Perfil.RECEPCAO))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("senhaHash");
+            assertThatThrownBy(() -> Usuario.deAluno("Ana", "a@x.com", hash, aluno))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("senhaHash");
+        }
+    }
+
+    @Test
+    void renomearETrocarSenhaRecusamValorNulo() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);
+        int versao = u.getVersaoToken();
+
+        assertThatThrownBy(() -> u.renomear(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> u.trocarSenha(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> u.trocarSenha("  ")).isInstanceOf(IllegalArgumentException.class);
+        // Nada mudou: nem a senha, nem os tokens.
+        assertThat(u.getSenhaHash()).isEqualTo(HASH);
+        assertThat(u.getVersaoToken()).isEqualTo(versao);
+    }
 }

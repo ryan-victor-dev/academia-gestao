@@ -136,4 +136,64 @@
 		</plugins>
 	</build>
 
+	<profiles>
+		<!--
+			Teste de mutação (PIT) nas regras de domínio: altera o código de propósito e confere
+			se algum teste falha. Mutação que sobrevive = regra sem teste de verdade.
+			Uso: ./mvnw -P mutacao test-compile org.pitest:pitest-maven:mutationCoverage
+			Relatório: target/pit-reports/index.html
+		-->
+		<profile>
+			<id>mutacao</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-maven</artifactId>
+						<version>1.30.1</version>
+						<dependencies>
+							<dependency>
+								<groupId>org.pitest</groupId>
+								<artifactId>pitest-junit5-plugin</artifactId>
+								<version>1.2.3</version>
+							</dependency>
+						</dependencies>
+						<configuration>
+							<targetClasses>
+								<param>br.com.academiagestao.alunos.Cpf</param>
+								<param>br.com.academiagestao.alunos.Aluno</param>
+								<param>br.com.academiagestao.planos.Plano</param>
+								<param>br.com.academiagestao.auth.Usuario</param>
+								<param>br.com.academiagestao.auth.PoliticaDeSenha</param>
+								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>
+								<param>br.com.academiagestao.compartilhado.VersaoEsperada</param>
+								<param>br.com.academiagestao.compartilhado.RecursoModificadoException</param>
+								<param>br.com.academiagestao.cobranca.*</param>
+							</targetClasses>
+							<!-- Só testes de unidade (sem banco): rápidos o bastante para cada mutação. -->
+							<targetTests>
+								<param>br.com.academiagestao.alunos.CpfTest</param>
+								<param>br.com.academiagestao.alunos.AlunoTest</param>
+								<param>br.com.academiagestao.planos.PlanoTest</param>
+								<param>br.com.academiagestao.auth.UsuarioTest</param>
+								<param>br.com.academiagestao.auth.PoliticaDeSenhaTest</param>
+								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporariaTest</param>
+								<param>br.com.academiagestao.compartilhado.VersaoEsperadaTest</param>
+								<param>br.com.academiagestao.cobranca.*Test</param>
+							</targetTests>
+							<mutators>
+								<mutator>STRONGER</mutator>
+							</mutators>
+							<outputFormats>
+								<param>HTML</param>
+								<param>XML</param>
+							</outputFormats>
+							<timestampedReports>false</timestampedReports>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
 </project>

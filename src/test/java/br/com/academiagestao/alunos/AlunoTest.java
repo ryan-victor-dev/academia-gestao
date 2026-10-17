@@ -81,4 +81,29 @@ class AlunoTest {
         aluno.reativar();
         assertThat(aluno.isAtivo()).isTrue();
     }
+
+    @Test
+    void recusaDadosNulos() {
+        assertThatThrownBy(() -> Aluno.novo(null)).isInstanceOf(DadosInvalidosException.class);
+    }
+
+    @Test
+    void nomeAte150CaracteresEAcima() {
+        assertThat(Aluno.novo(dados("a".repeat(150), "52998224725")).getNome()).hasSize(150);
+        assertThatThrownBy(() -> Aluno.novo(dados("a".repeat(151), "52998224725")))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("150");
+    }
+
+    @Test
+    void emailSemArrobaOuComprido() {
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "ana.email.com", null, null, null)))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("e-mail");
+        String email150 = "a".repeat(140) + "@email.com";
+        assertThat(Aluno.novo(new DadosAluno("Ana", "52998224725", email150, null, null, null)).getEmail())
+                .hasSize(150);
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "a" + email150, null, null, null)))
+                .isInstanceOf(DadosInvalidosException.class);
+    }
 }

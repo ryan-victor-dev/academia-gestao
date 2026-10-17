@@ -18,7 +18,8 @@ class CpfTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "52998224724",    // último dígito verificador errado
-            "52998224715",    // primeiro dígito verificador errado
+            "52998224715",    // primeiro dígito verificador errado (e, por consequência, o segundo)
+            "52998224733",    // só o primeiro errado: o segundo foi calculado sobre o primeiro errado
             "11111111111",    // todos iguais: a conta fecha, mas o CPF não existe
             "00000000000",
             "5299822472",     // 10 dígitos

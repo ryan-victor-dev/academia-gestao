@@ -41,6 +41,13 @@ class MensalidadeTest {
             assertThatThrownBy(() -> Mensalidade.nova(UUID.randomUUID(), BigDecimal.ZERO, VENCIMENTO))
                     .isInstanceOf(IllegalArgumentException.class);
         }
+
+        @Test
+        @DisplayName("não aceita valor ausente")
+        void nao_aceita_valor_ausente() {
+            assertThatThrownBy(() -> Mensalidade.nova(UUID.randomUUID(), null, VENCIMENTO))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     @Nested
@@ -133,6 +140,12 @@ class MensalidadeTest {
 
             assertThatThrownBy(m::cancelar).isInstanceOf(TransicaoInvalidaException.class);
         }
+    }
+
+    @ParameterizedTest(name = "{0} não é um estado final")
+    @EnumSource(value = StatusMensalidade.class, names = {"PENDENTE", "VENCIDA", "PAGA"})
+    void estados_com_saida_nao_sao_finais(StatusMensalidade status) {
+        assertThat(status.isFinal()).isFalse();
     }
 
     @ParameterizedTest(name = "{0} é um estado final")

@@ -79,4 +79,16 @@ class PlanoTest {
         plano.reativar();
         assertThat(plano.isAtivo()).isTrue();
     }
+
+    @Test
+    void recusaDadosNulos() {
+        assertThatThrownBy(() -> Plano.novo(null)).isInstanceOf(DadosInvalidosException.class);
+    }
+
+    @Test
+    void limitesExatosDeNomeEDuracao() {
+        assertThat(Plano.novo(dados("x".repeat(80), "100", 1)).getNome()).hasSize(80);
+        assertThat(Plano.novo(dados("Mensal", "100", 60)).getDuracaoMeses()).isEqualTo(60);
+        assertThat(Plano.novo(dados("Mensal", "100", 1)).getDuracaoMeses()).isEqualTo(1);
+    }
 }
