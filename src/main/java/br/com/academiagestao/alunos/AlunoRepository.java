@@ -1,9 +1,12 @@
 package br.com.academiagestao.alunos;
 
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +19,11 @@ public interface AlunoRepository extends JpaRepository<Aluno, UUID>, JpaSpecific
     Optional<Aluno> findByCpf(String cpf);
 
     boolean existsByCpf(String cpf);
+
+    /** SELECT ... FOR UPDATE: a linha fica travada até o fim da transação. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Aluno a WHERE a.id = :id")
+    Optional<Aluno> travarPorId(UUID id);
 
     /**
      * Filtro da listagem. Se a busca só tem dígitos, pontos e traço (e a busca por CPF é

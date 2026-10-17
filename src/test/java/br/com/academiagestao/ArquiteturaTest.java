@@ -50,10 +50,12 @@ class ArquiteturaTest {
             Set.of("LoginsDeAlunos", "ClaimsDoToken", "CredenciaisTemporarias", "RecuperacaoDeAdmin"));
 
     @ArchTest
-    static final ArchRule alunosSoPelaPortaPublica = soPelaPortaPublica("alunos", Set.of());
+    static final ArchRule alunosSoPelaPortaPublica = soPelaPortaPublica("alunos",
+            Set.of("AlunosParaMatricula", "EstadoDoAluno"));
 
     @ArchTest
-    static final ArchRule planosSoPelaPortaPublica = soPelaPortaPublica("planos", Set.of());
+    static final ArchRule planosSoPelaPortaPublica = soPelaPortaPublica("planos",
+            Set.of("PlanosParaMatricula", "PlanoOfertado"));
 
     @ArchTest
     static final ArchRule cobrancaSoPelaPortaPublica = soPelaPortaPublica("cobranca", Set.of());
