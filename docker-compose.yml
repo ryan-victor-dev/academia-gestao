@@ -1,8 +1,26 @@
+# Logs com teto: sem isso, o json-file do Docker cresce para sempre (cada tentativa de
+# login vira uma linha) até encher o disco, e guarda e-mails e IPs indefinidamente.
+x-logs: &logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+# Nenhum processo ganha privilégios depois de iniciar (setuid, capacidades de arquivo).
+x-sem-novos-privilegios: &sem-novos-privilegios
+  - no-new-privileges:true
+
 services:
   postgres:
     image: postgres:17-alpine
     container_name: academia-postgres
     restart: unless-stopped
+    logging: *logs
+    security_opt: *sem-novos-privilegios
+    # Só o que a inicialização do Postgres usa: ajustar o dono dos arquivos e trocar de
+    # root para o usuário postgres. O banco em si roda como postgres (uid 70).
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
     environment:
       POSTGRES_DB: academia
       POSTGRES_USER: academia
@@ -22,6 +40,15 @@ services:
     build: .
     container_name: academia-app
     restart: unless-stopped
+    logging: *logs
+    security_opt: *sem-novos-privilegios
+    # A aplicação roda sem root (usuário app) e não precisa de nenhuma capacidade do Linux.
+    cap_drop: [ALL]
+    # Sistema de arquivos só de leitura: mesmo com uma falha grave, ninguém altera o jar
+    # nem planta arquivos. Só o /tmp (arquivos temporários do Tomcat) é gravável.
+    read_only: true
+    tmpfs:
+      - /tmp
     # Teto de memória: um ataque pode derrubar a aplicação (que volta sozinha pelo
     # restart), mas nunca esgotar a memória do servidor inteiro.
     mem_limit: ${APP_MEMORIA:-1g}
@@ -42,12 +69,39 @@ services:
       # Só nesta máquina (diagnóstico); quem vem da rede entra pelo Caddy, com HTTPS.
       - "127.0.0.1:8090:8090"
 
+  # Roda uma vez antes do Caddy: entrega os volumes de certificados ao usuário sem
+  # privilégios do Caddy (a imagem oficial os cria como root).
+  caddy-permissoes:
+    image: caddy:2.11-alpine
+    restart: "no"
+    logging: *logs
+    security_opt: *sem-novos-privilegios
+    cap_drop: [ALL]
+    # CHOWN para trocar o dono; DAC_READ_SEARCH para entrar nas pastas (700) que, depois da
+    # primeira vez, já são do usuário do Caddy, e não do root.
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    entrypoint: ["chown", "-R", "10001:10001", "/data", "/config"]
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
   caddy:
     image: caddy:2.11-alpine
     container_name: academia-caddy
     restart: unless-stopped
+    logging: *logs
+    # Sem root: o Caddy é a parte exposta à internet.
+    user: "10001:10001"
+    security_opt: *sem-novos-privilegios
+    # Uma única capacidade: abrir portas abaixo de 1024 (80 e 443). O binário do Caddy vem
+    # marcado com ela; sem ela, o kernel nem executa o arquivo.
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
     depends_on:
-      - app
+      caddy-permissoes:
+        condition: service_completed_successfully
+      app:
+        condition: service_started
     environment:
       DOMINIO: ${DOMINIO:-localhost}
       HTTP_PORTA: ${HTTP_PORTA:-80}

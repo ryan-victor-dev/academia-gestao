@@ -5,6 +5,8 @@
 # - DOMINIO vazio: usa "localhost" com um certificado da CA interna do Caddy
 #   (o navegador vai avisar que não confia; serve para desenvolvimento).
 {
+	# Sem root, o Caddy não instala a própria CA de desenvolvimento no container (nem precisa).
+	skip_install_trust
 	http_port {$HTTP_PORTA:80}
 	https_port {$HTTPS_PORTA:443}
 	servers {
