@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Recuperação de um ADMIN que esqueceu a senha, por comando no servidor:
@@ -31,13 +32,15 @@ public class RecuperacaoDeAdmin implements ApplicationRunner, ExitCodeGenerator 
 
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final TrilhaDeUsuarios trilha;
     private PrintStream saida = System.out;
     private PrintStream erro = System.err;
     private int codigoDeSaida;
 
-    RecuperacaoDeAdmin(UsuarioRepository repository, PasswordEncoder passwordEncoder) {
+    RecuperacaoDeAdmin(UsuarioRepository repository, PasswordEncoder passwordEncoder, TrilhaDeUsuarios trilha) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
+        this.trilha = trilha;
     }
 
     /** Usado pelo main para subir a aplicação sem servidor web quando é só o comando. */
@@ -71,11 +74,14 @@ public class RecuperacaoDeAdmin implements ApplicationRunner, ExitCodeGenerator 
 
         boolean estavaInativo = !usuario.isAtivo();
         if (estavaInativo) {
+            Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
             usuario.reativar();
+            trilha.alterado(usuario, "REATIVADO", antes);
         }
         String senhaTemporaria = GeradorDeSenhaTemporaria.gerar();
         // Também derruba todas as sessões abertas desse ADMIN.
         usuario.redefinirComSenhaTemporaria(passwordEncoder.encode(senhaTemporaria));
+        trilha.ato(usuario, "SENHA_REDEFINIDA");  // pelo sistema (linha de comando)
 
         // Registro de auditoria, sem a senha.
         log.warn("Acesso do ADMIN {} recuperado pelo comando no servidor{}", email,

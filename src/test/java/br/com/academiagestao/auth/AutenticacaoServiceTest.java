@@ -33,7 +33,8 @@ class AutenticacaoServiceTest {
     private final AutenticacaoService service = new AutenticacaoService(repository, passwordEncoder,
             new GeradorDeToken(new NimbusJwtEncoder(new ImmutableSecret<>(chave)),
                     new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao")),
-            mock(LimitadorDeTentativas.class), mock(org.springframework.transaction.PlatformTransactionManager.class));
+            mock(LimitadorDeTentativas.class), mock(org.springframework.transaction.PlatformTransactionManager.class),
+            mock(TrilhaDeUsuarios.class));
 
     private Usuario cadastrar(Perfil perfil) {
         Usuario usuario = Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), perfil);

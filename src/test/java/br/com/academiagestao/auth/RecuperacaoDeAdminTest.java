@@ -102,6 +102,11 @@ class RecuperacaoDeAdminTest {
                 .andExpect(status().isUnauthorized());
         // Auditoria no log, mas sem a senha.
         assertThat(log.getAll()).contains("Acesso do ADMIN dona@academia.com recuperado").doesNotContain(temporaria);
+        // E na trilha, feita pelo sistema (não havia ninguém logado): autor vazio.
+        var registro = jdbc.queryForMap("SELECT autor, acao FROM auditoria WHERE entidade_id = ? ORDER BY id DESC LIMIT 1",
+                admin.getId());
+        assertThat(registro).containsEntry("acao", "SENHA_REDEFINIDA").containsEntry("autor", null);
+        jdbc.update("DELETE FROM auditoria WHERE entidade_id = ?", admin.getId());
     }
 
     @Test
@@ -113,6 +118,9 @@ class RecuperacaoDeAdminTest {
 
         assertThat(terminal.toString(StandardCharsets.UTF_8)).contains("foi reativado");
         login(senhaImpressa()).andExpect(status().isOk());
+        assertThat(jdbc.queryForList("SELECT acao FROM auditoria WHERE entidade_id = ? AND autor IS NULL ORDER BY id",
+                String.class, admin.getId())).containsExactly("REATIVADO", "SENHA_REDEFINIDA");
+        jdbc.update("DELETE FROM auditoria WHERE entidade_id = ?", admin.getId());
     }
 
     @Test

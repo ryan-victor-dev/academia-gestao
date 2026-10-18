@@ -1,5 +1,6 @@
 package br.com.academiagestao.planos;
 
+import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -8,7 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+
+import static br.com.academiagestao.compartilhado.Auditoria.Entidade.PLANO;
 
 @Service
 class PlanoService {
@@ -17,16 +21,18 @@ class PlanoService {
     private static final UUID NENHUM = new UUID(0, 0);
 
     private final PlanoRepository repository;
+    private final Auditoria auditoria;
 
-    PlanoService(PlanoRepository repository) {
+    PlanoService(PlanoRepository repository, Auditoria auditoria) {
         this.repository = repository;
+        this.auditoria = auditoria;
     }
 
     @Transactional
     Plano cadastrar(DadosPlano dados) {
         Plano plano = Plano.novo(dados);
         garantirNomeLivre(plano.getNome(), NENHUM);
-        return gravar(plano);
+        return gravar(plano, "CRIADO", Map.of());
     }
 
     @Transactional(readOnly = true)
@@ -50,26 +56,29 @@ class PlanoService {
         if (plano.isAtivo()) {
             garantirNomeLivre(Plano.limparNome(dados.nome()), id);
         }
+        Map<String, Object> antes = retrato(plano);
         plano.atualizar(dados);
-        return gravar(plano);
+        return gravar(plano, "EDITADO", antes);
     }
 
     @Transactional
     Plano inativar(UUID id) {
         Plano plano = buscar(id);
+        Map<String, Object> antes = retrato(plano);
         plano.inativar();
-        return gravar(plano);
+        return gravar(plano, "INATIVADO", antes);
     }
 
     /** Volta a ser oferecido, desde que nenhum outro plano ativo tenha tomado o nome. */
     @Transactional
     Plano reativar(UUID id) {
         Plano plano = buscar(id);
+        Map<String, Object> antes = retrato(plano);
         if (!plano.isAtivo()) {
             garantirNomeLivre(plano.getNome(), id);
             plano.reativar();
         }
-        return gravar(plano);
+        return gravar(plano, "REATIVADO", antes);
     }
 
     private void garantirNomeLivre(String nome, UUID ignorar) {
@@ -80,13 +89,25 @@ class PlanoService {
 
     // A checagem acima dá a mensagem clara; numa corrida, quem barra é o índice único do
     // banco (nome) ou a versão (edição simultânea), e os dois viram a mesma resposta.
-    private Plano gravar(Plano plano) {
+    // A trilha é gravada depois, na mesma transação: só fica se a alteração ficar.
+    private Plano gravar(Plano plano, String acao, Map<String, Object> antes) {
+        Plano gravado;
         try {
-            return repository.saveAndFlush(plano);
+            gravado = repository.saveAndFlush(plano);
         } catch (DataIntegrityViolationException e) {
             throw new NomeDePlanoEmUsoException();
         } catch (ObjectOptimisticLockingFailureException e) {
             throw new RecursoModificadoException("o plano");
         }
+        auditoria.registrar(PLANO, gravado.getId(), acao, antes, retrato(gravado));
+        return gravado;
+    }
+
+    // Tudo o que muda o que o aluno paga ou as regras de saída (preço, fidelidade, multa).
+    private static Map<String, Object> retrato(Plano plano) {
+        return Auditoria.campos("nome", plano.getNome(), "valorMensal", plano.getValorMensal(),
+                "duracaoMeses", plano.getDuracaoMeses(), "fidelidade", plano.isFidelidade(),
+                "percentualMulta", plano.getPercentualMulta(), "formaPagamento", plano.getFormaPagamento(),
+                "ativo", plano.isAtivo());
     }
 }

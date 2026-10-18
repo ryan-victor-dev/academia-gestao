@@ -2,6 +2,7 @@ package br.com.academiagestao.alunos;
 
 import br.com.academiagestao.auth.CredenciaisTemporarias;
 import br.com.academiagestao.auth.LoginsDeAlunos;
+import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
@@ -15,8 +16,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+
+import static br.com.academiagestao.compartilhado.Auditoria.Entidade.ALUNO;
 
 @Service
 class AlunoService {
@@ -26,12 +30,14 @@ class AlunoService {
     private final AlunoRepository repository;
     private final LoginsDeAlunos loginsDeAlunos;
     private final List<ImpedimentoParaInativar> impedimentos;
+    private final Auditoria auditoria;
 
     AlunoService(AlunoRepository repository, LoginsDeAlunos loginsDeAlunos,
-                 List<ImpedimentoParaInativar> impedimentos) {
+                 List<ImpedimentoParaInativar> impedimentos, Auditoria auditoria) {
         this.repository = repository;
         this.loginsDeAlunos = loginsDeAlunos;
         this.impedimentos = impedimentos;
+        this.auditoria = auditoria;
     }
 
     @Transactional
@@ -40,7 +46,9 @@ class AlunoService {
         if (repository.existsByCpf(aluno.getCpf())) {
             throw new CpfJaCadastradoException();
         }
-        return gravar(aluno);
+        Aluno gravado = gravar(aluno);
+        auditoria.registrar(ALUNO, gravado.getId(), "CRIADO", Map.of(), retrato(gravado));
+        return gravado;
     }
 
     @Transactional(readOnly = true)
@@ -93,16 +101,20 @@ class AlunoService {
                 throw new InativacaoImpedidaException(motivo.get());
             }
         }
+        Map<String, Object> antes = retrato(aluno);
         aluno.inativar();
         loginsDeAlunos.desativar(id);
+        auditoria.registrar(ALUNO, id, "INATIVADO", antes, retrato(aluno));
         return aluno;
     }
 
     @Transactional
     Aluno reativar(UUID id) {
         Aluno aluno = buscar(id);
+        Map<String, Object> antes = retrato(aluno);
         aluno.reativar();
         loginsDeAlunos.reativar(id);
+        auditoria.registrar(ALUNO, id, "REATIVADO", antes, retrato(aluno));
         return aluno;
     }
 
@@ -115,8 +127,18 @@ class AlunoService {
         if (!cpfNovo.equals(aluno.getCpf()) && repository.existsByCpf(cpfNovo)) {
             throw new CpfJaCadastradoException();
         }
+        Map<String, Object> antes = retrato(aluno);
         aluno.atualizar(dados);
-        return gravar(aluno);
+        Aluno gravado = gravar(aluno);
+        auditoria.registrar(ALUNO, id, "EDITADO", antes, retrato(gravado));
+        return gravado;
+    }
+
+    // Dados pessoais: a trilha guarda o valor anterior (por isso só o ADMIN a consulta).
+    private static Map<String, Object> retrato(Aluno aluno) {
+        return Auditoria.campos("nome", aluno.getNome(), "cpf", aluno.getCpf(), "email", aluno.getEmail(),
+                "telefone", aluno.getTelefone(), "dataNascimento", aluno.getDataNascimento(),
+                "observacoes", aluno.getObservacoes(), "ativo", aluno.isAtivo());
     }
 
     // A checagem existsByCpf dá uma mensagem clara no caso comum. Mas duas pessoas

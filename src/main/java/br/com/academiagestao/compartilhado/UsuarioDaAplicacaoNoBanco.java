@@ -73,6 +73,9 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             sql.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + usuario);
             // O histórico de migrations é só do dono: a aplicação não lê nem altera.
             sql.execute("REVOKE ALL ON TABLE flyway_schema_history FROM " + usuario);
+            // A trilha de auditoria só cresce: a aplicação insere e lê, mas não apaga nem
+            // reescreve o histórico (nem com uma injeção de SQL).
+            sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE auditoria FROM " + usuario);
             sql.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + usuario);
         } catch (SQLException e) {
             throw new IllegalStateException("Não foi possível preparar o usuário da aplicação no banco", e);

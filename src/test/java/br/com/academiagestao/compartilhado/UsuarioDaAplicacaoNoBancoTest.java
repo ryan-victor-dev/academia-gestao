@@ -7,12 +7,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -28,6 +31,9 @@ class UsuarioDaAplicacaoNoBancoTest {
 
     @Autowired
     PostgreSQLContainer postgres;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     private Connection comoAplicacao() throws SQLException {
         return DriverManager.getConnection(postgres.getJdbcUrl(), "academia_app", "senha-do-app-so-para-testes");
@@ -59,6 +65,25 @@ class UsuarioDaAplicacaoNoBancoTest {
             executar("UPDATE planos SET nome = 'Teste 2' WHERE nome = 'Teste'");
             executar("DELETE FROM planos WHERE nome = 'Teste 2'");
         }).doesNotThrowAnyException();
+    }
+
+    // A trilha de auditoria só cresce: nem uma injeção de SQL apaga ou reescreve o histórico.
+    @Test
+    void trilhaDeAuditoriaSoAceitaInserirELer() throws SQLException {
+        UUID id = UUID.randomUUID();
+        try {
+            executar("INSERT INTO auditoria (entidade, entidade_id, acao, alteracoes) VALUES ('PLANO', '" + id
+                    + "', 'TESTE', '{}')");
+            executar("SELECT count(*) FROM auditoria");
+            for (String ataque : List.of("UPDATE auditoria SET acao = 'OUTRA' WHERE entidade_id = '" + id + "'",
+                    "DELETE FROM auditoria WHERE entidade_id = '" + id + "'",
+                    "TRUNCATE auditoria")) {
+                assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
+                        .hasMessageContaining("permission denied");
+            }
+        } finally {
+            jdbc.update("DELETE FROM auditoria WHERE entidade_id = ?", id);
+        }
     }
 
     @ParameterizedTest

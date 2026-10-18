@@ -21,14 +21,17 @@ class PrimeiroAdminInicializador implements ApplicationRunner {
 
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final TrilhaDeUsuarios trilha;
     private final AdminInicialProperties properties;
 
     PrimeiroAdminInicializador(UsuarioRepository repository,
                                PasswordEncoder passwordEncoder,
-                               AdminInicialProperties properties) {
+                               AdminInicialProperties properties,
+                               TrilhaDeUsuarios trilha) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
+        this.trilha = trilha;
     }
 
     @Override
@@ -53,6 +56,7 @@ class PrimeiroAdminInicializador implements ApplicationRunner {
         // vale só para o primeiro acesso: depois de trocada, um .env vazado não entrega o ADMIN.
         admin.exigirTrocaDeSenha();
         repository.save(admin);
+        trilha.criado(admin);  // pelo sistema: não há ninguém logado
 
         // Nunca logar a senha, nem o hash.
         log.info("Primeiro ADMIN criado: {}", admin.getEmail());

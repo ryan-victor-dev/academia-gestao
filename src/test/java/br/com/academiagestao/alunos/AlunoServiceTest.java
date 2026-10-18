@@ -1,6 +1,7 @@
 package br.com.academiagestao.alunos;
 
 import br.com.academiagestao.auth.LoginsDeAlunos;
+import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import org.junit.jupiter.api.Test;
 import org.hibernate.exception.ConstraintViolationException;
@@ -27,7 +28,7 @@ class AlunoServiceTest {
         Aluno ana = Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null));
         when(repository.findById(ana.getId())).thenReturn(Optional.of(ana));
         when(repository.saveAndFlush(any())).thenThrow(new ObjectOptimisticLockingFailureException(Aluno.class, ana.getId()));
-        AlunoService service = new AlunoService(repository, mock(LoginsDeAlunos.class), List.of());
+        AlunoService service = new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class));
 
         assertThatThrownBy(() -> service.atualizar(ana.getId(),
                 new DadosAluno("Ana Maria", "52998224725", null, null, null, null), "\"0\""))
@@ -38,7 +39,7 @@ class AlunoServiceTest {
         AlunoRepository repository = mock(AlunoRepository.class);
         when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("recusado",
                 new ConstraintViolationException("recusado", new SQLException("recusado"), indice)));
-        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of());
+        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class));
     }
 
     @Test
@@ -64,6 +65,6 @@ class AlunoServiceTest {
     private static AlunoService comRecusaDoBancoSemIndice() {
         AlunoRepository repository = mock(AlunoRepository.class);
         when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("data fora do intervalo"));
-        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of());
+        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class));
     }
 }

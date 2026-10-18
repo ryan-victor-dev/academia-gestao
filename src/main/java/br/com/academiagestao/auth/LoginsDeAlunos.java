@@ -5,6 +5,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -17,12 +18,14 @@ public class LoginsDeAlunos {
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
     private final RedefinicaoDeSenha redefinicaoDeSenha;
+    private final TrilhaDeUsuarios trilha;
 
     LoginsDeAlunos(UsuarioRepository repository, PasswordEncoder passwordEncoder,
-                   RedefinicaoDeSenha redefinicaoDeSenha) {
+                   RedefinicaoDeSenha redefinicaoDeSenha, TrilhaDeUsuarios trilha) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.redefinicaoDeSenha = redefinicaoDeSenha;
+        this.trilha = trilha;
     }
 
     /**
@@ -48,6 +51,7 @@ public class LoginsDeAlunos {
             // Dois pedidos ao mesmo tempo passam pelas checagens acima; o UNIQUE do banco barra o segundo.
             throw new LoginJaExisteException("Este aluno já tem login ou o e-mail já está em uso");
         }
+        trilha.criado(usuario);
         return new CredenciaisTemporarias(usuario.getEmail(), senhaTemporaria);
     }
 
@@ -62,12 +66,20 @@ public class LoginsDeAlunos {
     /** Aluno inativado: o login dele (se existir) para de funcionar. */
     @Transactional
     public void desativar(UUID alunoId) {
-        repository.findByAlunoId(alunoId).ifPresent(Usuario::desativar);
+        repository.findByAlunoId(alunoId).ifPresent(usuario -> {
+            Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
+            usuario.desativar();
+            trilha.alterado(usuario, "DESATIVADO", antes);
+        });
     }
 
     /** Aluno reativado: o login dele (se existir) volta a funcionar. */
     @Transactional
     public void reativar(UUID alunoId) {
-        repository.findByAlunoId(alunoId).ifPresent(Usuario::reativar);
+        repository.findByAlunoId(alunoId).ifPresent(usuario -> {
+            Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
+            usuario.reativar();
+            trilha.alterado(usuario, "REATIVADO", antes);
+        });
     }
 }

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** Cadastro da equipe (ADMIN, RECEPCAO, INSTRUTOR). Logins de aluno ficam no módulo de alunos. */
@@ -15,10 +16,12 @@ class EquipeService {
 
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final TrilhaDeUsuarios trilha;
 
-    EquipeService(UsuarioRepository repository, PasswordEncoder passwordEncoder) {
+    EquipeService(UsuarioRepository repository, PasswordEncoder passwordEncoder, TrilhaDeUsuarios trilha) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
+        this.trilha = trilha;
     }
 
     @Transactional
@@ -39,6 +42,7 @@ class EquipeService {
         } catch (DataIntegrityViolationException e) {
             throw new LoginJaExisteException("Este e-mail já é usado por outro login");
         }
+        trilha.criado(usuario);
         return new UsuarioCriado(usuario, senhaTemporaria);
     }
 
@@ -60,7 +64,9 @@ class EquipeService {
         if (usuario.getPerfil() == Perfil.ADMIN) {
             garantirQueSobraOutroAdmin(quemPede);
         }
+        Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
         usuario.desativar();
+        trilha.alterado(usuario, "DESATIVADO", antes);
         return UsuarioResponse.de(usuario);
     }
 
@@ -81,8 +87,10 @@ class EquipeService {
         if (mudaPerfil && usuario.getPerfil() == Perfil.ADMIN) {
             garantirQueSobraOutroAdmin(quemPede);
         }
+        Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
         usuario.renomear(nome);
         usuario.mudarPerfil(perfil);
+        trilha.alterado(usuario, "EDITADO", antes);
         return UsuarioResponse.de(usuario);
     }
 
@@ -99,9 +107,11 @@ class EquipeService {
     @Transactional
     UsuarioResponse reativar(UUID id) {
         Usuario usuario = buscarDaEquipe(id);
+        Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
         if (!usuario.isAtivo()) {
             usuario.reativar();
         }
+        trilha.alterado(usuario, "REATIVADO", antes);
         return UsuarioResponse.de(usuario);
     }
 

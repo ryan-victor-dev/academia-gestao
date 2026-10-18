@@ -12,10 +12,12 @@ class RedefinicaoDeSenha {
 
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final TrilhaDeUsuarios trilha;
 
-    RedefinicaoDeSenha(UsuarioRepository repository, PasswordEncoder passwordEncoder) {
+    RedefinicaoDeSenha(UsuarioRepository repository, PasswordEncoder passwordEncoder, TrilhaDeUsuarios trilha) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
+        this.trilha = trilha;
     }
 
     /**
@@ -42,6 +44,7 @@ class RedefinicaoDeSenha {
         }
         String senhaTemporaria = GeradorDeSenhaTemporaria.gerar();
         usuario.redefinirComSenhaTemporaria(passwordEncoder.encode(senhaTemporaria));
+        trilha.ato(usuario, "SENHA_REDEFINIDA");
         return new CredenciaisTemporarias(usuario.getEmail(), senhaTemporaria);
     }
 }

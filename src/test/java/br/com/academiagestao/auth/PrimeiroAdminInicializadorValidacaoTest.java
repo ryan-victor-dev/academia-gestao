@@ -18,7 +18,7 @@ class PrimeiroAdminInicializadorValidacaoTest {
     private PrimeiroAdminInicializador comSenha(String senha) {
         when(repository.existsByPerfil(Perfil.ADMIN)).thenReturn(false);
         return new PrimeiroAdminInicializador(repository, new BCryptPasswordEncoder(),
-                new AdminInicialProperties("Admin", "admin@academia.com", senha));
+                new AdminInicialProperties("Admin", "admin@academia.com", senha), mock(TrilhaDeUsuarios.class));
     }
 
     @Test

@@ -28,6 +28,7 @@ class AutenticacaoService {
     private final GeradorDeToken geradorDeToken;
     private final LimitadorDeTentativas limitador;
     private final TransactionTemplate transacao;
+    private final TrilhaDeUsuarios trilha;
 
     // Hash de uma senha que ninguém conhece. Quando o e-mail não existe, comparamos a senha
     // com ele mesmo assim, para a resposta demorar o mesmo tanto que com um e-mail válido.
@@ -38,8 +39,10 @@ class AutenticacaoService {
                         PasswordEncoder passwordEncoder,
                         GeradorDeToken geradorDeToken,
                         LimitadorDeTentativas limitador,
-                        PlatformTransactionManager transacoes) {
+                        PlatformTransactionManager transacoes,
+                        TrilhaDeUsuarios trilha) {
         this.repository = repository;
+        this.trilha = trilha;
         this.passwordEncoder = passwordEncoder;
         this.geradorDeToken = geradorDeToken;
         this.limitador = limitador;
@@ -121,7 +124,9 @@ class AutenticacaoService {
                 throw new DadosInvalidosException("senha atual incorreta");
             }
             paraGravar.trocarSenha(novoHash);
-            return repository.saveAndFlush(paraGravar);
+            Usuario gravado = repository.saveAndFlush(paraGravar);
+            trilha.ato(gravado, "SENHA_TROCADA");
+            return gravado;
         });
         return geradorDeToken.gerar(atualizado);
     }
