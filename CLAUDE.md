@@ -61,9 +61,9 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - Matrículas (e trancamentos) têm chave estrangeira para alunos, planos e usuários, e vários
   testes antigos apagam essas tabelas inteiras: teste que cria matrícula apaga os próprios
   trancamentos e matrículas antes de sair.
-- `REQUIRES_NEW` dentro de outra transação usa uma segunda conexão: sob carga, o pool (10)
-  esgota e tudo para por 30 s. Foi o que derrubou o login (ADR 0020); teste com mais
-  requisições simultâneas do que conexões.
+- `REQUIRES_NEW` dentro de outra transação usa uma segunda conexão: sob carga, o pool (20)
+  esgota (ADR 0020). Hoje a espera é de 3 s e cada consulta tem teto de 5 s, com 503
+  (ADR 0021); teste com mais requisições simultâneas do que conexões.
 - O VS Code (extensão Java) compila em `target/` por conta própria: um `.class` dele, mais
   novo que o código, faz o Maven pular a compilação e esconder o erro do `javac`
   ("Unresolved compilation problem" no teste). Na dúvida, `touch` no arquivo e recompile.
@@ -75,9 +75,21 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   diferenciar maiúsculas.
 - Teste de corrida: confira que cada lado ganha em parte das rodadas; se um lado ganha
   sempre, a corrida não foi testada. Mutação que falha por erro de compilação não conta.
+- A recuperação de ADMIN sobe a aplicação **sem web**: componente que depende de algo da web
+  (filtro, `HandlerExceptionResolver`, segurança) leva `@ConditionalOnWebApplication`. O
+  `ModoComandoTest` e o e2e pegam; os outros testes sobem sempre com web.
+- Token simulado (`jwt()`) pula a validação no banco do token de verdade: o que depende
+  dela (erros no filtro, limite por usuário) precisa de um teste com login real.
+- Limite de 300 requisições/min por usuário: os testes usam um valor alto (config de
+  teste) e a carga precisa de `ACADEMIA_REQUISICOES_POR_MINUTO` alto na instalação isolada.
+- Relógio de teste fixo no passado + tarefa agendada com relógio real (limpezas) = dados
+  do teste apagados no meio. Comece o relógio do teste na hora real.
+- Toda alteração de plano, aluno ou usuário registra na trilha (`Auditoria`, ADR 0021), na
+  mesma transação. O usuário da aplicação não apaga a trilha; nos testes, limpe com o
+  `JdbcTemplate` (dono do banco).
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012 e 0014. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020 e 0021. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.

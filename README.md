@@ -84,6 +84,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0018](docs/adr/0018-fidelidade-trancamento-troca-e-vencimento.md) | Fidelidade, forma de pagamento, trancamento, troca de plano e vencimento |
 | [0019](docs/adr/0019-fidelidade-trancamento-e-troca-decisoes-da-implementacao.md) | Fidelidade, trancamento e troca: decisões tomadas durante a implementação |
 | [0020](docs/adr/0020-terceira-revisao-login-troca-e-backup.md) | Terceira revisão (2026-10-17): login sob carga, troca de plano e backup |
+| [0021](docs/adr/0021-pendencias-medias-da-terceira-revisao.md) | Pendências médias da terceira revisão: limites, tempos, índices, datas e auditoria |
 
 ## Como rodar
 
@@ -122,6 +123,7 @@ versionado é o `.env.example`). O Docker Compose lê o arquivo sozinho.
 | `JWT_EXPIRACAO` | Validade do token (padrão `15m`) |
 | `DOMINIO` | Domínio do sistema, para o HTTPS de verdade. Vazio = `localhost` |
 | `HTTP_PORTA`, `HTTPS_PORTA` | Portas públicas do Caddy (padrão 80 e 443; o Let's Encrypt exige essas duas) |
+| `APP_MEMORIA`, `APP_CPUS`, `POSTGRES_MEMORIA`, `POSTGRES_CPUS` | Teto de memória e de núcleos da aplicação e do banco (padrão 1 GiB e 2 núcleos cada); o Caddy e o backup têm tetos fixos |
 
 Para gerar valores fortes:
 
@@ -187,6 +189,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/matriculas/{id}/trocar-plano` (`planoId`; devolve a matrícula nova) | ADMIN, RECEPCAO |
 | `GET /api/matriculas/vigente?alunoId=` (só se o aluno pode treinar hoje) | ADMIN, RECEPCAO, INSTRUTOR |
 | `GET /api/matriculas/me` | ALUNO (as próprias) |
+| `GET /api/auditoria?entidade=&entidadeId=&pagina=&tamanho=` (quem alterou planos, alunos e usuários, e o valor anterior⁶) | ADMIN |
 
 ¹ O instrutor recebe só nome, data de nascimento, observações e se está ativo,
 e busca apenas por nome.
@@ -200,12 +203,17 @@ se sobrepõem, mas dá para agendar a renovação a partir do dia seguinte ao fi
 situação (`AGENDADA`, `VIGENTE`, `TRANCADA`, `ENCERRADA`, `CANCELADA`, `TROCADA`) sai
 das datas, no fuso de São Paulo. Trancamento: de 7 a 90 dias (90 somados), estende o
 fim; a volta antecipada conta só os dias parados. Troca: a atual termina na véspera e
-a nova começa hoje.
+a nova começa hoje. O início pode ser agendado para até 1 ano à frente.
 ⁵ O dono define em cada plano se há fidelidade (com percentual de multa de 0,01% a
 100%) e se o pagamento é mensal ou à vista; a matrícula copia essas regras. Sair antes
 do fim de uma matrícula com fidelidade gera multa = percentual × meses inteiros que
 faltam × valor mensal; a troca não gera multa só se a multa que o plano novo cobraria
 (saindo logo depois da troca) for pelo menos a que a matrícula atual cobraria hoje.
+⁶ `entidade` é `PLANO`, `ALUNO` ou `USUARIO`. Cada registro traz quem fez (`autor`, o id
+do usuário; vazio quando foi o próprio sistema, como a recuperação de ADMIN pela linha
+de comando), quando, a ação e só os campos que mudaram (`antes` e `depois`), nunca
+senhas. A trilha é gravada na mesma transação da alteração, e o usuário da aplicação no
+banco não consegue apagá-la nem reescrevê-la.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
@@ -221,9 +229,11 @@ Erros saem em `application/problem+json` (RFC 9457): 400 para dados inválidos
 expirado, e para login recusado, 403 para perfil sem permissão (ou senha
 temporária ainda não trocada), 404 para recurso inexistente, 409 para conflito
 (ex.: CPF já cadastrado, período de matrícula ocupado), 412 quando o aluno foi alterado por outra pessoa
-desde o `GET`, 428 quando falta o `If-Match`, 413 para corpo acima de 64 KB e
+desde o `GET`, 428 quando falta o `If-Match`, 413 para corpo acima de 64 KB,
 429 para excesso de tentativas de login (20 por minuto por IP; 10 senhas erradas
-em 15 minutos bloqueiam o e-mail), com o cabeçalho `Retry-After`.
+em 15 minutos bloqueiam o e-mail) ou de requisições (300 por minuto por usuário
+logado) e 503 quando o banco está sobrecarregado (nenhuma conexão livre em 3 s ou
+consulta acima de 5 s); 429 e 503 trazem o cabeçalho `Retry-After`.
 
 ### Backup e restauração
 
@@ -310,7 +320,7 @@ um token dele. É só para desenvolvimento: ele se recusa a rodar se o `.env` ti
 - [x] **3. Alunos** — cadastro com validação de CPF, busca paginada, inativação e acesso por perfil
 - [x] **4. Planos** — preço com duas casas, nome único entre os ativos, só o ADMIN altera, aluno vê os ativos
 - [x] **5. Matrículas** — preço e regras do plano congelados na matrícula, períodos sem sobreposição garantidos pelo banco, fidelidade com multa, trancamento, troca de plano, visões do instrutor e do aluno
-- [ ] **6–8.** Cobrança, treinos e auditoria
+- [ ] **6–8.** Cobrança, treinos e auditoria (a trilha de planos, alunos e usuários já existe: ADR 0021)
 
 ## Autor
 
