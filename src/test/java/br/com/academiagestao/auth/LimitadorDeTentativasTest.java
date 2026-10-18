@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +31,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class LimitadorDeTentativasTest {
 
     static final class RelogioDeTeste extends Clock {
-        volatile Instant agora = Instant.parse("2026-10-16T12:00:00Z");
+        // Começa na hora real, e não numa data fixa: o limitador da própria aplicação, neste
+        // mesmo contexto, limpa a cada minuto (com o relógio real) as tentativas com mais de
+        // 15 minutos. Com uma data fixa no passado, ele apagava as deste teste no meio de uma
+        // rodada, e passavam mais tentativas do que o limite (6 em vez de 3, na revisão M3).
+        volatile Instant agora = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 
         void avancar(Duration d) {
             agora = agora.plus(d);
