@@ -100,6 +100,22 @@ class AlunoListagemTest {
                 .andExpect(jsonPath("$.conteudo[*].nome").value(contains("Ana Souza")));
     }
 
+    // O termo entra no SQL como literal (o Hibernate escapa as aspas): uma aspa no nome
+    // acha o aluno, e uma tentativa de injeção é só um texto que não casa com ninguém.
+    @Test
+    void buscaComAspasEBarraInvertida() throws Exception {
+        repository.save(Aluno.novo(new DadosAluno("Joana D'Ávila", "39053344705", null, null, null, null)));
+
+        mvc.perform(get("/api/alunos").param("busca", "d'avila").with(perfil("ADMIN")))
+                .andExpect(jsonPath("$.conteudo[*].nome").value(contains("Joana D'Ávila")));
+        mvc.perform(get("/api/alunos").param("busca", "') OR 1=1 --").with(perfil("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElementos").value(0));
+        mvc.perform(get("/api/alunos").param("busca", "\\\\'").with(perfil("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElementos").value(0));
+    }
+
     @Test
     void curingaDoLikeNaoTrazTodosOsAlunos() throws Exception {
         mvc.perform(get("/api/alunos").param("busca", "%").with(perfil("ADMIN")))
