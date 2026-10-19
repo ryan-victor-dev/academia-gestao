@@ -58,9 +58,9 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - `psql -c` não substitui variáveis (`:'senha'`); passe o SQL pela entrada padrão.
 - O `/tmp` (e a pasta de rascunho) pode ser apagado: guarde utilitários em `target/` ou `scripts/`.
 - Caddy sem root: o binário exige a capacidade `NET_BIND_SERVICE` (setcap); sem ela, nem executa.
-- Matrículas (e trancamentos) têm chave estrangeira para alunos, planos e usuários, e vários
-  testes antigos apagam essas tabelas inteiras: teste que cria matrícula apaga os próprios
-  trancamentos e matrículas antes de sair.
+- Para apagar tudo num teste, use `LimpezaDoBanco.apagarTudo()` (ordem das chaves
+  estrangeiras, ADR 0023), nunca `DELETE FROM tabela` na mão. Quem apaga só o que criou
+  (por id) apaga os filhos antes (trancamentos, matrículas).
 - `REQUIRES_NEW` dentro de outra transação usa uma segunda conexão: sob carga, o pool (20)
   esgota (ADR 0020). Hoje a espera é de 3 s e cada consulta tem teto de 5 s, com 503
   (ADR 0021); teste com mais requisições simultâneas do que conexões.
@@ -82,8 +82,13 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   dela (erros no filtro, limite por usuário) precisa de um teste com login real.
 - Limite de 300 requisições/min por usuário: os testes usam um valor alto (config de
   teste) e a carga precisa de `ACADEMIA_REQUISICOES_POR_MINUTO` alto na instalação isolada.
-- Relógio de teste fixo no passado + tarefa agendada com relógio real (limpezas) = dados
-  do teste apagados no meio. Comece o relógio do teste na hora real.
+- Todo "agora" vem do `Clock` injetado (ADR 0023; o `ArquiteturaTest` proíbe `now()`).
+  Nos testes, o `RelogioDeTeste` (compartilhado por todos) para, adianta ou fixa: restaure
+  no `@AfterEach`. Relógio no passado + tarefas agendadas (limpezas) = dados do teste
+  apagados no meio: prefira a hora real ou o futuro. Datas de regra: `Calendario.hoje(...)`,
+  no fuso da academia (o container roda em UTC).
+- Filtro de log com grep não é resultado de teste: confira o código de saída do Maven
+  (um erro de compilação passou batido num `grep "Tests run"`).
 - Toda alteração de plano, aluno ou usuário registra na trilha (`Auditoria`, ADR 0021), na
   mesma transação. O usuário da aplicação não apaga a trilha (só a função da retenção de 5
   anos, ADR 0022, apaga o vencido); nos testes, limpe com o `JdbcTemplate` (dono do banco).

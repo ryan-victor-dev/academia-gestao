@@ -86,6 +86,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0020](docs/adr/0020-terceira-revisao-login-troca-e-backup.md) | Terceira revisão (2026-10-17): login sob carga, troca de plano e backup |
 | [0021](docs/adr/0021-pendencias-medias-da-terceira-revisao.md) | Pendências médias da terceira revisão: limites, tempos, índices, datas e auditoria |
 | [0022](docs/adr/0022-bloqueio-por-conta-e-ip-e-retencao-da-auditoria.md) | Bloqueio de login por conta e IP, e retenção da trilha de auditoria |
+| [0023](docs/adr/0023-relogio-unico-e-limpeza-central-dos-testes.md) | Relógio único (datas testáveis, fuso da academia) e limpeza central dos testes |
 
 ## Como rodar
 
@@ -293,7 +294,10 @@ Requer Docker ligado (o Testcontainers sobe um PostgreSQL descartável):
 ./mvnw verify
 ```
 
-O `verify` também confere as fronteiras entre os módulos (`ArquiteturaTest`).
+O `verify` também confere as fronteiras entre os módulos (`ArquiteturaTest`), inclusive
+que ninguém lê a hora do sistema fora do relógio único (ADR 0023). Nos testes, o
+`RelogioDeTeste` para, adianta ou fixa esse relógio, e `LimpezaDoBanco.apagarTudo()` apaga
+todas as tabelas na ordem das chaves estrangeiras.
 Para checar se os testes de domínio realmente pegam erros (teste de mutação):
 
 ```bash
