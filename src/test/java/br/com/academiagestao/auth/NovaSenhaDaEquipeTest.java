@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +32,9 @@ class NovaSenhaDaEquipeTest {
     private static final String SENHA = "senha-original-123";
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -48,7 +52,7 @@ class NovaSenhaDaEquipeTest {
 
     @BeforeEach
     void cadastrar() throws Exception {
-        jdbc.update("DELETE FROM usuarios");
+        limpeza.apagarTudo();
         String hash = passwordEncoder.encode(SENHA);
         admin = repository.save(Usuario.daEquipe("Admin", "admin@academia.com", hash, Perfil.ADMIN));
         recepcao = repository.save(Usuario.daEquipe("Rita", "rita@academia.com", hash, Perfil.RECEPCAO));

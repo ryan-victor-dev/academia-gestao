@@ -1,5 +1,6 @@
 package br.com.academiagestao.planos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PlanoRepositoryTest {
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     PlanoRepository repository;
 
     @Autowired
@@ -30,7 +34,7 @@ class PlanoRepositoryTest {
 
     @BeforeEach
     void limpar() {
-        jdbc.update("DELETE FROM planos");
+        limpeza.apagarTudo();
     }
 
     private static Plano plano(String nome) {

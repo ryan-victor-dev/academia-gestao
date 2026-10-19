@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AutorizacaoTest {
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -39,7 +43,7 @@ class AutorizacaoTest {
 
     @BeforeEach
     void cadastrar() {
-        repository.deleteAll();
+        limpeza.apagarTudo();
         recepcao = repository.save(Usuario.daEquipe("Ana", "ana@academia.com", "hash", Perfil.RECEPCAO));
     }
 

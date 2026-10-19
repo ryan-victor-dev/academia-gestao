@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +38,9 @@ class FluxoDeAutenticacaoTest {
     private static final String SENHA_RECEPCAO = "senha-da-recepcao-123";
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -47,7 +51,7 @@ class FluxoDeAutenticacaoTest {
 
     @BeforeEach
     void cadastrar() {
-        repository.deleteAll();
+        limpeza.apagarTudo();
         repository.save(Usuario.daEquipe("Admin", "admin@academia.com",
                 passwordEncoder.encode(SENHA_ADMIN), Perfil.ADMIN));
         repository.save(Usuario.daEquipe("Recepção", "recepcao@academia.com",

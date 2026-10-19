@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
 import com.jayway.jsonpath.JsonPath;
@@ -33,6 +34,9 @@ class EquipeTest {
     private static final String SENHA = "senha-de-teste-123";
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -49,7 +53,7 @@ class EquipeTest {
 
     @BeforeEach
     void cadastrarAdmin() throws Exception {
-        jdbc.update("DELETE FROM usuarios");
+        limpeza.apagarTudo();
         admin = repository.save(Usuario.daEquipe("Admin", "admin@academia.com", passwordEncoder.encode(SENHA), Perfil.ADMIN));
         tokenDoAdmin = token(login("admin@academia.com", SENHA));
     }

@@ -1,5 +1,6 @@
 package br.com.academiagestao.planos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PlanoConcorrenciaTest {
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     PlanoService service;
 
     @Autowired
@@ -34,7 +38,7 @@ class PlanoConcorrenciaTest {
     @Test
     void cadastrosSimultaneosComOMesmoNome() throws Exception {
         for (int rodada = 0; rodada < 20; rodada++) {
-            jdbc.update("DELETE FROM planos");
+            limpeza.apagarTudo();
             CountDownLatch largada = new CountDownLatch(1);
             List<CompletableFuture<String>> tentativas = new ArrayList<>();
             for (int i = 0; i < 2; i++) {

@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,11 +17,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class UsuarioRepositoryTest {
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     UsuarioRepository repository;
 
     @BeforeEach
     void limpar() {
-        repository.deleteAll();
+        limpeza.apagarTudo();
     }
 
     @Test

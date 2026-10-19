@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,9 @@ class LimitadorDeTentativasTest {
             new LimitesDeLoginProperties(3, Duration.ofMinutes(1), 2, 4, Duration.ofMinutes(15));
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     @Autowired
@@ -62,7 +66,7 @@ class LimitadorDeTentativasTest {
 
     @BeforeEach
     void preparar() {
-        jdbc.update("DELETE FROM tentativas_login");
+        limpeza.apagarTudo();
         limitador = novoLimitador();
     }
 
@@ -163,7 +167,7 @@ class LimitadorDeTentativasTest {
         }
         assertThatThrownBy(() -> limitador.verificarERegistrar("1.1.1.1", "ana@x.com"))
                 .isInstanceOf(MuitasTentativasException.class);
-        jdbc.update("DELETE FROM tentativas_login");
+        limpeza.apagarTudo();
 
         jdbc.update("INSERT INTO tentativas_login (tipo, chave, momento) VALUES ('CONTA', 'ana@x.com', ?)", agora);
         jdbc.update("INSERT INTO tentativas_login (tipo, chave, momento) VALUES ('CONTA', 'ana@x.com', ?)", agora);
@@ -257,7 +261,7 @@ class LimitadorDeTentativasTest {
         // Várias rodadas: uma só pode passar por sorte (sem o lock, uma rodada com o sistema
         // ainda "frio" chegou a dar 3; as seguintes deram 10, o tamanho do pool de conexões).
         for (int rodada = 0; rodada < 10; rodada++) {
-            jdbc.update("DELETE FROM tentativas_login");
+            limpeza.apagarTudo();
             assertThat(rodadaSimultanea(30)).as("tentativas que passaram na rodada %d", rodada).isEqualTo(3);
         }
     }

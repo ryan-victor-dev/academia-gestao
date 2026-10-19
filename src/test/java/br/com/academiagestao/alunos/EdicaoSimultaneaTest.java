@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,9 @@ class EdicaoSimultaneaTest {
             jwt().authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"));
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -49,8 +53,7 @@ class EdicaoSimultaneaTest {
 
     @BeforeEach
     void cadastrar() {
-        jdbc.update("DELETE FROM usuarios");
-        repository.deleteAll();
+        limpeza.apagarTudo();
         ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now()));
     }
 

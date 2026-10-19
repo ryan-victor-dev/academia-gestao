@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.auth.Perfil;
 import br.com.academiagestao.auth.Usuario;
@@ -38,6 +39,9 @@ class InativacaoComLoginTest {
             jwt().authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"));
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -56,8 +60,7 @@ class InativacaoComLoginTest {
 
     @BeforeEach
     void cadastrarAlunaComLogin() {
-        jdbc.update("DELETE FROM usuarios");
-        alunoRepository.deleteAll();
+        limpeza.apagarTudo();
         ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "ana@email.com", null, null, null), Instant.now()));
         usuarioRepository.save(Usuario.deAluno("Ana", "ana@email.com", passwordEncoder.encode(SENHA), ana.getId()));
     }

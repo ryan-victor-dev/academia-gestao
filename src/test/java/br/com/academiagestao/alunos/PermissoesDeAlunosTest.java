@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.auth.Perfil;
 import br.com.academiagestao.auth.Usuario;
@@ -44,6 +45,9 @@ class PermissoesDeAlunosTest {
     private static final String SENHA = "senha-de-teste-123";
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -66,8 +70,7 @@ class PermissoesDeAlunosTest {
 
     @BeforeAll
     void prepararUmUsuarioDeCadaPerfil() throws Exception {
-        jdbc.update("DELETE FROM usuarios");
-        alunoRepository.deleteAll();
+        limpeza.apagarTudo();
 
         alunoLogado = alunoRepository.save(Aluno.novo(new DadosAluno("Aluno Logado", CpfsParaTeste.aleatorio(),
                 null, null, null, null), Instant.now()));
@@ -107,8 +110,7 @@ class PermissoesDeAlunosTest {
     /** Não deixa nada para trás: os outros testes rodam no mesmo banco, em ordem imprevisível. */
     @AfterAll
     void limpar() {
-        jdbc.update("DELETE FROM usuarios");
-        alunoRepository.deleteAll();
+        limpeza.apagarTudo();
     }
 
     private MockHttpServletRequestBuilder requisicao(String operacao) {

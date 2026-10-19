@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,9 @@ class AlunoControllerTest {
     private static final String CPF_BIA = "11144477735";
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -47,8 +51,7 @@ class AlunoControllerTest {
 
     @BeforeEach
     void limpar() {
-        jdbc.update("DELETE FROM usuarios WHERE aluno_id IS NOT NULL");
-        jdbc.update("DELETE FROM alunos");
+        limpeza.apagarTudo();
     }
 
     private static RequestPostProcessor perfil(String perfil) {

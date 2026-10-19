@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
@@ -42,6 +43,9 @@ class RecuperacaoDeAdminTest {
     private static final Pattern SENHA_IMPRESSA = Pattern.compile("Senha temporária do ADMIN \\S+: (\\S+)");
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     RecuperacaoDeAdmin recuperacao;
 
     @Autowired
@@ -62,7 +66,7 @@ class RecuperacaoDeAdminTest {
 
     @BeforeEach
     void preparar() {
-        jdbc.update("DELETE FROM usuarios");
+        limpeza.apagarTudo();
         admin = repository.save(Usuario.daEquipe("Dona", "dona@academia.com", passwordEncoder.encode(SENHA), Perfil.ADMIN));
         recuperacao.redirecionarSaida(new PrintStream(terminal, true, StandardCharsets.UTF_8),
                 new PrintStream(terminalDeErro, true, StandardCharsets.UTF_8));

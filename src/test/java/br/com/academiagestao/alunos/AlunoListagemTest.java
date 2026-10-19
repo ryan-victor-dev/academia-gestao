@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AlunoListagemTest {
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -42,8 +46,7 @@ class AlunoListagemTest {
 
     @BeforeEach
     void cadastrar() {
-        jdbc.update("DELETE FROM usuarios WHERE aluno_id IS NOT NULL");
-        repository.deleteAll();
+        limpeza.apagarTudo();
         repository.save(Aluno.novo(new DadosAluno("Bruno Lima", "11144477735", null, null, null, null), Instant.now()));
         repository.save(Aluno.novo(new DadosAluno("Ana Souza", "52998224725", null, null, null, null), Instant.now()));
         carla = Aluno.novo(new DadosAluno("Carla Anastácio", "93541134780", null, null, null, null), Instant.now());

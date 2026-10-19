@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,9 @@ class LimiteDaTrocaDeSenhaTest {
     private static final String SENHA = "senha-da-ana-123";
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -50,8 +54,7 @@ class LimiteDaTrocaDeSenhaTest {
 
     @BeforeEach
     void cadastrarELogar() throws Exception {
-        jdbc.update("DELETE FROM tentativas_login");
-        jdbc.update("DELETE FROM usuarios");
+        limpeza.apagarTudo();
         repository.save(Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), Perfil.RECEPCAO));
         token = JsonPath.read(login().andReturn().getResponse().getContentAsString(), "$.token");
     }

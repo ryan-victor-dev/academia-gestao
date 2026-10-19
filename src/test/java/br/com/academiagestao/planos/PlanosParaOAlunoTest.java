@@ -1,5 +1,6 @@
 package br.com.academiagestao.planos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,9 @@ class PlanosParaOAlunoTest {
     private static final RequestPostProcessor RECEPCAO = jwt().authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"));
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -43,7 +47,7 @@ class PlanosParaOAlunoTest {
 
     @BeforeEach
     void cadastrar() {
-        jdbc.update("DELETE FROM planos");
+        limpeza.apagarTudo();
         mensal = repository.save(Plano.novo(new DadosPlano("Mensal", new BigDecimal("129.90"), 1)));
         antigo = Plano.novo(new DadosPlano("Promoção 2025", new BigDecimal("79.90"), 1));
         antigo.inativar();

@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,9 @@ class SegurancaConfigTest {
     private static final String ROTA_PROTEGIDA = "/api/rota-protegida";
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -64,7 +68,7 @@ class SegurancaConfigTest {
     // existe, está ativo e se a versão do token é a atual.
     @BeforeEach
     void cadastrarUsuario() {
-        jdbc.update("DELETE FROM usuarios");
+        limpeza.apagarTudo();
         usuario = usuarioRepository.save(Usuario.daEquipe("Ana", "ana@academia.com", "hash", Perfil.ADMIN));
     }
 

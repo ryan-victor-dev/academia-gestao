@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,9 @@ class TrocaDeSenhaTest {
     private static final String NOVA = "minha-senha-nova-123";
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -43,7 +47,7 @@ class TrocaDeSenhaTest {
 
     @BeforeEach
     void cadastrarRecepcaoComSenhaTemporaria() {
-        jdbc.update("DELETE FROM usuarios");
+        limpeza.apagarTudo();
         Usuario recepcao = Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(TEMPORARIA), Perfil.RECEPCAO);
         recepcao.exigirTrocaDeSenha();
         repository.save(recepcao);

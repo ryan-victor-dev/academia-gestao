@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,14 +36,16 @@ class AtrasDoProxyTest {
     int porta;
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     private final HttpClient http = HttpClient.newHttpClient();
 
     @BeforeEach
     void limpar() {
-        jdbc.update("DELETE FROM tentativas_login");
-        jdbc.update("DELETE FROM usuarios");
+        limpeza.apagarTudo();
     }
 
     /** Como o Caddy faria: repassando o IP do cliente e o protocolo original. */

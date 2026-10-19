@@ -1,5 +1,6 @@
 package br.com.academiagestao.planos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
 import br.com.academiagestao.auth.Perfil;
@@ -44,6 +45,9 @@ class PermissoesDePlanosTest {
     private static final String SENHA = "senha-de-teste-123";
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -67,8 +71,7 @@ class PermissoesDePlanosTest {
 
     @BeforeAll
     void prepararUmUsuarioDeCadaPerfil() throws Exception {
-        jdbc.update("DELETE FROM usuarios");
-        jdbc.update("DELETE FROM planos");
+        limpeza.apagarTudo();
         alvo = planoRepository.save(Plano.novo(new DadosPlano("Mensal", new BigDecimal("129.90"), 1)));
         alvoDeStatus = planoRepository.save(Plano.novo(new DadosPlano("Anual", new BigDecimal("99.90"), 12)));
 
@@ -92,9 +95,7 @@ class PermissoesDePlanosTest {
     /** Não deixa nada para trás: os outros testes rodam no mesmo banco, em ordem imprevisível. */
     @AfterAll
     void limpar() {
-        jdbc.update("DELETE FROM usuarios");
-        jdbc.update("DELETE FROM alunos WHERE id = ?", alunoId);
-        jdbc.update("DELETE FROM planos");
+        limpeza.apagarTudo();
     }
 
     private MockHttpServletRequestBuilder requisicao(String operacao) {

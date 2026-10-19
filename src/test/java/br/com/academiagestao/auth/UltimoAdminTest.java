@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 class UltimoAdminTest {
+
+    @Autowired
+    LimpezaDoBanco limpeza;
 
     @Autowired
     EquipeService equipeService;
@@ -52,7 +56,7 @@ class UltimoAdminTest {
     /** 30 rodadas: com dois ADMINs, cada um tenta tirar o outro ao mesmo tempo. Sempre sobra um. */
     private void corrida(BiConsumer<UUID, UUID> acaoDeA, BiConsumer<UUID, UUID> acaoDeB) throws Exception {
         for (int rodada = 0; rodada < 30; rodada++) {
-            jdbc.update("DELETE FROM usuarios");
+            limpeza.apagarTudo();
             UUID a = repository.save(Usuario.daEquipe("A", "a@academia.com", "hash", Perfil.ADMIN)).getId();
             UUID b = repository.save(Usuario.daEquipe("B", "b@academia.com", "hash", Perfil.ADMIN)).getId();
 

@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AlunoRepositoryTest {
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     AlunoRepository repository;
 
     @Autowired
@@ -28,8 +32,7 @@ class AlunoRepositoryTest {
     @BeforeEach
     void limpar() {
         // usuarios.aluno_id aponta para alunos: limpa os logins de aluno primeiro.
-        jdbc.update("DELETE FROM usuarios WHERE aluno_id IS NOT NULL");
-        repository.deleteAll();
+        limpeza.apagarTudo();
     }
 
     @Test
