@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Ela passa pelo mesmo limite de tentativas do login, na mesma conta.
  */
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest(properties = "academia.login.falhas-por-conta=3")
+@SpringBootTest(properties = "academia.login.falhas-por-conta-e-ip=3")
 @AutoConfigureMockMvc
 @ExtendWith(OutputCaptureExtension.class)
 class LimiteDaTrocaDeSenhaTest {

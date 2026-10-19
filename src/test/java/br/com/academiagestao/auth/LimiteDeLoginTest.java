@@ -23,11 +23,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Força bruta no login: limite por IP e por conta, com 429, Retry-After e registro no log. */
+/**
+ * Força bruta no login: limite por IP, por conta e IP, e por conta no total, com 429,
+ * Retry-After e registro no log.
+ */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = {
         "academia.login.tentativas-por-ip=5",
-        "academia.login.falhas-por-conta=3"
+        "academia.login.falhas-por-conta-e-ip=3",
+        "academia.login.falhas-por-conta-no-total=6"
 })
 @AutoConfigureMockMvc
 @ExtendWith(OutputCaptureExtension.class)
@@ -62,16 +66,28 @@ class LimiteDeLoginTest {
     }
 
     @Test
-    void contaBloqueiaDepoisDeFalhasDeIpsDiferentesAteComASenhaCerta() throws Exception {
-        login("10.0.0.1", "ana@academia.com", "chute-1-xxxxxx").andExpect(status().isUnauthorized());
-        login("10.0.0.2", "ana@academia.com", "chute-2-xxxxxx").andExpect(status().isUnauthorized());
-        login("10.0.0.3", "ana@academia.com", "chute-3-xxxxxx").andExpect(status().isUnauthorized());
+    void falhasDeUmIpBloqueiamEsseIpAteComASenhaCertaMasNaoODono() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            login("10.0.0.1", "ana@academia.com", "chute-" + i + "-xxxxxx").andExpect(status().isUnauthorized());
+        }
 
         // Se a senha certa passasse durante o bloqueio, o atacante saberia que acertou.
-        login("10.0.0.4", "ana@academia.com", SENHA)
+        login("10.0.0.1", "ana@academia.com", SENHA)
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string("Retry-After", matchesPattern("\\d+")))
                 .andExpect(jsonPath("$.title").value("Muitas tentativas"));
+        // Quem sabe só o e-mail não tranca o dono para fora (diagnóstico de 2026-10-18).
+        login("10.0.0.2", "ana@academia.com", SENHA).andExpect(status().isOk());
+    }
+
+    @Test
+    void falhasEspalhadasPorMuitosIpsBloqueiamAContaInteiraNoTeto() throws Exception {
+        for (int i = 0; i < 6; i++) {
+            login("10.0.5." + i, "ana@academia.com", "chute-" + i + "-xxxxxx").andExpect(status().isUnauthorized());
+        }
+
+        // Nenhum IP chegou a 3 falhas, mas a soma chegou ao teto: nem a senha certa, de um IP novo.
+        login("10.0.5.99", "ana@academia.com", SENHA).andExpect(status().isTooManyRequests());
     }
 
     @Test
@@ -88,21 +104,21 @@ class LimiteDeLoginTest {
     @Test
     void emailQueNaoExisteBloqueiaIgualAoQueExiste() throws Exception {
         for (int i = 0; i < 3; i++) {
-            login("10.0.1." + i, "ninguem@academia.com", "chute-xxxxxxx").andExpect(status().isUnauthorized());
+            login("10.0.1.1", "ninguem@academia.com", "chute-xxxxxxx").andExpect(status().isUnauthorized());
         }
         // Mesma resposta de uma conta real: o bloqueio não revela quem está cadastrado.
-        login("10.0.1.9", "ninguem@academia.com", "chute-xxxxxxx").andExpect(status().isTooManyRequests());
+        login("10.0.1.1", "ninguem@academia.com", "chute-xxxxxxx").andExpect(status().isTooManyRequests());
     }
 
     @Test
-    void loginCertoZeraAsFalhas() throws Exception {
-        login("10.0.2.1", "ana@academia.com", "chute-1-xxxxxx");
-        login("10.0.2.2", "ana@academia.com", "chute-2-xxxxxx");
-        login("10.0.2.3", "ana@academia.com", SENHA).andExpect(status().isOk());
+    void loginCertoZeraAsFalhasDoProprioIp() throws Exception {
+        login("10.0.2.1", "ana@academia.com", "chute-1-xxxxxx").andExpect(status().isUnauthorized());
+        login("10.0.2.1", "ana@academia.com", "chute-2-xxxxxx").andExpect(status().isUnauthorized());
+        login("10.0.2.1", "ana@academia.com", SENHA).andExpect(status().isOk());
 
-        login("10.0.2.4", "ana@academia.com", "chute-3-xxxxxx").andExpect(status().isUnauthorized());
-        login("10.0.2.5", "ana@academia.com", "chute-4-xxxxxx").andExpect(status().isUnauthorized());
-        login("10.0.2.6", "ana@academia.com", SENHA).andExpect(status().isOk());
+        // Sem zerar, seriam 3 falhas deste IP (o limite) e a senha certa daria 429.
+        login("10.0.2.1", "ana@academia.com", "chute-3-xxxxxx").andExpect(status().isUnauthorized());
+        login("10.0.2.1", "ana@academia.com", SENHA).andExpect(status().isOk());
     }
 
     @Test

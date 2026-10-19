@@ -7,7 +7,8 @@ academia:
     # Nos testes muitos logins saem do mesmo "IP" em segundos; os limites de verdade
     # são testados em LimiteDeLoginTest, que define os próprios valores.
     tentativas-por-ip: 100000
-    falhas-por-conta: 100000
+    falhas-por-conta-e-ip: 100000
+    falhas-por-conta-no-total: 100000
   requisicoes:
     # Os testes com token simulado são todos do mesmo usuário ("user"); o limite de verdade
     # é testado em LimiteDeRequisicoesTest, que define o próprio valor.

@@ -15,6 +15,10 @@ import java.time.Instant;
 
 /**
  * Janela deslizante no banco: por IP (todas as tentativas) e por conta (só as falhas).
+ * As falhas de uma conta contam de dois jeitos: as vindas de um mesmo IP bloqueiam só esse
+ * IP nessa conta, e a soma de todos os IPs, com um teto bem maior, bloqueia a conta inteira.
+ * Assim, quem sabe só o e-mail não tranca o dono para fora (diagnóstico de 2026-10-18), e um
+ * ataque espalhado por muitos IPs continua com um total de chutes limitado.
  * No banco, e não em memória, para os bloqueios sobreviverem a um reinício da aplicação
  * e valerem para todas as instâncias, se um dia houver mais de uma.
  *
@@ -60,25 +64,30 @@ class LimitadorDeTentativas {
 
             // Os dois limites são conferidos antes de recusar, para o Retry-After dizer a
             // maior espera: se só o do IP fosse informado, o cliente esbarraria no da conta.
-            Duration esperarConta = espera(CONTA, conta, limites.falhasPorConta(), limites.janelaPorConta(), agora);
-            Duration esperarIp = espera(IP, ip, limites.tentativasPorIp(), limites.janelaPorIp(), agora);
-            Duration esperar = esperarIp.compareTo(esperarConta) > 0 ? esperarIp : esperarConta;
+            Duration esperar = maior(
+                    espera(CONTA, conta, ip, limites.falhasPorContaEIp(), limites.janelaPorConta(), agora),
+                    espera(CONTA, conta, null, limites.falhasPorContaNoTotal(), limites.janelaPorConta(), agora),
+                    espera(IP, ip, null, limites.tentativasPorIp(), limites.janelaPorIp(), agora));
             if (!esperar.isZero()) {
                 throw new MuitasTentativasException(esperar);
             }
-            registrar(IP, ip, agora);
+            registrar(IP, ip, null, agora);
         });
     }
 
-    void registrarFalha(String conta) {
+    void registrarFalha(String conta, String ip) {
         Instant agora = relogio.instant();
-        transacaoPropria.executeWithoutResult(status -> registrar(CONTA, conta, agora));
+        transacaoPropria.executeWithoutResult(status -> registrar(CONTA, conta, ip, agora));
     }
 
-    /** Login certo zera as falhas da conta. */
-    void registrarSucesso(String conta) {
+    /**
+     * Login certo zera as falhas da conta vindas desse IP (quem errou a própria senha algumas
+     * vezes não fica perto do bloqueio). As dos outros IPs ficam: se a senha certa do dono
+     * zerasse tudo, o ataque espalhado ganharia um teto novo a cada vez que ele entrasse.
+     */
+    void registrarSucesso(String conta, String ip) {
         transacaoPropria.executeWithoutResult(status ->
-                jdbc.update("DELETE FROM tentativas_login WHERE tipo = ? AND chave = ?", CONTA, conta));
+                jdbc.update("DELETE FROM tentativas_login WHERE tipo = ? AND chave = ? AND ip = ?", CONTA, conta, ip));
     }
 
     /** Apaga o que já saiu de todas as janelas: os registros têm IP e e-mail (LGPD). */
@@ -94,21 +103,39 @@ class LimitadorDeTentativas {
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", tipo + ":" + chave);
     }
 
-    private void registrar(String tipo, String chave, Instant momento) {
-        jdbc.update("INSERT INTO tentativas_login (tipo, chave, momento) VALUES (?, ?, ?)",
-                tipo, chave, Timestamp.from(momento));
+    private void registrar(String tipo, String chave, String ip, Instant momento) {
+        jdbc.update("INSERT INTO tentativas_login (tipo, chave, ip, momento) VALUES (?, ?, ?, ?)",
+                tipo, chave, ip, Timestamp.from(momento));
+    }
+
+    private static Duration maior(Duration... esperas) {
+        Duration maior = Duration.ZERO;
+        for (Duration espera : esperas) {
+            if (espera.compareTo(maior) > 0) {
+                maior = espera;
+            }
+        }
+        return maior;
     }
 
     /**
      * Zero se ainda há vaga na janela; senão, quanto falta para a tentativa mais antiga
-     * dentro do limite sair da janela e liberar uma vaga.
+     * dentro do limite sair da janela e liberar uma vaga. Com {@code ip}, conta só as
+     * tentativas vindas dele; sem, todas as da chave.
      */
-    private Duration espera(String tipo, String chave, int limite, Duration janela, Instant agora) {
-        var momentos = jdbc.queryForList("""
+    private Duration espera(String tipo, String chave, String ip, int limite, Duration janela, Instant agora) {
+        Timestamp inicio = Timestamp.from(agora.minus(janela));
+        var momentos = ip == null
+                ? jdbc.queryForList("""
                         SELECT momento FROM tentativas_login
                         WHERE tipo = ? AND chave = ? AND momento > ?
                         ORDER BY momento DESC LIMIT ?""",
-                Timestamp.class, tipo, chave, Timestamp.from(agora.minus(janela)), limite);
+                Timestamp.class, tipo, chave, inicio, limite)
+                : jdbc.queryForList("""
+                        SELECT momento FROM tentativas_login
+                        WHERE tipo = ? AND chave = ? AND ip = ? AND momento > ?
+                        ORDER BY momento DESC LIMIT ?""",
+                Timestamp.class, tipo, chave, ip, inicio, limite);
         if (momentos.size() < limite) {
             return Duration.ZERO;
         }

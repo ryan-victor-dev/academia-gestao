@@ -53,6 +53,8 @@ class AutenticacaoService {
     /**
      * Confere e-mail e senha. Os limites contra força bruta valem pelo e-mail digitado,
      * exista ele ou não: o bloqueio também não pode revelar quais e-mails estão cadastrados.
+     * As falhas bloqueiam a conta só para o IP de onde vieram (e para todos, acima de um teto
+     * bem maior): quem sabe só o e-mail não tranca o dono para fora.
      * Sem transação aqui: cada consulta usa a sua, curta, e o BCrypt roda sem conexão presa.
      */
     GeradorDeToken.TokenEmitido autenticar(String email, String senha, String ip) {
@@ -70,12 +72,12 @@ class AutenticacaoService {
         boolean senhaConfere = passwordEncoder.matches(senha, hash);
 
         if (usuario.isEmpty() || !senhaConfere || !usuario.get().isAtivo()) {
-            limitador.registrarFalha(conta);
+            limitador.registrarFalha(conta, ip);
             // Nunca a senha digitada: ela pode ser a senha certa de outra conta, com um erro de digitação.
             log.warn("Login recusado: conta {} / IP {}", conta, ip);
             throw new CredenciaisInvalidasException();
         }
-        limitador.registrarSucesso(conta);
+        limitador.registrarSucesso(conta, ip);
         log.info("Login: conta {} / IP {}", conta, ip);
         return geradorDeToken.gerar(usuario.get());
     }
@@ -100,11 +102,11 @@ class AutenticacaoService {
             throw e;
         }
         if (!passwordEncoder.matches(senhaAtual, usuario.getSenhaHash())) {
-            limitador.registrarFalha(conta);
+            limitador.registrarFalha(conta, ip);
             log.warn("Troca de senha recusada (senha atual errada): conta {} / IP {}", conta, ip);
             throw new DadosInvalidosException("senha atual incorreta");
         }
-        limitador.registrarSucesso(conta);
+        limitador.registrarSucesso(conta, ip);
         PoliticaDeSenha.problemaCom(novaSenha).ifPresent(problema -> {
             throw new DadosInvalidosException(problema);
         });
