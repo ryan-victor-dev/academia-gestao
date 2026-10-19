@@ -85,6 +85,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0019](docs/adr/0019-fidelidade-trancamento-e-troca-decisoes-da-implementacao.md) | Fidelidade, trancamento e troca: decisões tomadas durante a implementação |
 | [0020](docs/adr/0020-terceira-revisao-login-troca-e-backup.md) | Terceira revisão (2026-10-17): login sob carga, troca de plano e backup |
 | [0021](docs/adr/0021-pendencias-medias-da-terceira-revisao.md) | Pendências médias da terceira revisão: limites, tempos, índices, datas e auditoria |
+| [0022](docs/adr/0022-bloqueio-por-conta-e-ip-e-retencao-da-auditoria.md) | Bloqueio de login por conta e IP, e retenção da trilha de auditoria |
 
 ## Como rodar
 
@@ -213,7 +214,8 @@ faltam × valor mensal; a troca não gera multa só se a multa que o plano novo 
 do usuário; vazio quando foi o próprio sistema, como a recuperação de ADMIN pela linha
 de comando), quando, a ação e só os campos que mudaram (`antes` e `depois`), nunca
 senhas. A trilha é gravada na mesma transação da alteração, e o usuário da aplicação no
-banco não consegue apagá-la nem reescrevê-la.
+banco não consegue apagá-la nem reescrevê-la. Registros com mais de 5 anos são apagados
+todo dia (ADR 0022).
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
@@ -231,7 +233,8 @@ temporária ainda não trocada), 404 para recurso inexistente, 409 para conflito
 (ex.: CPF já cadastrado, período de matrícula ocupado), 412 quando o aluno foi alterado por outra pessoa
 desde o `GET`, 428 quando falta o `If-Match`, 413 para corpo acima de 64 KB,
 429 para excesso de tentativas de login (20 por minuto por IP; 10 senhas erradas
-em 15 minutos bloqueiam o e-mail) ou de requisições (300 por minuto por usuário
+em 15 minutos bloqueiam o e-mail para aquele IP, e 100 somando todos os IPs o bloqueiam
+para todos) ou de requisições (300 por minuto por usuário
 logado) e 503 quando o banco está sobrecarregado (nenhuma conexão livre em 3 s ou
 consulta acima de 5 s); 429 e 503 trazem o cabeçalho `Retry-After`.
 

@@ -51,8 +51,8 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   com a entidade já alterada, o índice único estoura dentro da checagem (500 em vez de 409).
 - Testes dividem o mesmo banco e rodam em ordem imprevisível: use `CpfsParaTeste.aleatorio()`
   e limpe o que criar. Para testar isso, rode o `verify` com `-Dsurefire.runOrder=random`.
-- O limite de login (20/min por IP, 10 falhas/15 min por conta) vale nos testes de ponta a
-  ponta: espere a janela ou use contas diferentes.
+- O limite de login (20/min por IP; 10 falhas/15 min por conta e IP, 100 por conta no total,
+  ADR 0022) vale nos testes de ponta a ponta: espere a janela ou use contas diferentes.
 - O limitador grava em transação própria (REQUIRES_NEW): a do login é desfeita quando a
   senha está errada.
 - `psql -c` não substitui variáveis (`:'senha'`); passe o SQL pela entrada padrão.
@@ -85,11 +85,14 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - Relógio de teste fixo no passado + tarefa agendada com relógio real (limpezas) = dados
   do teste apagados no meio. Comece o relógio do teste na hora real.
 - Toda alteração de plano, aluno ou usuário registra na trilha (`Auditoria`, ADR 0021), na
-  mesma transação. O usuário da aplicação não apaga a trilha; nos testes, limpe com o
-  `JdbcTemplate` (dono do banco).
+  mesma transação. O usuário da aplicação não apaga a trilha (só a função da retenção de 5
+  anos, ADR 0022, apaga o vencido); nos testes, limpe com o `JdbcTemplate` (dono do banco).
+- Nos testes, a aplicação conecta como o dono do banco (`@ServiceConnection`), e não como
+  `academia_app`: para provar uma permissão, conecte como `academia_app` (veja
+  `UsuarioDaAplicacaoNoBancoTest`).
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020 e 0021. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021 e 0022. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.
