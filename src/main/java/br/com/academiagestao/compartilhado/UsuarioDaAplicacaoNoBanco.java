@@ -76,6 +76,8 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             // A trilha de auditoria só cresce: a aplicação insere e lê, mas não apaga nem
             // reescreve o histórico (nem com uma injeção de SQL).
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE auditoria FROM " + usuario);
+            // A única saída da trilha: a função do dono que só apaga o que passou do prazo (V21).
+            sql.execute("GRANT EXECUTE ON FUNCTION apagar_auditoria_vencida(integer) TO " + usuario);
             sql.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + usuario);
         } catch (SQLException e) {
             throw new IllegalStateException("Não foi possível preparar o usuário da aplicação no banco", e);

@@ -100,6 +100,11 @@ class UsuarioDaAplicacaoNoBancoTest {
             "DELETE FROM flyway_schema_history",
             "COPY usuarios TO '/tmp/usuarios.csv'",
             "SELECT pg_read_file('/etc/passwd')",
+            // A função da retenção (V21) apaga com os direitos do dono: trocar o prazo dela
+            // seria apagar a trilha inteira.
+            "CREATE OR REPLACE FUNCTION apagar_auditoria_vencida(lote integer) RETURNS integer LANGUAGE sql AS 'SELECT 0'",
+            "DROP FUNCTION apagar_auditoria_vencida(integer)",
+            "ALTER FUNCTION apagar_auditoria_vencida(integer) SECURITY INVOKER",
     })
     void naoMexeNaEstruturaNemNoServidor(String ataque) {
         assertThatThrownBy(() -> executar(ataque)).isInstanceOf(SQLException.class);
