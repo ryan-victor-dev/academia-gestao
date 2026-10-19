@@ -12,6 +12,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -46,7 +47,7 @@ class VisaoDoInstrutorTest {
         jdbc.update("DELETE FROM usuarios");
         repository.deleteAll();
         ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "ana@email.com", "31987654321",
-                LocalDate.of(1995, 3, 10), "lesão no joelho esquerdo")));
+                LocalDate.of(1995, 3, 10), "lesão no joelho esquerdo"), Instant.now()));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package br.com.academiagestao.compartilhado;
 
+import org.springframework.boot.validation.autoconfigure.ValidationConfigurationCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,5 +17,11 @@ class RelogioConfig {
     @Bean
     Clock relogio() {
         return Clock.systemUTC();
+    }
+
+    /** O {@code @Past} dos pedidos também usa este relógio, e no fuso da academia. */
+    @Bean
+    ValidationConfigurationCustomizer relogioNaValidacao(Clock relogio) {
+        return configuracao -> configuracao.clockProvider(() -> relogio.withZone(Calendario.FUSO));
     }
 }

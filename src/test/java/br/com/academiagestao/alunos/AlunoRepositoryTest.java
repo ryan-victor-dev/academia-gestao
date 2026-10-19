@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,7 +34,7 @@ class AlunoRepositoryTest {
 
     @Test
     void salvaEEncontraPeloCpf() {
-        repository.saveAndFlush(Aluno.novo(new DadosAluno("Ana", "529.982.247-25", null, null, null, null)));
+        repository.saveAndFlush(Aluno.novo(new DadosAluno("Ana", "529.982.247-25", null, null, null, null), Instant.now()));
 
         assertThat(repository.findByCpf("52998224725"))
                 .get()
@@ -43,10 +44,10 @@ class AlunoRepositoryTest {
 
     @Test
     void bancoRecusaCpfRepetido() {
-        repository.saveAndFlush(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null)));
+        repository.saveAndFlush(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now()));
 
         assertThatThrownBy(() -> repository.saveAndFlush(
-                Aluno.novo(new DadosAluno("Outra Ana", "529.982.247-25", null, null, null, null))))
+                Aluno.novo(new DadosAluno("Outra Ana", "529.982.247-25", null, null, null, null), Instant.now())))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

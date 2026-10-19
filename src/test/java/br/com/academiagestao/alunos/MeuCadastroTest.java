@@ -12,6 +12,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -39,8 +40,8 @@ class MeuCadastroTest {
     void cadastrar() {
         jdbc.update("DELETE FROM usuarios WHERE aluno_id IS NOT NULL");
         repository.deleteAll();
-        ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null)));
-        repository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, null, null)));
+        ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now()));
+        repository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, null, null), Instant.now()));
     }
 
     private static RequestPostProcessor tokenDeAluno(UUID alunoId) {

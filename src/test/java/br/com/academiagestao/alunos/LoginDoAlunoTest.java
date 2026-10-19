@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,7 +55,7 @@ class LoginDoAlunoTest {
     void cadastrar() {
         jdbc.update("DELETE FROM usuarios");
         alunoRepository.deleteAll();
-        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "Ana@Email.com", null, null, null)));
+        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "Ana@Email.com", null, null, null), Instant.now()));
     }
 
     private ResultActions criarLogin(UUID alunoId) throws Exception {
@@ -130,7 +131,7 @@ class LoginDoAlunoTest {
     @Test
     void alunoSemEmailDevolve400() throws Exception {
         Aluno semEmail = alunoRepository.save(Aluno.novo(
-                new DadosAluno("Bia", "11144477735", null, null, null, null)));
+                new DadosAluno("Bia", "11144477735", null, null, null, null), Instant.now()));
 
         criarLogin(semEmail.getId())
                 .andExpect(status().isBadRequest())

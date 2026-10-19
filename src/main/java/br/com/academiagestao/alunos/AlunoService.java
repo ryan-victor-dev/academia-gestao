@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,18 +32,20 @@ class AlunoService {
     private final LoginsDeAlunos loginsDeAlunos;
     private final List<ImpedimentoParaInativar> impedimentos;
     private final Auditoria auditoria;
+    private final Clock relogio;
 
     AlunoService(AlunoRepository repository, LoginsDeAlunos loginsDeAlunos,
-                 List<ImpedimentoParaInativar> impedimentos, Auditoria auditoria) {
+                 List<ImpedimentoParaInativar> impedimentos, Auditoria auditoria, Clock relogio) {
         this.repository = repository;
         this.loginsDeAlunos = loginsDeAlunos;
         this.impedimentos = impedimentos;
         this.auditoria = auditoria;
+        this.relogio = relogio;
     }
 
     @Transactional
     Aluno cadastrar(DadosAluno dados) {
-        Aluno aluno = Aluno.novo(dados);
+        Aluno aluno = Aluno.novo(dados, relogio.instant());
         if (repository.existsByCpf(aluno.getCpf())) {
             throw new CpfJaCadastradoException();
         }
@@ -128,7 +131,7 @@ class AlunoService {
             throw new CpfJaCadastradoException();
         }
         Map<String, Object> antes = retrato(aluno);
-        aluno.atualizar(dados);
+        aluno.atualizar(dados, relogio.instant());
         Aluno gravado = gravar(aluno);
         auditoria.registrar(ALUNO, id, "EDITADO", antes, retrato(gravado));
         return gravado;

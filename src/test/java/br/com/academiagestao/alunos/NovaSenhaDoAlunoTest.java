@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -58,7 +59,7 @@ class NovaSenhaDoAlunoTest {
     void cadastrarAlunaComLogin() {
         jdbc.update("DELETE FROM usuarios");
         alunoRepository.deleteAll();
-        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "ana@email.com", null, null, null)));
+        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "ana@email.com", null, null, null), Instant.now()));
         usuarioRepository.save(Usuario.deAluno("Ana", "ana@email.com", passwordEncoder.encode(SENHA), ana.getId()));
     }
 
@@ -90,7 +91,7 @@ class NovaSenhaDoAlunoTest {
 
     @Test
     void alunoSemLoginDevolve404() throws Exception {
-        Aluno semLogin = alunoRepository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, null, null)));
+        Aluno semLogin = alunoRepository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, null, null), Instant.now()));
 
         novaSenha(semLogin.getId())
                 .andExpect(status().isNotFound())

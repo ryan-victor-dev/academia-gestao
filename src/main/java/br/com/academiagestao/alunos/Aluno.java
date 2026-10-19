@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -64,20 +65,21 @@ public class Aluno {
     protected Aluno() {
     }
 
-    public static Aluno novo(DadosAluno dados) {
+    /** @param agora momento do cadastro (do relógio da aplicação), de onde sai o "hoje" na academia. */
+    public static Aluno novo(DadosAluno dados, Instant agora) {
         Aluno aluno = new Aluno();
         aluno.id = UUID.randomUUID();
         aluno.ativo = true;
         // O Postgres guarda microssegundos; sem truncar, a resposta do cadastro mostraria
         // nanossegundos e a consulta seguinte, um horário "diferente".
-        aluno.criadoEm = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        aluno.aplicar(dados);
+        aluno.criadoEm = agora.truncatedTo(ChronoUnit.MICROS);
+        aluno.aplicar(dados, agora);
         return aluno;
     }
 
     /** Corrige ou completa o cadastro. Vale também para o CPF (digitado errado, por exemplo). */
-    public void atualizar(DadosAluno dados) {
-        aplicar(dados);
+    public void atualizar(DadosAluno dados, Instant agora) {
+        aplicar(dados, agora);
     }
 
     /** Aluno saiu da academia. Chamar de novo não muda nada. */
@@ -91,7 +93,7 @@ public class Aluno {
     }
 
     // Valida tudo antes de alterar qualquer campo: ou o aluno inteiro muda, ou nada muda.
-    private void aplicar(DadosAluno dados) {
+    private void aplicar(DadosAluno dados, Instant agora) {
         if (dados == null) {
             throw new DadosInvalidosException("dados do aluno são obrigatórios");
         }
@@ -113,7 +115,8 @@ public class Aluno {
         if (telefoneLimpo != null && !telefoneLimpo.matches("\\d{10,11}")) {
             throw new DadosInvalidosException("telefone deve ter DDD + número (10 ou 11 dígitos)");
         }
-        LocalDate hoje = LocalDate.now();
+        // No fuso da academia: o do servidor (UTC) aceitava, depois das 21h, nascer "amanhã".
+        LocalDate hoje = Calendario.hoje(agora);
         if (dados.dataNascimento() != null && dados.dataNascimento().isAfter(hoje)) {
             throw new DadosInvalidosException("data de nascimento não pode estar no futuro");
         }

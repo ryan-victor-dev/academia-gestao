@@ -10,6 +10,8 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.sql.SQLException;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,10 +27,10 @@ class AlunoServiceTest {
         // Simula duas edições simultâneas com o mesmo If-Match: as duas passam pela conferência,
         // mas o UPDATE da segunda não acha mais a versão e o Hibernate lança a exceção de lock.
         AlunoRepository repository = mock(AlunoRepository.class);
-        Aluno ana = Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null));
+        Aluno ana = Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now());
         when(repository.findById(ana.getId())).thenReturn(Optional.of(ana));
         when(repository.saveAndFlush(any())).thenThrow(new ObjectOptimisticLockingFailureException(Aluno.class, ana.getId()));
-        AlunoService service = new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class));
+        AlunoService service = new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class), Clock.systemUTC());
 
         assertThatThrownBy(() -> service.atualizar(ana.getId(),
                 new DadosAluno("Ana Maria", "52998224725", null, null, null, null), "\"0\""))
@@ -39,7 +41,7 @@ class AlunoServiceTest {
         AlunoRepository repository = mock(AlunoRepository.class);
         when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("recusado",
                 new ConstraintViolationException("recusado", new SQLException("recusado"), indice)));
-        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class));
+        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class), Clock.systemUTC());
     }
 
     @Test
@@ -65,6 +67,6 @@ class AlunoServiceTest {
     private static AlunoService comRecusaDoBancoSemIndice() {
         AlunoRepository repository = mock(AlunoRepository.class);
         when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("data fora do intervalo"));
-        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class));
+        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class), Clock.systemUTC());
     }
 }

@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.planos.FormaPagamento;
 import jakarta.persistence.CascadeType;
@@ -36,8 +37,7 @@ import java.util.UUID;
 @Table(name = "matriculas")
 public class Matricula {
 
-    /** "Hoje" é o dia na academia, não em UTC: às 22h de São Paulo, em UTC já é amanhã. */
-    static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
+    static final ZoneId FUSO = Calendario.FUSO;
 
     static final int DURACAO_MAXIMA_MESES = 60;
     static final int TAMANHO_MAXIMO_MOTIVO = 500;
@@ -385,7 +385,7 @@ public class Matricula {
     }
 
     static LocalDate hoje(Instant agora) {
-        return LocalDate.ofInstant(agora, FUSO);
+        return Calendario.hoje(agora);
     }
 
     /** Quanto o período inteiro custa: valor mensal × duração, com os valores do dia da matrícula. */

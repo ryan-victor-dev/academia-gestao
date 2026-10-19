@@ -14,6 +14,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.contains;
@@ -43,9 +44,9 @@ class AlunoListagemTest {
     void cadastrar() {
         jdbc.update("DELETE FROM usuarios WHERE aluno_id IS NOT NULL");
         repository.deleteAll();
-        repository.save(Aluno.novo(new DadosAluno("Bruno Lima", "11144477735", null, null, null, null)));
-        repository.save(Aluno.novo(new DadosAluno("Ana Souza", "52998224725", null, null, null, null)));
-        carla = Aluno.novo(new DadosAluno("Carla Anastácio", "93541134780", null, null, null, null));
+        repository.save(Aluno.novo(new DadosAluno("Bruno Lima", "11144477735", null, null, null, null), Instant.now()));
+        repository.save(Aluno.novo(new DadosAluno("Ana Souza", "52998224725", null, null, null, null), Instant.now()));
+        carla = Aluno.novo(new DadosAluno("Carla Anastácio", "93541134780", null, null, null, null), Instant.now());
         carla.inativar();
         carla = repository.save(carla);
     }
@@ -87,8 +88,8 @@ class AlunoListagemTest {
             "JOAO,      João Pereira",
     })
     void buscaPorNomeIgnoraAcentosEMaiusculas(String busca, String esperado) throws Exception {
-        repository.save(Aluno.novo(new DadosAluno("José Antônio", "39053344705", null, null, null, null)));
-        repository.save(Aluno.novo(new DadosAluno("João Pereira", "12345678909", null, null, null, null)));
+        repository.save(Aluno.novo(new DadosAluno("José Antônio", "39053344705", null, null, null, null), Instant.now()));
+        repository.save(Aluno.novo(new DadosAluno("João Pereira", "12345678909", null, null, null, null), Instant.now()));
 
         mvc.perform(get("/api/alunos").param("busca", busca).param("incluirInativos", "true").with(perfil("ADMIN")))
                 .andExpect(jsonPath("$.conteudo[*].nome").value(contains(esperado)));
@@ -104,7 +105,7 @@ class AlunoListagemTest {
     // acha o aluno, e uma tentativa de injeção é só um texto que não casa com ninguém.
     @Test
     void buscaComAspasEBarraInvertida() throws Exception {
-        repository.save(Aluno.novo(new DadosAluno("Joana D'Ávila", "39053344705", null, null, null, null)));
+        repository.save(Aluno.novo(new DadosAluno("Joana D'Ávila", "39053344705", null, null, null, null), Instant.now()));
 
         mvc.perform(get("/api/alunos").param("busca", "d'avila").with(perfil("ADMIN")))
                 .andExpect(jsonPath("$.conteudo[*].nome").value(contains("Joana D'Ávila")));

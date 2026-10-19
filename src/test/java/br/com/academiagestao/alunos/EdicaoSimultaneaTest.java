@@ -15,6 +15,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -49,7 +51,7 @@ class EdicaoSimultaneaTest {
     void cadastrar() {
         jdbc.update("DELETE FROM usuarios");
         repository.deleteAll();
-        ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null)));
+        ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now()));
     }
 
     private String etagDoGet() throws Exception {
@@ -128,7 +130,7 @@ class EdicaoSimultaneaTest {
         Aluno copiaAntiga = repository.findById(ana.getId()).orElseThrow();
         jdbc.update("UPDATE alunos SET nome = 'Outra pessoa mudou', versao = versao + 1 WHERE id = ?", ana.getId());
 
-        copiaAntiga.atualizar(new DadosAluno("Ana Maria", "52998224725", null, null, null, null));
+        copiaAntiga.atualizar(new DadosAluno("Ana Maria", "52998224725", null, null, null, null), Instant.now());
         assertThatThrownBy(() -> repository.saveAndFlush(copiaAntiga))
                 .isInstanceOf(OptimisticLockingFailureException.class);
     }

@@ -8,6 +8,15 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 import jakarta.persistence.Entity;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.Year;
+import java.time.YearMonth;
+import java.time.ZonedDateTime;
 import java.util.Set;
 
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
@@ -74,6 +83,27 @@ class ArquiteturaTest {
             .orShould().dependOnClassesThat().haveSimpleNameEndingWith("Service")
             .orShould().dependOnClassesThat().haveSimpleNameEndingWith("Repository")
             .because("as regras de negócio ficam na entidade, sem depender de web, transação ou banco");
+
+    // Os carimbos de criação de usuário e plano só são exibidos; nenhuma regra depende deles.
+    private static final Set<String> CARIMBOS_COM_A_HORA_DO_SISTEMA = Set.of("Usuario", "Plano");
+    private static final Set<Class<?>> TIPOS_DE_DATA = Set.of(Instant.class, LocalDate.class, LocalDateTime.class,
+            LocalTime.class, OffsetDateTime.class, ZonedDateTime.class, Year.class, YearMonth.class);
+
+    @ArchTest
+    static final ArchRule horaSoPeloRelogioDaAplicacao = noClasses()
+            .that().doNotHaveSimpleName("RelogioConfig")
+            .should().callMethodWhere(DescribedPredicate.describe("que lê a hora do sistema", chamada -> {
+                JavaClass dono = chamada.getTargetOwner();
+                String metodo = chamada.getName();
+                boolean leHora = metodo.equals("now") && TIPOS_DE_DATA.stream().anyMatch(dono::isEquivalentTo)
+                        || metodo.startsWith("system") && dono.isEquivalentTo(Clock.class)
+                        || dono.isEquivalentTo(System.class)
+                        && (metodo.equals("currentTimeMillis") || metodo.equals("nanoTime"));
+                boolean carimbo = metodo.equals("now") && dono.isEquivalentTo(Instant.class)
+                        && CARIMBOS_COM_A_HORA_DO_SISTEMA.contains(chamada.getOriginOwner().getSimpleName());
+                return leHora && !carimbo;
+            }))
+            .because("todo \"agora\" sai do Clock injetado (ADR 0023): é ele que os testes param e adiantam");
 
     private static ArchRule soPelaPortaPublica(String modulo, Set<String> portaPublica) {
         String pacote = BASE + modulo;

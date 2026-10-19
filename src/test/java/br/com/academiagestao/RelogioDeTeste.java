@@ -19,7 +19,12 @@ public class RelogioDeTeste extends Clock {
 
     /** Para o relógio neste momento: "hoje" não vira à meia-noite no meio do teste. */
     public void parar() {
-        parado = instant();
+        fixar(instant());
+    }
+
+    /** Para o relógio num momento escolhido. Prefira o futuro: o passado confunde as limpezas. */
+    public void fixar(Instant momento) {
+        parado = momento;
         adiantado = Duration.ZERO;
     }
 
@@ -45,8 +50,25 @@ public class RelogioDeTeste extends Clock {
         return ZoneOffset.UTC;
     }
 
+    /** O mesmo relógio visto de outro fuso (a validação usa o da academia). */
     @Override
     public Clock withZone(ZoneId zone) {
-        throw new UnsupportedOperationException("o relógio da aplicação é sempre UTC");
+        RelogioDeTeste origem = this;
+        return new Clock() {
+            @Override
+            public Instant instant() {
+                return origem.instant();
+            }
+
+            @Override
+            public ZoneId getZone() {
+                return zone;
+            }
+
+            @Override
+            public Clock withZone(ZoneId outra) {
+                return origem.withZone(outra);
+            }
+        };
     }
 }

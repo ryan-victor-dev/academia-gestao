@@ -3,6 +3,7 @@ package br.com.academiagestao.alunos;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,7 +18,7 @@ class AlunoTest {
     @Test
     void novoAlunoNasceAtivoComDadosNormalizados() {
         Aluno aluno = Aluno.novo(new DadosAluno("  Ana Souza ", "529.982.247-25", " Ana@Email.COM ",
-                "(31) 98765-4321", LocalDate.of(1995, 3, 10), "  "));
+                "(31) 98765-4321", LocalDate.of(1995, 3, 10), "  "), Instant.now());
 
         assertThat(aluno.getId()).isNotNull();
         assertThat(aluno.isAtivo()).isTrue();
@@ -31,52 +32,73 @@ class AlunoTest {
 
     @Test
     void recusaCpfInvalido() {
-        assertThatThrownBy(() -> Aluno.novo(dados("Ana", "111.111.111-11")))
+        assertThatThrownBy(() -> Aluno.novo(dados("Ana", "111.111.111-11"), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("CPF");
     }
 
     @Test
     void recusaNomeVazio() {
-        assertThatThrownBy(() -> Aluno.novo(dados("   ", "52998224725")))
+        assertThatThrownBy(() -> Aluno.novo(dados("   ", "52998224725"), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("nome");
     }
 
     @Test
     void recusaTelefoneSemDdd() {
-        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, "98765-4321", null, null)))
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, "98765-4321", null, null), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("telefone");
     }
 
+    // 19/10/2026, 23h30 em São Paulo: em UTC já é dia 20.
+    private static final Instant NOITE = Instant.parse("2026-10-20T02:30:00Z");
+    private static final LocalDate HOJE_NA_ACADEMIA = LocalDate.of(2026, 10, 19);
+
+    private static DadosAluno nascidoEm(LocalDate nascimento) {
+        return new DadosAluno("Ana", "52998224725", null, null, nascimento, null);
+    }
+
     @Test
     void recusaNascimentoNoFuturo() {
-        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, null,
-                LocalDate.now().plusDays(1), null)))
+        assertThat(Aluno.novo(nascidoEm(HOJE_NA_ACADEMIA), NOITE).getDataNascimento()).isEqualTo(HOJE_NA_ACADEMIA);
+        assertThatThrownBy(() -> Aluno.novo(nascidoEm(HOJE_NA_ACADEMIA.plusDays(1)), NOITE))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessageContaining("futuro");
+    }
+
+    /** O "hoje" é o da academia: às 23h30 de São Paulo, o dia seguinte (o de UTC) ainda é futuro. */
+    @Test
+    void naEdicaoTambemOHojeEhODaAcademia() {
+        Aluno aluno = Aluno.novo(nascidoEm(null), NOITE);
+
+        assertThatThrownBy(() -> aluno.atualizar(nascidoEm(HOJE_NA_ACADEMIA.plusDays(1)), NOITE))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("futuro");
     }
 
     @Test
     void nascimentoDeAte120AnosAtras() {
-        LocalDate limite = LocalDate.now().minusYears(120);
-        assertThat(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, limite, null)).getDataNascimento())
-                .isEqualTo(limite);
-        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, null,
-                limite.minusDays(1), null)))
+        LocalDate limite = HOJE_NA_ACADEMIA.minusYears(120);
+        assertThat(Aluno.novo(nascidoEm(limite), NOITE).getDataNascimento()).isEqualTo(limite);
+        assertThatThrownBy(() -> Aluno.novo(nascidoEm(limite.minusDays(1)), NOITE))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("120 anos");
-        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, LocalDate.MIN, null)))
+        assertThatThrownBy(() -> Aluno.novo(nascidoEm(LocalDate.MIN), NOITE))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("120 anos");
     }
 
     @Test
-    void edicaoInvalidaNaoAlteraNada() {
-        Aluno aluno = Aluno.novo(dados("Ana", "52998224725"));
+    void criadoEmVemDoRelogio() {
+        assertThat(Aluno.novo(nascidoEm(null), NOITE).getCriadoEm()).isEqualTo(NOITE);
+    }
 
-        assertThatThrownBy(() -> aluno.atualizar(dados("Ana Maria", "123")))
+    @Test
+    void edicaoInvalidaNaoAlteraNada() {
+        Aluno aluno = Aluno.novo(dados("Ana", "52998224725"), Instant.now());
+
+        assertThatThrownBy(() -> aluno.atualizar(dados("Ana Maria", "123"), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class);
 
         // O nome era válido, mas o CPF não: nada pode ter mudado.
@@ -86,7 +108,7 @@ class AlunoTest {
 
     @Test
     void inativarEReativar() {
-        Aluno aluno = Aluno.novo(dados("Ana", "52998224725"));
+        Aluno aluno = Aluno.novo(dados("Ana", "52998224725"), Instant.now());
 
         aluno.inativar();
         aluno.inativar(); // de novo não quebra
@@ -98,26 +120,26 @@ class AlunoTest {
 
     @Test
     void recusaDadosNulos() {
-        assertThatThrownBy(() -> Aluno.novo(null)).isInstanceOf(DadosInvalidosException.class);
+        assertThatThrownBy(() -> Aluno.novo(null, Instant.now())).isInstanceOf(DadosInvalidosException.class);
     }
 
     @Test
     void nomeAte150CaracteresEAcima() {
-        assertThat(Aluno.novo(dados("a".repeat(150), "52998224725")).getNome()).hasSize(150);
-        assertThatThrownBy(() -> Aluno.novo(dados("a".repeat(151), "52998224725")))
+        assertThat(Aluno.novo(dados("a".repeat(150), "52998224725"), Instant.now()).getNome()).hasSize(150);
+        assertThatThrownBy(() -> Aluno.novo(dados("a".repeat(151), "52998224725"), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("150");
     }
 
     @Test
     void emailSemArrobaOuComprido() {
-        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "ana.email.com", null, null, null)))
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "ana.email.com", null, null, null), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("e-mail");
         String email150 = "a".repeat(140) + "@email.com";
-        assertThat(Aluno.novo(new DadosAluno("Ana", "52998224725", email150, null, null, null)).getEmail())
+        assertThat(Aluno.novo(new DadosAluno("Ana", "52998224725", email150, null, null, null), Instant.now()).getEmail())
                 .hasSize(150);
-        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "a" + email150, null, null, null)))
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "a" + email150, null, null, null), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class);
     }
 }

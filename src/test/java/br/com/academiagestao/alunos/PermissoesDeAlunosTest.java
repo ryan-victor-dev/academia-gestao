@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.time.Instant;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -69,9 +70,9 @@ class PermissoesDeAlunosTest {
         alunoRepository.deleteAll();
 
         alunoLogado = alunoRepository.save(Aluno.novo(new DadosAluno("Aluno Logado", CpfsParaTeste.aleatorio(),
-                null, null, null, null)));
+                null, null, null, null), Instant.now()));
         alvo = alunoRepository.save(Aluno.novo(new DadosAluno("Aluno Alvo", CpfsParaTeste.aleatorio(),
-                null, null, null, null)));
+                null, null, null, null), Instant.now()));
         String hash = passwordEncoder.encode(SENHA);
         for (Perfil perfil : Perfil.values()) {
             String email = perfil.name().toLowerCase() + "@academia.com";
@@ -94,7 +95,7 @@ class PermissoesDeAlunosTest {
     private Aluno alunoComEmail() {
         String cpf = CpfsParaTeste.aleatorio();
         return alunoRepository.save(Aluno.novo(new DadosAluno("Aluno " + cpf, cpf, cpf + "@email.com",
-                null, null, null)));
+                null, null, null), Instant.now()));
     }
 
     private Aluno alunoComLogin() {
