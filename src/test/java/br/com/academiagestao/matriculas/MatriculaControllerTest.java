@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
 import br.com.academiagestao.auth.Perfil;
@@ -58,6 +59,20 @@ class MatriculaControllerTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    RelogioDeTeste relogio;
+
+    // Relógio parado: "hoje" não vira à meia-noite entre o teste e a aplicação.
+    @BeforeEach
+    void pararRelogio() {
+        relogio.parar();
+    }
+
+    @AfterEach
+    void restaurarRelogio() {
+        relogio.restaurar();
+    }
 
     private UUID recepcaoId;
     private UUID adminId;
@@ -133,8 +148,8 @@ class MatriculaControllerTest {
         return id;
     }
 
-    private static LocalDate hoje() {
-        return LocalDate.now(Matricula.FUSO);
+    private LocalDate hoje() {
+        return LocalDate.ofInstant(relogio.instant(), Matricula.FUSO);
     }
 
     private ResultActions matricular(UUID alunoId, UUID planoId, LocalDate inicio) throws Exception {

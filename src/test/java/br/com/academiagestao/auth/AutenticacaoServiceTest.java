@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,7 +33,7 @@ class AutenticacaoServiceTest {
     private final UsuarioRepository repository = mock(UsuarioRepository.class);
     private final AutenticacaoService service = new AutenticacaoService(repository, passwordEncoder,
             new GeradorDeToken(new NimbusJwtEncoder(new ImmutableSecret<>(chave)),
-                    new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao")),
+                    new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao"), Clock.systemUTC()),
             mock(LimitadorDeTentativas.class), mock(org.springframework.transaction.PlatformTransactionManager.class),
             mock(TrilhaDeUsuarios.class));
 

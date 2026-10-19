@@ -7,6 +7,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.Instant;
 
 @Component
@@ -14,14 +15,16 @@ class GeradorDeToken {
 
     private final JwtEncoder encoder;
     private final JwtProperties properties;
+    private final Clock relogio;
 
-    GeradorDeToken(JwtEncoder encoder, JwtProperties properties) {
+    GeradorDeToken(JwtEncoder encoder, JwtProperties properties, Clock relogio) {
         this.encoder = encoder;
         this.properties = properties;
+        this.relogio = relogio;
     }
 
     TokenEmitido gerar(Usuario usuario) {
-        Instant agora = Instant.now();
+        Instant agora = relogio.instant();
         Instant expiraEm = agora.plus(properties.expiracao());
 
         // "sub" leva o id, e não o e-mail: o id nunca muda e não é dado pessoal.

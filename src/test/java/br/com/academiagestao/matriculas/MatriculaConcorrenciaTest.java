@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
 import org.junit.jupiter.api.AfterEach;
@@ -39,6 +40,20 @@ class MatriculaConcorrenciaTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    RelogioDeTeste relogio;
+
+    // Relógio parado: "hoje" não vira à meia-noite entre o teste e a aplicação.
+    @BeforeEach
+    void pararRelogio() {
+        relogio.parar();
+    }
+
+    @AfterEach
+    void restaurarRelogio() {
+        relogio.restaurar();
+    }
 
     @Autowired
     TransactionTemplate transacao;
@@ -114,7 +129,7 @@ class MatriculaConcorrenciaTest {
 
     @Test
     void matriculasSimultaneasDoMesmoAlunoNoMesmoPeriodo() throws Exception {
-        LocalDate hoje = LocalDate.now(Matricula.FUSO);
+        LocalDate hoje = LocalDate.ofInstant(relogio.instant(), Matricula.FUSO);
         for (int rodada = 0; rodada < RODADAS; rodada++) {
             UUID aluno = criarAluno();
             // Quatro períodos diferentes (começando a cada 5 dias), todos se cruzando: só um fica.
@@ -155,7 +170,7 @@ class MatriculaConcorrenciaTest {
      */
     @Test
     void restricaoDoBancoViraPeriodoOcupado() throws Exception {
-        LocalDate hoje = LocalDate.now(Matricula.FUSO);
+        LocalDate hoje = LocalDate.ofInstant(relogio.instant(), Matricula.FUSO);
         for (int rodada = 0; rodada < 5; rodada++) {
             UUID aluno = criarAluno();
             CountDownLatch inserida = new CountDownLatch(1);
@@ -204,7 +219,7 @@ class MatriculaConcorrenciaTest {
      */
     @Test
     void trancarERenovarAoMesmoTempo() throws Exception {
-        LocalDate hoje = LocalDate.now(Matricula.FUSO);
+        LocalDate hoje = LocalDate.ofInstant(relogio.instant(), Matricula.FUSO);
         int trancadas = 0;
         int renovadas = 0;
         for (int rodada = 0; rodada < RODADAS; rodada++) {

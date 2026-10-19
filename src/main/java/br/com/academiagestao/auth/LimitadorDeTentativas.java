@@ -1,6 +1,5 @@
 package br.com.academiagestao.auth;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -35,11 +34,6 @@ class LimitadorDeTentativas {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transacaoPropria;
     private final Clock relogio;
-
-    @Autowired
-    LimitadorDeTentativas(LimitesDeLoginProperties limites, JdbcTemplate jdbc, PlatformTransactionManager transacoes) {
-        this(limites, jdbc, transacoes, Clock.systemUTC());
-    }
 
     LimitadorDeTentativas(LimitesDeLoginProperties limites, JdbcTemplate jdbc,
                           PlatformTransactionManager transacoes, Clock relogio) {

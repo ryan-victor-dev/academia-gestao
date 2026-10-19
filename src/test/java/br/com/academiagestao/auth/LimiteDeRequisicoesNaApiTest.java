@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
@@ -15,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Duration;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -45,10 +47,14 @@ class LimiteDeRequisicoesNaApiTest {
     @Autowired
     PasswordEncoder passwordEncoder;
 
+    @Autowired
+    RelogioDeTeste relogio;
+
     private String email;
 
     @AfterEach
     void limpar() {
+        relogio.restaurar();
         if (email != null) {
             jdbc.update("DELETE FROM tentativas_login WHERE chave = ?", email);
             jdbc.update("DELETE FROM usuarios WHERE email = ?", email);
@@ -74,6 +80,22 @@ class LimiteDeRequisicoesNaApiTest {
                 .andExpect(jsonPath("$.title").value("Muitas requisições"));
         // O limite é por usuário, e não da aplicação inteira.
         mvc.perform(get("/api/planos").with(admin(UUID.randomUUID().toString()))).andExpect(status().isOk());
+    }
+
+    /** As fichas voltam pelo relógio único da aplicação (ADR 0023), e não pelo do sistema. */
+    @Test
+    void fichaVoltaComORelogio() throws Exception {
+        relogio.parar();
+        String caio = UUID.randomUUID().toString();
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(get("/api/planos").with(admin(caio))).andExpect(status().isOk());
+        }
+        mvc.perform(get("/api/planos").with(admin(caio))).andExpect(status().isTooManyRequests());
+
+        relogio.adiantar(Duration.ofSeconds(12));
+
+        mvc.perform(get("/api/planos").with(admin(caio))).andExpect(status().isOk());
+        mvc.perform(get("/api/planos").with(admin(caio))).andExpect(status().isTooManyRequests());
     }
 
     @Test

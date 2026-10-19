@@ -1,6 +1,5 @@
 package br.com.academiagestao.auth;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -41,11 +40,6 @@ class LimiteDeRequisicoes {
     private final Clock relogio;
     private final ConcurrentHashMap<String, Balde> baldes = new ConcurrentHashMap<>();
 
-    @Autowired
-    LimiteDeRequisicoes(LimiteDeRequisicoesProperties limites) {
-        this(limites, Clock.systemUTC());
-    }
-
     LimiteDeRequisicoes(LimiteDeRequisicoesProperties limites, Clock relogio) {
         if (limites.porMinuto() < 1) {
             throw new IllegalStateException("academia.requisicoes.por-minuto precisa ser pelo menos 1");
@@ -66,13 +60,19 @@ class LimiteDeRequisicoes {
         Resultado[] resultado = {Resultado.LIBERADA};
         // compute é atômico por chave: duas requisições do mesmo usuário não gastam a mesma ficha.
         baldes.compute(usuario, (chave, balde) -> {
-            Instant cheioEm = balde == null || balde.cheioEm().isBefore(agora) ? agora : balde.cheioEm();
+            // Mais de uma janela à frente só acontece se o relógio voltou (um ajuste do NTP, o
+            // relógio dos testes restaurado): o balde recomeça cheio, em vez de prender o
+            // usuário até a hora antiga voltar. Ganha-se no máximo uma janela, e só nesse caso.
+            Instant cheioEm = balde == null || balde.cheioEm().isBefore(agora)
+                    || balde.cheioEm().isAfter(agora.plus(janela)) ? agora : balde.cheioEm();
             Instant novoCheioEm = cheioEm.plus(intervalo);
             Duration excesso = Duration.between(agora, novoCheioEm).minus(janela);
             if (excesso.isNegative() || excesso.isZero()) {
                 return new Balde(novoCheioEm, balde == null ? null : balde.avisadoEm());
             }
-            boolean avisar = balde.avisadoEm() == null || !agora.isBefore(balde.avisadoEm().plus(JANELA));
+            // Aviso no futuro: o relógio voltou, e o log não deve ficar calado até a hora antiga.
+            boolean avisar = balde.avisadoEm() == null || balde.avisadoEm().isAfter(agora)
+                    || !agora.isBefore(balde.avisadoEm().plus(JANELA));
             resultado[0] = new Resultado(excesso, avisar);
             return new Balde(balde.cheioEm(), avisar ? agora : balde.avisadoEm());
         });

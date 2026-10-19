@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +39,20 @@ class VisoesDeMatriculaTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    RelogioDeTeste relogio;
+
+    // Relógio parado: "hoje" não vira à meia-noite entre o teste e a aplicação.
+    @BeforeEach
+    void pararRelogio() {
+        relogio.parar();
+    }
+
+    @AfterEach
+    void restaurarRelogio() {
+        relogio.restaurar();
+    }
+
     private final List<UUID> alunos = new ArrayList<>();
     private UUID plano;
     private UUID usuario;
@@ -73,8 +88,8 @@ class VisoesDeMatriculaTest {
         return id;
     }
 
-    private static LocalDate hoje() {
-        return LocalDate.now(Matricula.FUSO);
+    private LocalDate hoje() {
+        return LocalDate.ofInstant(relogio.instant(), Matricula.FUSO);
     }
 
     /** Grava direto: matrículas no passado não passam pela API. */

@@ -54,6 +54,42 @@ class LimiteDeRequisicoesTest {
         assertThat(recusada.esperar()).isEqualTo(Duration.ofSeconds(1));
     }
 
+    /** Um ajuste do NTP (ou o relógio de teste restaurado) não pode prender o usuário. */
+    @Test
+    void relogioQueVoltaNaoPrendeOUsuario() {
+        LimiteDeRequisicoes limite = limite(60);
+        relogio.andar(Duration.ofDays(1));
+        for (int i = 0; i < 60; i++) {
+            limite.consumir("ana");
+        }
+        assertThat(limite.consumir("ana").avisar()).isTrue();
+
+        relogio.andar(Duration.ofDays(-1));
+
+        // O balde recomeça cheio, em vez de esperar um dia; e o log volta a avisar.
+        for (int i = 0; i < 60; i++) {
+            assertThat(limite.consumir("ana").liberada()).as("requisição %d", i + 1).isTrue();
+        }
+        LimiteDeRequisicoes.Resultado recusada = limite.consumir("ana");
+        assertThat(recusada.esperar()).isEqualTo(Duration.ofSeconds(1));
+        assertThat(recusada.avisar()).isTrue();
+    }
+
+    /** Voltar menos de uma janela mantém o que foi gasto: nada de fichas de graça. */
+    @Test
+    void relogioQueVoltaPoucoNaoDevolveFichas() {
+        LimiteDeRequisicoes limite = limite(60);
+        relogio.andar(Duration.ofSeconds(30));
+        for (int i = 0; i < 30; i++) {
+            limite.consumir("ana");
+        }
+
+        relogio.andar(Duration.ofSeconds(-30));
+
+        // Os 30 s em que as fichas voltariam "não aconteceram": o balde está vazio.
+        assertThat(limite.consumir("ana").esperar()).isEqualTo(Duration.ofSeconds(1));
+    }
+
     @Test
     void asFichasVoltamAosPoucosERecusaNaoGastaFicha() {
         LimiteDeRequisicoes limite = limite(60);

@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
 import br.com.academiagestao.auth.Perfil;
@@ -9,6 +10,7 @@ import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -57,6 +59,20 @@ class PermissoesDeMatriculasTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    RelogioDeTeste relogio;
+
+    // Relógio parado: "hoje" não vira à meia-noite entre o teste e a aplicação.
+    @BeforeEach
+    void pararRelogio() {
+        relogio.parar();
+    }
+
+    @AfterEach
+    void restaurarRelogio() {
+        relogio.restaurar();
+    }
 
     private final Map<Perfil, String> tokens = new EnumMap<>(Perfil.class);
     private final List<UUID> usuarios = new ArrayList<>();
@@ -120,7 +136,7 @@ class PermissoesDeMatriculasTest {
 
     private UUID criarMatricula() {
         UUID id = UUID.randomUUID();
-        LocalDate hoje = LocalDate.now(Matricula.FUSO);
+        LocalDate hoje = LocalDate.ofInstant(relogio.instant(), Matricula.FUSO);
         jdbc.update("""
                 INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim, criada_em)
                 VALUES (?, ?, ?, 'Mensal', 100, 1, ?, ?, now())""",
@@ -131,7 +147,7 @@ class PermissoesDeMatriculasTest {
     /** Trancada de ontem até daqui a 9 dias. */
     private UUID criarMatriculaTrancada() {
         UUID id = criarMatricula();
-        LocalDate hoje = LocalDate.now(Matricula.FUSO);
+        LocalDate hoje = LocalDate.ofInstant(relogio.instant(), Matricula.FUSO);
         jdbc.update("UPDATE matriculas SET dias_trancados = 10, fim = fim + 10 WHERE id = ?", id);
         jdbc.update("""
                 INSERT INTO trancamentos (id, matricula_id, inicio, volta_prevista, motivo, criado_por, criado_em)
@@ -151,7 +167,7 @@ class PermissoesDeMatriculasTest {
             case "trancar" -> post("/api/matriculas/" + criarMatricula() + "/trancar")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"voltaPrevista\": \"%s\", \"motivo\": \"Viagem\"}"
-                            .formatted(LocalDate.now(Matricula.FUSO).plusDays(10)));
+                            .formatted(LocalDate.ofInstant(relogio.instant(), Matricula.FUSO).plusDays(10)));
             case "trocar-plano" -> post("/api/matriculas/" + criarMatricula() + "/trocar-plano")
                     .contentType(MediaType.APPLICATION_JSON).content("{\"planoId\": \"%s\"}".formatted(outroPlano));
             case "registrar-volta" -> post("/api/matriculas/" + criarMatriculaTrancada() + "/registrar-volta");

@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +17,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.sql.Date;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -53,6 +55,20 @@ class InativacaoComMatriculaTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    RelogioDeTeste relogio;
+
+    // Relógio parado: "hoje" não vira à meia-noite entre o teste e a aplicação.
+    @BeforeEach
+    void pararRelogio() {
+        relogio.parar();
+    }
+
+    @AfterEach
+    void restaurarRelogio() {
+        relogio.restaurar();
+    }
+
     private final List<UUID> alunos = new ArrayList<>();
     private UUID plano;
     private UUID usuario;
@@ -87,8 +103,8 @@ class InativacaoComMatriculaTest {
         return id;
     }
 
-    private static LocalDate hoje() {
-        return LocalDate.now(Matricula.FUSO);
+    private LocalDate hoje() {
+        return LocalDate.ofInstant(relogio.instant(), Matricula.FUSO);
     }
 
     /** Grava direto: matrículas no passado não passam pela API. */
@@ -167,6 +183,28 @@ class InativacaoComMatriculaTest {
 
         matriculas.cancelar(id, "Vai se mudar", usuario);
 
+        inativar(aluno).andExpect(status().isOk());
+    }
+
+    /**
+     * Matricular, "pode treinar?" e a inativação tiram o "hoje" do relógio único (ADR 0023):
+     * com ele 400 dias à frente, a matrícula começa nesse dia, vale nele e, passado o fim,
+     * deixa inativar. Com o relógio do sistema, ela ficaria agendada e a inativação, recusada.
+     */
+    @Test
+    void hojeVemDoRelogioDaAplicacao() throws Exception {
+        relogio.adiantar(Duration.ofDays(400));
+        UUID aluno = criarAluno();
+
+        Matricula matricula = matriculas.matricular(aluno, plano, null);
+
+        assertThat(matricula.getInicio()).isEqualTo(LocalDate.ofInstant(relogio.instant(), Matricula.FUSO));
+        assertThat(matriculas.temMatriculaVigente(aluno)).isTrue();
+        inativar(aluno).andExpect(status().isConflict());
+
+        relogio.adiantar(Duration.ofDays(40));
+
+        assertThat(matriculas.temMatriculaVigente(aluno)).isFalse();
         inativar(aluno).andExpect(status().isOk());
     }
 

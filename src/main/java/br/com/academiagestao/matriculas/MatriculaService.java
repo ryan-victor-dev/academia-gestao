@@ -4,7 +4,6 @@ import br.com.academiagestao.alunos.AlunosParaMatricula;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.planos.PlanoOfertado;
 import br.com.academiagestao.planos.PlanosParaMatricula;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,11 +25,6 @@ class MatriculaService {
     private final AlunosParaMatricula alunos;
     private final PlanosParaMatricula planos;
     private final Clock relogio;
-
-    @Autowired
-    MatriculaService(MatriculaRepository repository, AlunosParaMatricula alunos, PlanosParaMatricula planos) {
-        this(repository, alunos, planos, Clock.systemUTC());
-    }
 
     MatriculaService(MatriculaRepository repository, AlunosParaMatricula alunos, PlanosParaMatricula planos,
                      Clock relogio) {

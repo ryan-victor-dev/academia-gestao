@@ -21,9 +21,9 @@ class MatriculaImpedeInativacao implements ImpedimentoParaInativar {
     private final MatriculaRepository repository;
     private final Clock relogio;
 
-    MatriculaImpedeInativacao(MatriculaRepository repository) {
+    MatriculaImpedeInativacao(MatriculaRepository repository, Clock relogio) {
         this.repository = repository;
-        this.relogio = Clock.systemUTC();
+        this.relogio = relogio;
     }
 
     @Override

@@ -19,6 +19,8 @@ import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -32,6 +34,7 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import javax.crypto.SecretKey;
+import java.time.Clock;
 import java.util.List;
 
 // Só existe com servidor web; o comando de recuperação de ADMIN sobe sem ele.
@@ -128,15 +131,20 @@ class SegurancaConfig {
 
     /**
      * Valida assinatura, expiração ("exp", com 60 s de tolerância), emissor ("iss") e,
-     * no banco, se o token não foi revogado (usuário ativo e versão do token atual).
+     * no banco, se o token não foi revogado (usuário ativo e versão do token atual). A
+     * expiração é conferida no mesmo relógio que emitiu o token.
      */
     @Bean
-    JwtDecoder jwtDecoder(SecretKey chaveJwt, JwtProperties properties, UsuarioRepository usuarioRepository) {
+    JwtDecoder jwtDecoder(SecretKey chaveJwt, JwtProperties properties, UsuarioRepository usuarioRepository,
+                          Clock relogio) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(chaveJwt)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
+        JwtTimestampValidator expiracao = new JwtTimestampValidator();
+        expiracao.setClock(relogio);
+        // Os padrões do Spring continuam; o de expiração passado aqui toma o lugar do dele.
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(properties.emissor()),
+                JwtValidators.createDefaultWithValidators(expiracao, new JwtIssuerValidator(properties.emissor())),
                 new TokenRevogadoValidator(usuarioRepository)));
         return decoder;
     }
