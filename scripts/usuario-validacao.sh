@@ -9,7 +9,11 @@
 #       PERFIL: ADMIN, RECEPCAO, INSTRUTOR ou ALUNO (ALUNO exige o id de um aluno)
 # Variáveis opcionais: PG_CONTAINER (padrão academia-postgres),
 #                      BASE_URL (padrão https://localhost:<HTTPS_PORTA do .env>)
-# Apagar depois:  DELETE FROM usuarios WHERE email LIKE 'validacao-%';
+# Se o usuário já existe, ganha senha nova e o token anterior deixa de valer. Ele não é
+# apagado e recriado: quem já registrou algo (matrícula, pagamento) é referenciado por
+# chave estrangeira, e o DELETE falharia.
+# Apagar depois: primeiro o que eles registraram, depois
+#                DELETE FROM usuarios WHERE email LIKE 'validacao-%';
 set -euo pipefail
 RAIZ=$(cd "$(dirname "$0")/.." && pwd)
 ENV_FILE=${ENV_FILE:-$RAIZ/.env}
@@ -41,8 +45,10 @@ HASH=$(java -cp "$CRYPTO:$LOGS" "$TMP/H.java" "$SENHA")
 
 if [ -n "$ALUNO" ]; then VALOR_ALUNO="'$ALUNO'"; else VALOR_ALUNO=NULL; fi
 docker exec "$PG" psql -U academia -d academia -v ON_ERROR_STOP=1 -q \
-  -c "DELETE FROM usuarios WHERE email='$EMAIL'" \
-  -c "INSERT INTO usuarios (id,nome,email,senha_hash,perfil,aluno_id) VALUES (gen_random_uuid(),'Validacao $PERFIL','$EMAIL','$HASH','$PERFIL',$VALOR_ALUNO)" >&2
+  -c "INSERT INTO usuarios (id,nome,email,senha_hash,perfil,aluno_id) VALUES (gen_random_uuid(),'Validacao $PERFIL','$EMAIL','$HASH','$PERFIL',$VALOR_ALUNO)
+      ON CONFLICT (lower(email)) DO UPDATE SET senha_hash = EXCLUDED.senha_hash, perfil = EXCLUDED.perfil,
+        aluno_id = EXCLUDED.aluno_id, ativo = true, precisa_trocar_senha = false,
+        versao_token = usuarios.versao_token + 1" >&2
 
 TOKEN=$(curl -sk -X POST "$URL/api/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"senha\":\"$SENHA\"}" | python3 -I -c 'import sys,json; print(json.load(sys.stdin).get("token",""))')
