@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
@@ -47,6 +48,9 @@ class InativacaoComMatriculaTest {
     private static final DateTimeFormatter DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MockMvc mvc;
 
     @Autowired
@@ -86,14 +90,11 @@ class InativacaoComMatriculaTest {
     @AfterEach
     void limpar() {
         for (UUID id : alunos) {
-            jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id = ?)",
-                    id);
-            jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", id);
-            jdbc.update("DELETE FROM alunos WHERE id = ?", id);
+            limpeza.apagar("alunos", id);
         }
         alunos.clear();
-        jdbc.update("DELETE FROM usuarios WHERE id = ?", usuario);
-        jdbc.update("DELETE FROM planos WHERE id = ?", plano);
+        limpeza.apagar("usuarios", usuario);
+        limpeza.apagar("planos", plano);
     }
 
     private UUID criarAluno() {

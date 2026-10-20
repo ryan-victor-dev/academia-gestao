@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
@@ -34,6 +35,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MatriculaConcorrenciaTest {
 
     private static final int RODADAS = 20;
+
+    @Autowired
+    LimpezaDoBanco limpeza;
 
     @Autowired
     MatriculaService service;
@@ -75,14 +79,11 @@ class MatriculaConcorrenciaTest {
     @AfterEach
     void limpar() {
         for (UUID id : alunos) {
-            jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id = ?)",
-                    id);
-            jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", id);
-            jdbc.update("DELETE FROM alunos WHERE id = ?", id);
+            limpeza.apagar("alunos", id);
         }
         alunos.clear();
-        jdbc.update("DELETE FROM usuarios WHERE id = ?", usuario);
-        jdbc.update("DELETE FROM planos WHERE id = ?", plano);
+        limpeza.apagar("usuarios", usuario);
+        limpeza.apagar("planos", plano);
     }
 
     private UUID criarAluno() {
@@ -281,9 +282,9 @@ class MatriculaConcorrenciaTest {
             }
         } finally {
             for (UUID aluno : alunos) {
-                jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", aluno);
+                limpeza.apagarOnde("matriculas", "aluno_id = ?", aluno);
             }
-            jdbc.update("DELETE FROM planos WHERE id = ?", outroPlano);
+            limpeza.apagar("planos", outroPlano);
         }
     }
 }

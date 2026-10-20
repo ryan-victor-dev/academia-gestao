@@ -19,7 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LimpezaDoBancoTest {
 
     private static final List<String> TABELAS = List.of(
-            "alunos", "planos", "usuarios", "matriculas", "trancamentos", "auditoria", "tentativas_login");
+            "alunos", "planos", "usuarios", "matriculas", "trancamentos", "auditoria", "tentativas_login", "cobrancas",
+            "cronogramas");
 
     @Autowired
     LimpezaDoBanco limpeza;
@@ -28,7 +29,7 @@ class LimpezaDoBancoTest {
     JdbcTemplate jdbc;
 
     /** Uma linha em cada tabela, todas ligadas: só sai na ordem certa. */
-    private void preencherTudo() {
+    private UUID preencherTudo() {
         UUID aluno = UUID.randomUUID();
         UUID plano = UUID.randomUUID();
         UUID usuario = UUID.randomUUID();
@@ -50,6 +51,17 @@ class LimpezaDoBancoTest {
         jdbc.update("INSERT INTO auditoria (entidade, entidade_id, acao, alteracoes) VALUES ('ALUNO', ?, 'TESTE', '{}')",
                 aluno);
         jdbc.update("INSERT INTO tentativas_login (tipo, chave, ip, momento) VALUES ('CONTA', 'limpeza@teste.local', '203.0.113.9', now())");
+        jdbc.update("INSERT INTO cronogramas (matricula_id, a_partir_de) VALUES (?, ?)", matricula, hoje);
+        jdbc.update("""
+                INSERT INTO cobrancas (id, matricula_id, aluno_id, tipo, parcela, valor, vencimento, status, pago_acrescimo,
+                                       pago_juros, pago_total, meio_de_pagamento, paga_em, paga_por)
+                VALUES (?, ?, ?, 'MENSALIDADE', 1, 100, ?, 'PAGA', 0, 0, 100, 'PIX', now(), ?)""",
+                UUID.randomUUID(), matricula, aluno, hoje, usuario);
+        return aluno;
+    }
+
+    private int linhasDoAluno(String tabela, UUID aluno) {
+        return jdbc.queryForObject("SELECT count(*) FROM " + tabela + " WHERE aluno_id = ?", Integer.class, aluno);
     }
 
     private int linhas(String tabela) {
@@ -82,6 +94,24 @@ class LimpezaDoBancoTest {
                 .isLessThan(ordem.indexOf("planos"))
                 .isLessThan(ordem.indexOf("alunos"));
         assertThat(ordem.indexOf("usuarios")).isLessThan(ordem.indexOf("alunos"));
+    }
+
+    /** Apaga um aluno e o que depende dele (matrículas, trancamentos, cobranças, login), e só dele. */
+    @Test
+    void apagaUmaLinhaEOQueDependeDela() {
+        UUID apagado = preencherTudo();
+        UUID outro = preencherTudo();
+
+        limpeza.apagar("alunos", apagado);
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM alunos WHERE id = ?", Integer.class, apagado)).isZero();
+        for (String tabela : List.of("matriculas", "cobrancas", "usuarios")) {
+            assertThat(linhasDoAluno(tabela, apagado)).as(tabela).isZero();
+            assertThat(linhasDoAluno(tabela, outro)).as(tabela).isOne();
+        }
+        assertThat(linhas("trancamentos")).isOne();
+        assertThat(linhas("cronogramas")).isOne();
+        limpeza.apagarTudo();
     }
 
     /**

@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
@@ -47,6 +48,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PermissoesDeMatriculasTest {
 
     private static final String SENHA = "senha-de-teste-123";
+
+    @Autowired
+    LimpezaDoBanco limpeza;
 
     @Autowired
     MockMvc mvc;
@@ -110,21 +114,19 @@ class PermissoesDeMatriculasTest {
     @AfterEach
     void limparMatriculas() {
         for (UUID id : alunos) {
-            jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id = ?)",
-                    id);
-            jdbc.update("DELETE FROM matriculas WHERE aluno_id = ?", id);
+            limpeza.apagarOnde("matriculas", "aluno_id = ?", id);
         }
     }
 
     @AfterAll
     void limpar() {
         for (UUID id : usuarios) {
-            jdbc.update("DELETE FROM usuarios WHERE id = ?", id);
+            limpeza.apagar("usuarios", id);
         }
         for (UUID id : alunos) {
-            jdbc.update("DELETE FROM alunos WHERE id = ?", id);
+            limpeza.apagar("alunos", id);
         }
-        jdbc.update("DELETE FROM planos WHERE id IN (?, ?)", plano, outroPlano);
+        limpeza.apagarOnde("planos", "id IN (?, ?)", plano, outroPlano);
     }
 
     private UUID criarAluno() {

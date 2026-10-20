@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
 import org.junit.jupiter.api.AfterEach;
@@ -35,6 +36,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class MatriculaRepositoryTest {
 
     @Autowired
+    LimpezaDoBanco limpeza;
+
+    @Autowired
     MatriculaRepository repository;
 
     @Autowired
@@ -62,17 +66,13 @@ class MatriculaRepositoryTest {
     // precisam sair antes, senão a chave estrangeira quebra esses testes.
     @AfterEach
     void limpar() {
-        jdbc.update("DELETE FROM trancamentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE aluno_id IN (?, ?))",
-                aluno, outroAluno);
-        jdbc.update("DELETE FROM matriculas WHERE aluno_id IN (?, ?) AND troca_de IS NOT NULL", aluno, outroAluno);
-        jdbc.update("DELETE FROM matriculas WHERE aluno_id IN (?, ?)", aluno, outroAluno);
-        jdbc.update("DELETE FROM usuarios WHERE id = ?", usuario);
-        jdbc.update("DELETE FROM planos WHERE id = ?", plano);
+        limpeza.apagarOnde("alunos", "id IN (?, ?)", aluno, outroAluno);
+        limpeza.apagar("usuarios", usuario);
+        limpeza.apagar("planos", plano);
         for (UUID id : planosExtras) {
-            jdbc.update("DELETE FROM planos WHERE id = ?", id);
+            limpeza.apagar("planos", id);
         }
         planosExtras.clear();
-        jdbc.update("DELETE FROM alunos WHERE id IN (?, ?)", aluno, outroAluno);
     }
 
     private UUID criarAluno() {

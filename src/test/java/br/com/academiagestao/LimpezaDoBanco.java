@@ -37,6 +37,44 @@ public class LimpezaDoBanco {
         }
     }
 
+    /**
+     * Apaga uma linha e tudo o que depende dela, seguindo as chaves estrangeiras: o aluno leva
+     * as matrículas, os trancamentos e as cobranças delas, e o login dele. Para quem apaga só
+     * o que criou, sem escrever a ordem das tabelas na mão.
+     */
+    public void apagar(String tabela, Object id) {
+        apagarOnde(tabela, "id = ?", id);
+    }
+
+    /** Como {@link #apagar}, para as linhas que atendem a condição (ex.: "aluno_id = ?"). */
+    public void apagarOnde(String tabela, String condicao, Object... parametros) {
+        apagarOnde(tabela, condicao, parametros, 0);
+    }
+
+    private void apagarOnde(String tabela, String condicao, Object[] parametros, int profundidade) {
+        if (profundidade > 10) {
+            throw new IllegalStateException("Chaves estrangeiras em ciclo a partir de " + tabela);
+        }
+        // Primeiro as filhas que apontam para as linhas escolhidas (autorreferência não: o
+        // mesmo DELETE apaga as duas pontas).
+        List<String[]> filhas = jdbc.query("""
+                SELECT quote_ident(filha.relname), quote_ident(coluna_filha.attname), quote_ident(coluna_mae.attname)
+                FROM pg_constraint c
+                JOIN pg_class filha ON filha.oid = c.conrelid
+                JOIN pg_class mae ON mae.oid = c.confrelid
+                JOIN pg_namespace n ON n.oid = mae.relnamespace
+                JOIN pg_attribute coluna_filha ON coluna_filha.attrelid = c.conrelid AND coluna_filha.attnum = c.conkey[1]
+                JOIN pg_attribute coluna_mae ON coluna_mae.attrelid = c.confrelid AND coluna_mae.attnum = c.confkey[1]
+                WHERE c.contype = 'f' AND n.nspname = 'public' AND quote_ident(mae.relname) = ?
+                  AND filha.oid <> mae.oid""",
+                (linha, i) -> new String[] {linha.getString(1), linha.getString(2), linha.getString(3)}, tabela);
+        for (String[] filha : filhas) {
+            apagarOnde(filha[0], filha[1] + " IN (SELECT " + filha[2] + " FROM " + tabela + " WHERE " + condicao + ")",
+                    parametros, profundidade + 1);
+        }
+        jdbc.update("DELETE FROM " + tabela + " WHERE " + condicao, parametros);
+    }
+
     /** Toda tabela vem depois das que apontam para ela. */
     List<String> ordemParaApagar() {
         Set<String> restantes = new HashSet<>(jdbc.queryForList("""
