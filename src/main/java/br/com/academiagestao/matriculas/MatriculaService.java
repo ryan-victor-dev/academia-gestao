@@ -1,6 +1,7 @@
 package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.alunos.AlunosParaMatricula;
+import br.com.academiagestao.cobranca.CobrancasDasMatriculas;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.planos.PlanoOfertado;
 import br.com.academiagestao.planos.PlanosParaMatricula;
@@ -24,14 +25,30 @@ class MatriculaService {
     private final MatriculaRepository repository;
     private final AlunosParaMatricula alunos;
     private final PlanosParaMatricula planos;
+    private final CobrancasDasMatriculas cobrancas;
     private final Clock relogio;
 
     MatriculaService(MatriculaRepository repository, AlunosParaMatricula alunos, PlanosParaMatricula planos,
-                     Clock relogio) {
+                     CobrancasDasMatriculas cobrancas, Clock relogio) {
         this.repository = repository;
         this.alunos = alunos;
         this.planos = planos;
+        this.cobrancas = cobrancas;
         this.relogio = relogio;
+    }
+
+    /** Grava e acerta as cobranças da matrícula na mesma transação (ADR 0024). */
+    private Matricula gravar(Matricula matricula) {
+        Matricula gravada = repository.saveAndFlush(matricula);
+        cobrancas.acompanhar(gravada.paraCobranca());
+        return gravada;
+    }
+
+    /** Gera as cobranças de uma matrícula que já existia antes da cobrança (ver CobrancasDasMatriculasAntigas). */
+    @Transactional
+    void acompanharCobranca(UUID id) {
+        Matricula matricula = repository.travarPorId(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
+        cobrancas.acompanhar(matricula.paraCobranca());
     }
 
     /**
@@ -61,7 +78,7 @@ class MatriculaService {
             throw periodoOcupado(sobrepostas.getLast());
         }
         try {
-            return repository.saveAndFlush(matricula);
+            return gravar(matricula);
         } catch (DataIntegrityViolationException e) {
             // A trava do aluno já evita a corrida; a restrição do banco é a última garantia
             // (e vale para INSERT feito fora da aplicação). Outra violação é bug: 500.
@@ -121,7 +138,7 @@ class MatriculaService {
                             .formatted(renovacao.get().getInicio().format(DATA)));
         }
         try {
-            return repository.saveAndFlush(matricula);
+            return gravar(matricula);
         } catch (DataIntegrityViolationException e) {
             if (String.valueOf(e.getMessage()).contains(RESTRICAO_DE_PERIODO)) {
                 throw new MatriculaRecusadaException("Trancamento recusado",
@@ -160,8 +177,8 @@ class MatriculaService {
         Matricula nova = Matricula.nova(alunoId, contratado, null, agora);
         atual.encerrarPorTroca(nova, usuarioId, agora);
         // A atual é gravada primeiro: encurtada, ela libera o período para a nova, que começa hoje.
-        repository.saveAndFlush(atual);
-        return repository.saveAndFlush(nova);
+        gravar(atual);
+        return gravar(nova);
     }
 
     /** O aluno voltou antes do previsto (ou desistiu do trancamento agendado). */
@@ -169,7 +186,7 @@ class MatriculaService {
     Matricula registrarVolta(UUID id, UUID usuarioId) {
         Matricula matricula = repository.travarPorId(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
         matricula.registrarVolta(usuarioId, relogio.instant());
-        return repository.saveAndFlush(matricula);
+        return gravar(matricula);
     }
 
     /** Trava a matrícula: um segundo cancelamento simultâneo espera e recebe 409 (já cancelada). */
@@ -177,7 +194,7 @@ class MatriculaService {
     Matricula cancelar(UUID id, String motivo, UUID usuarioId) {
         Matricula matricula = repository.travarPorId(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
         matricula.cancelar(usuarioId, motivo, relogio.instant());
-        return repository.saveAndFlush(matricula);
+        return gravar(matricula);
     }
 
     /** O mesmo relógio do service, para a resposta calcular a situação de cada matrícula. */

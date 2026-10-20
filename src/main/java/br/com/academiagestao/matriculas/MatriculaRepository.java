@@ -1,6 +1,7 @@
 package br.com.academiagestao.matriculas;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -39,6 +40,10 @@ interface MatriculaRepository extends JpaRepository<Matricula, UUID> {
 
     /** A primeira matrícula não cancelada do aluno que começa depois do dia informado (renovação). */
     Optional<Matricula> findFirstByAlunoIdAndCanceladaEmIsNullAndInicioAfterOrderByInicio(UUID alunoId, LocalDate dia);
+
+    /** Ids em ordem, a partir de um (paginação por chave, para percorrer todas). */
+    @Query("SELECT m.id FROM Matricula m WHERE m.id > :depoisDe ORDER BY m.id")
+    List<UUID> idsDepoisDe(UUID depoisDe, Pageable pagina);
 
     /** SELECT ... FOR UPDATE: dois cancelamentos da mesma matrícula não passam juntos. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

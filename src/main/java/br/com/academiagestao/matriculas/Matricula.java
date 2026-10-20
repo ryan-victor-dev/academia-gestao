@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.cobranca.dominio.MatriculaParaCobranca;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.planos.FormaPagamento;
@@ -382,6 +383,27 @@ public class Matricula {
         return valorMensal.multiply(BigDecimal.valueOf(mesesRestantes))
                 .multiply(percentualMulta)
                 .divide(CEM, 2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * O que a cobrança precisa saber desta matrícula (ADR 0024): valor, duração, forma de
+     * pagamento, início, os dias realmente parados de cada trancamento e o encerramento.
+     */
+    MatriculaParaCobranca paraCobranca() {
+        // Um trancamento desfeito tem 0 dias e não empurra nada.
+        List<MatriculaParaCobranca.Pausa> pausas = trancamentos.stream()
+                .map(t -> new MatriculaParaCobranca.Pausa(t.getInicio(), t.dias()))
+                .toList();
+        MatriculaParaCobranca.Encerramento encerramento = null;
+        if (canceladaEm != null) {
+            encerramento = new MatriculaParaCobranca.Encerramento(
+                    MatriculaParaCobranca.Encerramento.Tipo.CANCELAMENTO, hoje(canceladaEm), multa);
+        } else if (trocadaEm != null) {
+            encerramento = new MatriculaParaCobranca.Encerramento(
+                    MatriculaParaCobranca.Encerramento.Tipo.TROCA, trocadaEm, multa);
+        }
+        return new MatriculaParaCobranca(id, alunoId, valorMensal, duracaoMeses,
+                formaPagamento == FormaPagamento.A_VISTA, inicio, pausas, encerramento);
     }
 
     static LocalDate hoje(Instant agora) {
