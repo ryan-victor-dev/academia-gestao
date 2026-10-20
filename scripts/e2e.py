@@ -201,6 +201,10 @@ s, b, _ = req("POST", f"/api/cobrancas/{multa}/estornar", {"motivo": "Pix devolv
 confere("ADMIN estorna: volta a dever", s == 200 and b["situacao"] == "PENDENTE" and b["pagamento"] is None, (s, b))
 s, b, _ = req("GET", f"/api/auditoria?entidade=COBRANCA&entidadeId={multa}", token=ADM)
 confere("trilha do pagamento e do estorno", s == 200 and [r["acao"] for r in b["conteudo"]] == ["ESTORNADA", "PAGA"], (s, b))
+s, b, _ = req("GET", f"/api/cobrancas/{multa}/lancamentos", token=REC)
+confere("registro guarda o pagamento e o estorno apontando para ele", s == 200
+        and [l["tipo"] for l in b] == ["PAGAMENTO", "ESTORNO"] and b[1]["estorna"] == b[0]["id"]
+        and b[0]["total"] == 219.78 and b[1]["motivo"] == "Pix devolvido", (s, b))
 
 s, b, _ = req("POST", "/api/alunos", {"nome": "Ana Atrasada", "cpf": "390.533.447-05"}, REC)
 ANA = b["id"]

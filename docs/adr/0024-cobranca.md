@@ -1,6 +1,6 @@
 # ADR 0024 — Cobrança: mensalidades, atraso, pagamento e inadimplência
 
-- **Status:** Aceito (completa o ADR 0018; substitui a máquina de estados do ADR 0004)
+- **Status:** Aceito (completa o ADR 0018; substitui a máquina de estados do ADR 0004); completado pelo [ADR 0025](0025-pendencias-medias-da-cobranca.md)
 - **Data:** 2026-10-19
 
 ## Contexto

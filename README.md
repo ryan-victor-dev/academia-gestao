@@ -41,23 +41,21 @@ br.com.academiagestao
 └── compartilhado  o que é comum a todos os módulos
 ```
 
-A regra mais sensível — o ciclo de vida da mensalidade — é uma máquina de
-estados em Java puro, sem dependência de framework ou banco:
+A regra mais sensível — o ciclo de vida da cobrança — é uma máquina de estados em
+Java puro, sem dependência de framework ou banco (ADR 0024). "Atrasada" não é um
+estado guardado: é a pendente com o vencimento no passado.
 
 ```mermaid
 stateDiagram-v2
     [*] --> PENDENTE
-    PENDENTE --> PAGA
-    PENDENTE --> VENCIDA
-    PENDENTE --> CANCELADA
-    VENCIDA --> PAGA
-    VENCIDA --> CANCELADA
-    PAGA --> ESTORNADA
-    ESTORNADA --> [*]
+    PENDENTE --> PAGA: pagar
+    PAGA --> PENDENTE: estornar
+    PENDENTE --> CANCELADA: cancelar
     CANCELADA --> [*]
 ```
 
-Qualquer transição fora do diagrama lança `TransicaoInvalidaException`.
+Qualquer transição fora do diagrama lança `TransicaoInvalidaException`. O estorno não
+apaga o pagamento: os dois ficam no registro de lançamentos, que só cresce (ADR 0025).
 
 As decisões de arquitetura e seus motivos estão registradas em
 [`docs/adr/`](docs/adr):
@@ -88,6 +86,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0022](docs/adr/0022-bloqueio-por-conta-e-ip-e-retencao-da-auditoria.md) | Bloqueio de login por conta e IP, e retenção da trilha de auditoria |
 | [0023](docs/adr/0023-relogio-unico-e-limpeza-central-dos-testes.md) | Relógio único (datas testáveis, fuso da academia) e limpeza central dos testes |
 | [0024](docs/adr/0024-cobranca.md) | Cobrança: mensalidades, atraso, pagamento e inadimplência |
+| [0025](docs/adr/0025-pendencias-medias-da-cobranca.md) | Pendências médias da cobrança: teto do plano, subida e registro de pagamentos |
 
 ## Como rodar
 
@@ -196,6 +195,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/cobrancas/atrasadas?pagina=&tamanho=` (as em aberto já vencidas, da mais antiga) | ADMIN, RECEPCAO |
 | `POST /api/cobrancas/{id}/pagar` (`valor` igual ao devido hoje e `meioDePagamento`: `DINHEIRO`, `PIX`, `CARTAO_DEBITO` ou `CARTAO_CREDITO`) | ADMIN, RECEPCAO |
 | `POST /api/cobrancas/{id}/estornar` (volta a dever) e `/cancelar` (só em aberto), com `motivo` | ADMIN |
+| `GET /api/cobrancas/{id}/lancamentos` (pagamentos e estornos, na ordem; nada se apaga⁷) | ADMIN, RECEPCAO |
 | `GET /api/cobrancas/configuracao`, `PUT` (exige `If-Match`²; acréscimo, juros e dias para bloquear⁷) | Ler: ADMIN, RECEPCAO; alterar: ADMIN |
 | `GET /api/cobrancas/me` | ALUNO (as próprias) |
 | `GET /api/auditoria?entidade=&entidadeId=&pagina=&tamanho=` (quem alterou planos, alunos e usuários, e o valor anterior⁶) | ADMIN |
@@ -234,8 +234,10 @@ vencimento, ela soma um acréscimo único (percentual ou em reais, cortado em 2%
 o teto do CDC) e juros simples por dia (padrão 2% e 1% ao mês, editáveis pelo ADMIN e
 válidos para todas a partir da mudança). Depois de 10 dias de atraso (editável), o
 "pode treinar?" diz não. Só o ADMIN estorna (a cobrança volta a dever) ou cancela, com
-motivo; tudo vai para a trilha (`entidade` `COBRANCA` ou `CONFIGURACAO`). As matrículas
-que já existiam antes da cobrança ganharam só as cobranças de hoje em diante.
+motivo; tudo vai para a trilha (`entidade` `COBRANCA` ou `CONFIGURACAO`). Cada pagamento e
+cada estorno entram também no registro de lançamentos, onde o estorno é um lançamento novo
+que aponta para o pagamento (ADR 0025). As matrículas que já existiam antes da cobrança
+ganharam só as cobranças de hoje em diante. O valor mensal de um plano vai até R$ 100.000.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.

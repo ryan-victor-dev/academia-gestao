@@ -104,12 +104,17 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - Toda alteração de plano, aluno ou usuário registra na trilha (`Auditoria`, ADR 0021), na
   mesma transação. O usuário da aplicação não apaga a trilha (só a função da retenção de 5
   anos, ADR 0022, apaga o vencido); nos testes, limpe com o `JdbcTemplate` (dono do banco).
+- Pagamento e estorno também gravam em `lancamentos` (ADR 0025), que só aceita INSERT: teste
+  que insere uma cobrança `PAGA` direto no banco e a estorna precisa inserir o lançamento do
+  pagamento junto (senão, 500). Use a API para pagar.
+- Usuário de validação que registrou algo não pode ser apagado (chave estrangeira): o
+  `scripts/usuario-validacao.sh` só troca a senha; no fim, apague primeiro o que ele criou.
 - Nos testes, a aplicação conecta como o dono do banco (`@ServiceConnection`), e não como
   `academia_app`: para provar uma permissão, conecte como `academia_app` (veja
   `UsuarioDaAplicacaoNoBancoTest`).
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021 e 0022; dinheiro, no 0024. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021 e 0022; dinheiro, nos 0024 e 0025. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.
