@@ -66,13 +66,16 @@ class LimpezaDoBancoTest {
 
         TABELAS.forEach(t -> assertThat(linhas(t)).as(t).isZero());
         assertThat(linhas("flyway_schema_history")).isEqualTo(migracoes);
+        assertThat(linhas("configuracao_cobranca")).isEqualTo(1);
     }
 
     @Test
     void filhasAntesDasMaes() {
         List<String> ordem = limpeza.ordemParaApagar();
 
-        assertThat(ordem).containsExactlyInAnyOrderElementsOf(TABELAS);
+        assertThat(ordem).containsAll(TABELAS).doesNotContainAnyElementsOf(LimpezaDoBanco.FICAM);
+        assertThat(ordem.indexOf("cobrancas")).isLessThan(ordem.indexOf("matriculas"));
+        assertThat(ordem.indexOf("cronogramas")).isLessThan(ordem.indexOf("matriculas"));
         assertThat(ordem.indexOf("trancamentos")).isLessThan(ordem.indexOf("matriculas"));
         assertThat(ordem.indexOf("matriculas"))
                 .isLessThan(ordem.indexOf("usuarios"))

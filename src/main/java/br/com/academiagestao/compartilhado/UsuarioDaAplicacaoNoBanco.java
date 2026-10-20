@@ -76,6 +76,10 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             // A trilha de auditoria só cresce: a aplicação insere e lê, mas não apaga nem
             // reescreve o histórico (nem com uma injeção de SQL).
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE auditoria FROM " + usuario);
+            // Dinheiro não some: cobrança só muda de estado (cancelada, estornada), nunca é
+            // apagada. A configuração é uma linha só, que a aplicação lê e altera.
+            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE cobrancas FROM " + usuario);
+            sql.execute("REVOKE INSERT, DELETE, TRUNCATE ON TABLE configuracao_cobranca FROM " + usuario);
             // A única saída da trilha: a função do dono que só apaga o que passou do prazo (V21).
             sql.execute("GRANT EXECUTE ON FUNCTION apagar_auditoria_vencida(integer) TO " + usuario);
             sql.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + usuario);

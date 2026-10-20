@@ -86,6 +86,24 @@ class UsuarioDaAplicacaoNoBancoTest {
         }
     }
 
+    /** Cobrança só muda de estado, nunca é apagada; a configuração é uma linha só (ADR 0024). */
+    @Test
+    void cobrancasNaoSaoApagadasEAConfiguracaoSoEhAlterada() {
+        assertThatCode(() -> {
+            executar("SELECT count(*) FROM cobrancas");
+            executar("UPDATE cobrancas SET versao = versao WHERE false");
+            executar("SELECT * FROM configuracao_cobranca");
+            executar("UPDATE configuracao_cobranca SET versao = versao WHERE false");
+        }).doesNotThrowAnyException();
+        for (String ataque : List.of("DELETE FROM cobrancas", "TRUNCATE cobrancas",
+                "DELETE FROM configuracao_cobranca",
+                "INSERT INTO configuracao_cobranca (id, tipo_acrescimo, acrescimo, juros_ao_mes, dias_para_bloquear) "
+                        + "VALUES (2, 'VALOR', 7, 1, 10)")) {
+            assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
+                    .hasMessageContaining("permission denied");
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "DROP TABLE alunos",
