@@ -1,6 +1,6 @@
 # ADR 0004 — Regras de negócio em Java puro, separadas da persistência
 
-- **Status:** Aceito
+- **Status:** Aceito; a máquina de estados foi substituída pela do ADR 0024 (o domínio continua em Java puro)
 - **Data:** 2026-10-16
 
 ## Contexto
