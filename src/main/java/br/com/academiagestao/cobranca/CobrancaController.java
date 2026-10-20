@@ -4,6 +4,7 @@ import br.com.academiagestao.auth.ClaimsDoToken;
 import br.com.academiagestao.cobranca.CobrancaService.Consulta;
 import br.com.academiagestao.cobranca.dominio.Cancelamento;
 import br.com.academiagestao.cobranca.dominio.Cobranca;
+import br.com.academiagestao.cobranca.dominio.Lancamento;
 import br.com.academiagestao.cobranca.dominio.MeioDePagamento;
 import br.com.academiagestao.cobranca.dominio.Pagamento;
 import br.com.academiagestao.cobranca.dominio.StatusCobranca;
@@ -85,6 +86,13 @@ class CobrancaController {
         return CobrancaResponse.de(service.buscar(id));
     }
 
+    /** O registro de pagamentos e estornos da cobrança, na ordem (ADR 0025): nada some no estorno. */
+    @GetMapping("/{id}/lancamentos")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    List<LancamentoResponse> lancamentos(@PathVariable UUID id) {
+        return service.lancamentos(id).stream().map(LancamentoResponse::de).toList();
+    }
+
     /** O valor precisa ser o devido hoje (o "devidoHoje.total" da consulta). */
     @PostMapping("/{id}/pagar")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
@@ -162,6 +170,16 @@ class CobrancaController {
                              Instant em, UUID por) {
         static PagamentoResponse de(Pagamento p) {
             return new PagamentoResponse(p.total(), p.acrescimo(), p.juros(), p.meio(), p.em(), p.por());
+        }
+    }
+
+    /** {@code estorna} e {@code motivo} só no estorno. */
+    record LancamentoResponse(UUID id, Lancamento.Tipo tipo, UUID estorna, BigDecimal valor, BigDecimal acrescimo,
+                              BigDecimal juros, BigDecimal total, MeioDePagamento meio, Instant em, UUID por,
+                              String motivo) {
+        static LancamentoResponse de(Lancamento l) {
+            return new LancamentoResponse(l.id(), l.tipo(), l.estorna(), l.valor(), l.acrescimo(), l.juros(), l.total(),
+                    l.meio(), l.em(), l.por(), l.motivo());
         }
     }
 

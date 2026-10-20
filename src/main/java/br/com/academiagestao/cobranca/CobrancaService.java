@@ -1,7 +1,7 @@
 package br.com.academiagestao.cobranca;
 
 import br.com.academiagestao.cobranca.dominio.Cobranca;
-import br.com.academiagestao.cobranca.dominio.CobrancaInvalidaException;
+import br.com.academiagestao.cobranca.dominio.Lancamento;
 import br.com.academiagestao.cobranca.dominio.MeioDePagamento;
 import br.com.academiagestao.cobranca.dominio.Pagamento;
 import br.com.academiagestao.cobranca.dominio.RegrasDeAtraso;
@@ -26,19 +26,22 @@ import static br.com.academiagestao.compartilhado.Auditoria.Entidade.COBRANCA;
 
 /**
  * Consultar, pagar, estornar e cancelar cobranças (ADR 0024). Cada operação trava a cobrança
- * e vai para a trilha na mesma transação.
+ * e vai para a trilha na mesma transação; pagamentos e estornos também vão para o registro de
+ * lançamentos (ADR 0025).
  */
 @Service
 class CobrancaService {
 
     private final CobrancaRepository repository;
+    private final LancamentoRepository lancamentos;
     private final ConfiguracaoDaCobrancaRepository configuracao;
     private final Auditoria auditoria;
     private final Clock relogio;
 
-    CobrancaService(CobrancaRepository repository, ConfiguracaoDaCobrancaRepository configuracao,
-                    Auditoria auditoria, Clock relogio) {
+    CobrancaService(CobrancaRepository repository, LancamentoRepository lancamentos,
+                    ConfiguracaoDaCobrancaRepository configuracao, Auditoria auditoria, Clock relogio) {
         this.repository = repository;
+        this.lancamentos = lancamentos;
         this.configuracao = configuracao;
         this.auditoria = auditoria;
         this.relogio = relogio;
@@ -61,6 +64,13 @@ class CobrancaService {
         return consulta(cobranca, configuracao.ler().regras(), hoje());
     }
 
+    /** Pagamentos e estornos da cobrança, na ordem em que aconteceram. */
+    @Transactional(readOnly = true)
+    List<Lancamento> lancamentos(UUID id) {
+        repository.buscar(id).orElseThrow(() -> new CobrancaNaoEncontradaException(id));
+        return lancamentos.daCobranca(id);
+    }
+
     /** As em aberto já vencidas de todos os alunos, da mais antiga para a mais nova. */
     @Transactional(readOnly = true)
     Pagina<Consulta> atrasadas(int pagina, int tamanho) {
@@ -80,17 +90,27 @@ class CobrancaService {
         RegrasDeAtraso regras = configuracao.ler().regras();
         LocalDate hoje = hoje();
         cobranca.pagar(regras, hoje, valor, meio, usuarioId, relogio.instant());
-        return gravar(cobranca, "PAGA", antes, null, regras, hoje);
+        Consulta paga = gravar(cobranca, "PAGA", antes, null, regras, hoje);
+        lancamentos.inserir(Lancamento.doPagamento(cobranca));
+        return paga;
     }
 
-    /** Só o ADMIN: desfaz o pagamento e a cobrança volta a ficar em aberto. */
+    /**
+     * Só o ADMIN: a cobrança volta a ficar em aberto, e o pagamento continua no registro, com
+     * um lançamento de estorno ao lado (ADR 0025).
+     */
     @Transactional
     Consulta estornar(UUID id, String motivo, UUID usuarioId) {
-        String motivoLimpo = motivoObrigatorio(motivo);
+        String motivoLimpo = Cobranca.motivoValido(motivo);
         Cobranca cobranca = travar(id);
         Map<String, Object> antes = retrato(cobranca);
         cobranca.estornar();
-        return gravar(cobranca, "ESTORNADA", antes, motivoLimpo, configuracao.ler().regras(), hoje());
+        Lancamento estorno = lancamentos.pagamentoEmVigor(id)
+                .orElseThrow(() -> new IllegalStateException("cobrança paga sem o lançamento do pagamento: " + id))
+                .estornar(motivoLimpo, usuarioId, relogio.instant());
+        Consulta estornada = gravar(cobranca, "ESTORNADA", antes, motivoLimpo, configuracao.ler().regras(), hoje());
+        lancamentos.inserir(estorno);
+        return estornada;
     }
 
     /** Só o ADMIN, só em aberto (paga: estorne antes). */
@@ -116,15 +136,6 @@ class CobrancaService {
         }
         auditoria.registrar(COBRANCA, cobranca.getId(), acao, antes, depois);
         return consulta(repository.buscar(cobranca.getId()).orElseThrow(), regras, hoje);
-    }
-
-    private static String motivoObrigatorio(String motivo) {
-        String limpo = motivo == null ? "" : motivo.trim();
-        if (limpo.isEmpty() || limpo.length() > Cobranca.TAMANHO_MAXIMO_MOTIVO) {
-            throw new CobrancaInvalidaException("o motivo é obrigatório, com até " + Cobranca.TAMANHO_MAXIMO_MOTIVO
-                    + " caracteres");
-        }
-        return limpo;
     }
 
     private static Consulta consulta(Cobranca cobranca, RegrasDeAtraso regras, LocalDate hoje) {

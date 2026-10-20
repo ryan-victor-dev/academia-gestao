@@ -104,6 +104,20 @@ class UsuarioDaAplicacaoNoBancoTest {
         }
     }
 
+    /** O registro de pagamentos só cresce: o estorno é um lançamento novo (ADR 0025). */
+    @Test
+    void lancamentosSoAceitamInserirELer() {
+        assertThatCode(() -> executar("SELECT count(*) FROM lancamentos")).doesNotThrowAnyException();
+        // INSERT sem linhas: a permissão é conferida mesmo assim.
+        assertThatCode(() -> executar("INSERT INTO lancamentos SELECT * FROM lancamentos WHERE false"))
+                .doesNotThrowAnyException();
+        for (String ataque : List.of("UPDATE lancamentos SET total = total WHERE false", "DELETE FROM lancamentos",
+                "TRUNCATE lancamentos")) {
+            assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
+                    .hasMessageContaining("permission denied");
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "DROP TABLE alunos",

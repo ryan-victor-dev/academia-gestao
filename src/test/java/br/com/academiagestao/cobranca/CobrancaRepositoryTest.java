@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
@@ -116,6 +117,40 @@ class CobrancaRepositoryTest {
 
         assertThat(repository.travarDaMatricula(matricula).getFirst().getPagamento().total())
                 .isEqualByComparingTo(devido).isGreaterThan(new BigDecimal("99999999.99"));
+    }
+
+    private static final String LANCAMENTO = """
+            INSERT INTO lancamentos (id, cobranca_id, tipo, estorna, valor, acrescimo, juros, total, meio_de_pagamento,
+                                     registrado_em, registrado_por, motivo)
+            VALUES (?, ?, ?, ?, 100, 2, 1, ?, 'PIX', now(), ?, ?)""";
+
+    /** As travas do registro (V24), também para quem grava sem passar pelo Java. */
+    @Test
+    void bancoRecusaLancamentoIncoerente() {
+        List<Cobranca> cobrancas = gravarCronograma();
+        UUID primeira = cobrancas.get(0).getId();
+        UUID segunda = cobrancas.get(1).getId();
+        UUID pagamento = UUID.randomUUID();
+        jdbc.update(LANCAMENTO, pagamento, primeira, "PAGAMENTO", null, new BigDecimal("103"), usuario, null);
+
+        // Total que não fecha; pagamento com motivo ou apontando para outro; estorno sem motivo.
+        recusa("ck_lancamentos_total", primeira, "PAGAMENTO", null, "102", null);
+        recusa("ck_lancamentos_estorno", primeira, "PAGAMENTO", null, "103", "Engano");
+        recusa("ck_lancamentos_estorno", primeira, "PAGAMENTO", pagamento, "103", null);
+        recusa("ck_lancamentos_estorno", primeira, "ESTORNO", pagamento, "103", null);
+        recusa("ck_lancamentos_estorno", primeira, "ESTORNO", pagamento, "103", "  ");
+        recusa("ck_lancamentos_estorno", primeira, "ESTORNO", null, "103", "Engano");
+        // O estorno é do pagamento da mesma cobrança, e uma vez só.
+        recusa("fk_lancamentos_estorno_da_mesma_cobranca", segunda, "ESTORNO", pagamento, "103", "Engano");
+        jdbc.update(LANCAMENTO, UUID.randomUUID(), primeira, "ESTORNO", pagamento, new BigDecimal("103"), usuario,
+                "Engano");
+        recusa("lancamentos_estorna_key", primeira, "ESTORNO", pagamento, "103", "De novo");
+    }
+
+    private void recusa(String restricao, UUID cobranca, String tipo, UUID estorna, String total, String motivo) {
+        assertThatThrownBy(() -> jdbc.update(LANCAMENTO, UUID.randomUUID(), cobranca, tipo, estorna,
+                new BigDecimal(total), usuario, motivo)).as(restricao)
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining(restricao);
     }
 
     /** Duas gravações a partir da mesma leitura: a segunda não sobrescreve a primeira. */

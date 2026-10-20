@@ -79,6 +79,8 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             // Dinheiro não some: cobrança só muda de estado (cancelada, estornada), nunca é
             // apagada. A configuração é uma linha só, que a aplicação lê e altera.
             sql.execute("REVOKE DELETE, TRUNCATE ON TABLE cobrancas FROM " + usuario);
+            // O registro de pagamentos só cresce: o estorno é um lançamento novo (ADR 0025).
+            sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE lancamentos FROM " + usuario);
             sql.execute("REVOKE INSERT, DELETE, TRUNCATE ON TABLE configuracao_cobranca FROM " + usuario);
             // A única saída da trilha: a função do dono que só apaga o que passou do prazo (V21).
             sql.execute("GRANT EXECUTE ON FUNCTION apagar_auditoria_vencida(integer) TO " + usuario);

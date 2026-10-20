@@ -83,7 +83,10 @@ public class Cobranca {
                 agora.truncatedTo(ChronoUnit.MICROS), por);
     }
 
-    /** Desfaz o pagamento: a cobrança volta a ficar em aberto e pode atrasar (ADR 0024). */
+    /**
+     * Desfaz o pagamento: a cobrança volta a ficar em aberto e pode atrasar (ADR 0024). O
+     * pagamento continua no registro, com o estorno ao lado ({@link Lancamento}, ADR 0025).
+     */
     public void estornar() {
         conferirTransicao(StatusCobranca.PENDENTE);
         this.status = StatusCobranca.PENDENTE;
@@ -95,13 +98,19 @@ public class Cobranca {
      */
     public void cancelar(String motivo, UUID por, Instant agora) {
         conferirTransicao(StatusCobranca.CANCELADA);
-        String motivoLimpo = motivo == null ? "" : motivo.trim();
-        if (motivoLimpo.isEmpty() || motivoLimpo.length() > TAMANHO_MAXIMO_MOTIVO) {
+        String motivoLimpo = motivoValido(motivo);
+        this.status = StatusCobranca.CANCELADA;
+        this.cancelamento = new Cancelamento(agora.truncatedTo(ChronoUnit.MICROS), por, motivoLimpo);
+    }
+
+    /** O motivo de um cancelamento ou estorno, sem os espaços das pontas: obrigatório e com até 500 caracteres. */
+    public static String motivoValido(String motivo) {
+        String limpo = motivo == null ? "" : motivo.trim();
+        if (limpo.isEmpty() || limpo.length() > TAMANHO_MAXIMO_MOTIVO) {
             throw new CobrancaInvalidaException("o motivo é obrigatório, com até " + TAMANHO_MAXIMO_MOTIVO
                     + " caracteres");
         }
-        this.status = StatusCobranca.CANCELADA;
-        this.cancelamento = new Cancelamento(agora.truncatedTo(ChronoUnit.MICROS), por, motivoLimpo);
+        return limpo;
     }
 
     /** O cronograma mudou (trancamento, volta): a cobrança vence em outro dia. */

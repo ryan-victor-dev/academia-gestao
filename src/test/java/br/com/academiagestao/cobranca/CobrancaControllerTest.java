@@ -22,11 +22,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -247,6 +250,83 @@ class CobrancaControllerTest {
         acao(id, "estornar", "De novo", admin())
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value(containsString("não há pagamento")));
+    }
+
+    private List<Map<String, Object>> lancamentosNoBanco(UUID id) {
+        return jdbc.queryForList("SELECT id, tipo, estorna, total, meio_de_pagamento, registrado_por, motivo "
+                + "FROM lancamentos WHERE cobranca_id = ? ORDER BY registrado_em, tipo DESC", id);
+    }
+
+    /**
+     * O estorno não apaga o pagamento: ele continua no registro, com o estorno ao lado, e o
+     * novo pagamento entra depois (ADR 0025). O caixa confere o que entrou e o que saiu.
+     */
+    @Test
+    void registroGuardaPagamentoEstornoENovoPagamento() throws Exception {
+        UUID id = cobranca(1, 15);
+        pagar(id, "102.50", recepcao()).andExpect(status().isOk());
+        relogio.adiantar(Duration.ofMinutes(5));
+        acao(id, "estornar", "Cartão contestado", admin()).andExpect(status().isOk());
+        relogio.adiantar(Duration.ofMinutes(5));
+        mvc.perform(post("/api/cobrancas/" + id + "/pagar").with(como("RECEPCAO", outraRecepcao))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"valor\": 102.50, \"meioDePagamento\": \"DINHEIRO\"}"))
+                .andExpect(status().isOk());
+
+        List<Map<String, Object>> registro = lancamentosNoBanco(id);
+        assertThat(registro).extracting(l -> l.get("tipo")).containsExactly("PAGAMENTO", "ESTORNO", "PAGAMENTO");
+        assertThat(registro.get(0)).containsEntry("meio_de_pagamento", "PIX").containsEntry("registrado_por", recepcao);
+        assertThat(registro.get(1)).containsEntry("estorna", registro.get(0).get("id"))
+                .containsEntry("meio_de_pagamento", "PIX").containsEntry("registrado_por", admin)
+                .containsEntry("motivo", "Cartão contestado");
+        assertThat(registro.get(2)).containsEntry("meio_de_pagamento", "DINHEIRO")
+                .containsEntry("registrado_por", outraRecepcao).containsEntry("estorna", null);
+        assertThat(registro).extracting(l -> ((BigDecimal) l.get("total")).toPlainString())
+                .containsOnly("102.50");
+
+        mvc.perform(get("/api/cobrancas/" + id + "/lancamentos").with(recepcao()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].tipo").value("PAGAMENTO"))
+                .andExpect(jsonPath("$[0].acrescimo").value(2.00))
+                .andExpect(jsonPath("$[0].juros").value(0.50))
+                .andExpect(jsonPath("$[1].tipo").value("ESTORNO"))
+                .andExpect(jsonPath("$[1].estorna").value(registro.get(0).get("id").toString()))
+                .andExpect(jsonPath("$[1].motivo").value("Cartão contestado"))
+                .andExpect(jsonPath("$[2].meio").value("DINHEIRO"));
+
+        // O segundo estorno é do pagamento em vigor, não do que já foi estornado.
+        relogio.adiantar(Duration.ofMinutes(5));
+        acao(id, "estornar", "Nota falsa", admin()).andExpect(status().isOk());
+        assertThat(lancamentosNoBanco(id)).hasSize(4).last()
+                .satisfies(l -> assertThat(l).containsEntry("tipo", "ESTORNO")
+                        .containsEntry("estorna", registro.get(2).get("id"))
+                        .containsEntry("meio_de_pagamento", "DINHEIRO"));
+    }
+
+    /** Recusados (valor errado, motivo vazio, já paga) não deixam lançamento nenhum. */
+    @Test
+    void operacaoRecusadaNaoEntraNoRegistro() throws Exception {
+        UUID id = cobranca(1, 0);
+        pagar(id, "99", recepcao()).andExpect(status().isConflict());
+        acao(id, "estornar", "Engano", admin()).andExpect(status().isConflict());
+        assertThat(lancamentosNoBanco(id)).isEmpty();
+
+        pagar(id, "100", recepcao()).andExpect(status().isOk());
+        pagar(id, "100", recepcao()).andExpect(status().isConflict());
+        acao(id, "estornar", "  ", admin()).andExpect(status().isBadRequest());
+        assertThat(lancamentosNoBanco(id)).extracting(l -> l.get("tipo")).containsExactly("PAGAMENTO");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"INSTRUTOR", "ALUNO"})
+    void registroSoParaAEquipe(String perfil) throws Exception {
+        UUID id = cobranca(1, 0);
+        mvc.perform(get("/api/cobrancas/" + id + "/lancamentos").with(como(perfil, UUID.randomUUID())))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/cobrancas/" + id + "/lancamentos").with(admin())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mvc.perform(get("/api/cobrancas/" + UUID.randomUUID() + "/lancamentos").with(recepcao()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
