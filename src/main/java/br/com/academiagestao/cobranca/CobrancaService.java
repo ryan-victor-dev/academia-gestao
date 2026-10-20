@@ -9,6 +9,7 @@ import br.com.academiagestao.cobranca.dominio.StatusCobranca;
 import br.com.academiagestao.cobranca.dominio.ValorDevido;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.Calendario;
+import br.com.academiagestao.compartilhado.Pagina;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +59,17 @@ class CobrancaService {
     Consulta buscar(UUID id) {
         Cobranca cobranca = repository.buscar(id).orElseThrow(() -> new CobrancaNaoEncontradaException(id));
         return consulta(cobranca, configuracao.ler().regras(), hoje());
+    }
+
+    /** As em aberto já vencidas de todos os alunos, da mais antiga para a mais nova. */
+    @Transactional(readOnly = true)
+    Pagina<Consulta> atrasadas(int pagina, int tamanho) {
+        RegrasDeAtraso regras = configuracao.ler().regras();
+        LocalDate hoje = hoje();
+        long total = repository.contarAtrasadas(hoje);
+        List<Consulta> conteudo = repository.atrasadas(hoje, pagina, tamanho).stream()
+                .map(c -> consulta(c, regras, hoje)).toList();
+        return new Pagina<>(conteudo, pagina, tamanho, total, (int) ((total + tamanho - 1) / tamanho));
     }
 
     /** Só o valor exato devido hoje; outro valor é recusado com o devido (ADR 0024). */

@@ -1,5 +1,6 @@
 package br.com.academiagestao.cobranca;
 
+import br.com.academiagestao.auth.ClaimsDoToken;
 import br.com.academiagestao.cobranca.CobrancaService.Consulta;
 import br.com.academiagestao.cobranca.dominio.Cancelamento;
 import br.com.academiagestao.cobranca.dominio.Cobranca;
@@ -8,8 +9,12 @@ import br.com.academiagestao.cobranca.dominio.Pagamento;
 import br.com.academiagestao.cobranca.dominio.StatusCobranca;
 import br.com.academiagestao.cobranca.dominio.TipoCobranca;
 import br.com.academiagestao.cobranca.dominio.ValorDevido;
+import br.com.academiagestao.compartilhado.Pagina;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -46,6 +51,32 @@ class CobrancaController {
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
     List<CobrancaResponse> doAluno(@RequestParam UUID alunoId) {
         return service.doAluno(alunoId).stream().map(CobrancaResponse::de).toList();
+    }
+
+    /**
+     * As cobranças do próprio aluno, com o devido de hoje. O id vem do token, nunca da URL:
+     * não há como pedir as de outra pessoa.
+     */
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('ALUNO')")
+    List<CobrancaParaAluno> minhas(@AuthenticationPrincipal Jwt jwt) {
+        String alunoId = jwt.getClaimAsString(ClaimsDoToken.ALUNO_ID);
+        if (alunoId == null) {
+            throw new AccessDeniedException("Token de aluno sem alunoId");
+        }
+        return service.doAluno(UUID.fromString(alunoId)).stream().map(CobrancaParaAluno::de).toList();
+    }
+
+    /** Para a recepção cobrar: as em aberto já vencidas, da mais antiga para a mais nova. */
+    @GetMapping("/atrasadas")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    Pagina<CobrancaResponse> atrasadas(
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
+            @RequestParam(defaultValue = "20") @Min(value = 1, message = "deve ser pelo menos {value}")
+            @Max(value = 100, message = "pode ser no máximo {value}") int tamanho) {
+        Pagina<Consulta> consultas = service.atrasadas(pagina, tamanho);
+        return new Pagina<>(consultas.conteudo().stream().map(CobrancaResponse::de).toList(), consultas.pagina(),
+                consultas.tamanho(), consultas.totalElementos(), consultas.totalPaginas());
     }
 
     @GetMapping("/{id}")
@@ -104,6 +135,20 @@ class CobrancaController {
                     consulta.devido().map(DevidoResponse::de).orElse(null),
                     c.getPagamento() == null ? null : PagamentoResponse.de(c.getPagamento()),
                     c.getCancelamento() == null ? null : CancelamentoResponse.de(c.getCancelamento()));
+        }
+    }
+
+    /** O que o aluno vê: sem os ids de quem registrou ou cancelou (dados da equipe). */
+    record CobrancaParaAluno(UUID id, TipoCobranca tipo, int parcela, BigDecimal valor, LocalDate vencimento,
+                             String situacao, long diasDeAtraso, DevidoResponse devidoHoje, Instant pagaEm,
+                             MeioDePagamento meioDePagamento, BigDecimal pagoTotal) {
+        static CobrancaParaAluno de(Consulta consulta) {
+            CobrancaResponse completa = CobrancaResponse.de(consulta);
+            Pagamento pagamento = consulta.cobranca().getPagamento();
+            return new CobrancaParaAluno(completa.id(), completa.tipo(), completa.parcela(), completa.valor(),
+                    completa.vencimento(), completa.situacao(), completa.diasDeAtraso(), completa.devidoHoje(),
+                    pagamento == null ? null : pagamento.em(), pagamento == null ? null : pagamento.meio(),
+                    pagamento == null ? null : pagamento.total());
         }
     }
 

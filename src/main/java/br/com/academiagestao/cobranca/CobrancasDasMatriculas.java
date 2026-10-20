@@ -22,11 +22,27 @@ import java.util.UUID;
 public class CobrancasDasMatriculas {
 
     private final CobrancaRepository repository;
+    private final ConfiguracaoDaCobrancaRepository configuracao;
     private final Clock relogio;
 
-    CobrancasDasMatriculas(CobrancaRepository repository, Clock relogio) {
+    CobrancasDasMatriculas(CobrancaRepository repository, ConfiguracaoDaCobrancaRepository configuracao,
+                           Clock relogio) {
         this.repository = repository;
+        this.configuracao = configuracao;
         this.relogio = relogio;
+    }
+
+    /**
+     * Tem cobrança atrasada há mais dias do que o tolerado (padrão 10, editável)? Então o
+     * "pode treinar?" diz não (decisão do dono, ADR 0024). Vale para qualquer cobrança do
+     * aluno, inclusive a multa de uma matrícula que já acabou.
+     */
+    @Transactional(readOnly = true)
+    public boolean inadimplente(UUID alunoId) {
+        int tolerados = configuracao.ler().regras().diasParaBloquear();
+        LocalDate hoje = Calendario.hoje(relogio.instant());
+        // Atrasada há mais de N dias = venceu antes de hoje - N.
+        return repository.temEmAbertoVencidaAntesDe(alunoId, hoje.minusDays(tolerados));
     }
 
     /**

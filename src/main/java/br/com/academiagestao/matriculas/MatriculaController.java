@@ -69,8 +69,8 @@ class MatriculaController {
      */
     @GetMapping("/vigente")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
-    MatriculaVigente vigente(@RequestParam UUID alunoId) {
-        return new MatriculaVigente(alunoId, service.temMatriculaVigente(alunoId));
+    PodeTreinar vigente(@RequestParam UUID alunoId) {
+        return new PodeTreinar(alunoId, service.podeTreinar(alunoId));
     }
 
     @GetMapping("/{id}")
@@ -166,7 +166,11 @@ class MatriculaController {
             String motivo) {
     }
 
-    record MatriculaVigente(UUID alunoId, boolean matriculaVigente) {
+    /**
+     * Um sim ou não só: o instrutor não fica sabendo se o "não" é falta de matrícula ou
+     * pagamento atrasado (LGPD, minimização).
+     */
+    record PodeTreinar(UUID alunoId, boolean podeTreinar) {
     }
 
     /** Visão do aluno: o contrato dele, sem o id de quem da equipe cancelou. */

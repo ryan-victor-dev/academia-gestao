@@ -160,7 +160,7 @@ s, b, _ = req("POST", f"/api/matriculas/{m['id']}/trancar", {"voltaPrevista": (h
 confere("trancar estende o fim", s == 200 and b["situacao"] == "TRANCADA" and b["diasTrancados"] == 10
         and b["fim"] == (fim + timedelta(days=10)).isoformat(), (s, b))
 confere("instrutor: trancada não treina",
-        req("GET", f"/api/matriculas/vigente?alunoId={MARIA}", token=INS)[1] == {"alunoId": MARIA, "matriculaVigente": False})
+        req("GET", f"/api/matriculas/vigente?alunoId={MARIA}", token=INS)[1] == {"alunoId": MARIA, "podeTreinar": False})
 s, b, _ = req("POST", f"/api/matriculas/{m['id']}/registrar-volta", token=REC)
 confere("volta no mesmo dia desfaz o trancamento", s == 200 and b["diasTrancados"] == 0 and b["situacao"] == "VIGENTE", (s, b))
 s, nova, _ = req("POST", f"/api/matriculas/{m['id']}/trocar-plano", {"planoId": MENSAL}, REC)

@@ -60,6 +60,23 @@ class CobrancaRepository {
                 this::mapear, alunoId);
     }
 
+    /** Alguma em aberto vencida antes do dia limite? (o "pode treinar?") */
+    boolean temEmAbertoVencidaAntesDe(UUID alunoId, LocalDate limite) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM cobrancas WHERE aluno_id = ? "
+                + "AND status = 'PENDENTE' AND vencimento < ?)", Boolean.class, alunoId, limite));
+    }
+
+    /** As em aberto vencidas antes de hoje, da mais antiga para a mais nova. */
+    List<Cobranca> atrasadas(LocalDate hoje, int pagina, int tamanho) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM cobrancas WHERE status = 'PENDENTE' AND vencimento < ? "
+                + "ORDER BY vencimento, id LIMIT ? OFFSET ?", this::mapear, hoje, tamanho, (long) pagina * tamanho);
+    }
+
+    long contarAtrasadas(LocalDate hoje) {
+        return jdbc.queryForObject("SELECT count(*) FROM cobrancas WHERE status = 'PENDENTE' AND vencimento < ?",
+                Long.class, hoje);
+    }
+
     void inserir(Cobranca cobranca) {
         jdbc.update("""
                 INSERT INTO cobrancas (id, matricula_id, aluno_id, tipo, parcela, valor, vencimento, status)

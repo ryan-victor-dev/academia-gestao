@@ -200,12 +200,12 @@ class InativacaoComMatriculaTest {
         Matricula matricula = matriculas.matricular(aluno, plano, null);
 
         assertThat(matricula.getInicio()).isEqualTo(LocalDate.ofInstant(relogio.instant(), Matricula.FUSO));
-        assertThat(matriculas.temMatriculaVigente(aluno)).isTrue();
+        assertThat(matriculas.podeTreinar(aluno)).isTrue();
         inativar(aluno).andExpect(status().isConflict());
 
         relogio.adiantar(Duration.ofDays(40));
 
-        assertThat(matriculas.temMatriculaVigente(aluno)).isFalse();
+        assertThat(matriculas.podeTreinar(aluno)).isFalse();
         inativar(aluno).andExpect(status().isOk());
     }
 

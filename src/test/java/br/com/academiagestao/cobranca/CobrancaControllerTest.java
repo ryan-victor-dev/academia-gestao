@@ -273,6 +273,100 @@ class CobrancaControllerTest {
                 .andExpect(jsonPath("$.detail").value("A cobrança está cancelada"));
     }
 
+    private RequestPostProcessor oAluno(UUID alunoId) {
+        return jwt().jwt(j -> j.subject(UUID.randomUUID().toString()).claim("alunoId", alunoId.toString()))
+                .authorities(new SimpleGrantedAuthority("ROLE_ALUNO"));
+    }
+
+    /** O aluno vê as dele, sem os ids da equipe; o id vem do token. */
+    @Test
+    void alunoVeAsProprias() throws Exception {
+        UUID paga = cobranca(1, 30);
+        UUID emAberto = cobranca(2, 0);
+        pagar(paga, "103.00", recepcao()).andExpect(status().isOk());
+
+        mvc.perform(get("/api/cobrancas/me").with(oAluno(aluno)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(paga.toString()))
+                .andExpect(jsonPath("$[0].situacao").value("PAGA"))
+                .andExpect(jsonPath("$[0].pagoTotal").value(103.00))
+                .andExpect(jsonPath("$[0].meioDePagamento").value("PIX"))
+                .andExpect(jsonPath("$[0].pagaEm").exists())
+                .andExpect(jsonPath("$[0].pagamento").doesNotExist())
+                .andExpect(jsonPath("$[1].id").value(emAberto.toString()))
+                .andExpect(jsonPath("$[1].devidoHoje.total").value(100.00));
+        String corpo = mvc.perform(get("/api/cobrancas/me").with(oAluno(aluno))).andReturn().getResponse()
+                .getContentAsString();
+        assertThat(corpo).doesNotContain(recepcao.toString());
+    }
+
+    @Test
+    void alunoSemCadastroNoTokenNaoVe() throws Exception {
+        mvc.perform(get("/api/cobrancas/me").with(como("ALUNO", UUID.randomUUID()))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/cobrancas/me").with(recepcao())).andExpect(status().isForbidden());
+        // Só o perfil ALUNO, mesmo que um token de outro perfil traga um alunoId.
+        mvc.perform(get("/api/cobrancas/me").with(jwt().jwt(j -> j.subject(recepcao.toString())
+                        .claim("alunoId", aluno.toString())).authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"))))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/cobrancas/me").with(oAluno(UUID.randomUUID())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+    }
+
+    /** A lista da recepção: só as em aberto já vencidas, da mais antiga para a mais nova. */
+    @Test
+    void listaDeAtrasadas() throws Exception {
+        UUID maisAntiga = cobranca(1, 40);
+        UUID atrasada = cobranca(2, 5);
+        cobranca(3, 0);
+        UUID paga = cobranca(4, 20);
+        pagar(paga, "102.67", recepcao()).andExpect(status().isOk());
+
+        String corpo = mvc.perform(get("/api/cobrancas/atrasadas").param("tamanho", "100").with(recepcao()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        List<String> ids = JsonPath.read(corpo, "$.conteudo[*].id");
+        assertThat(ids).containsSubsequence(maisAntiga.toString(), atrasada.toString())
+                .doesNotContain(paga.toString());
+        assertThat(ids.stream().filter(id -> id.equals(maisAntiga.toString()) || id.equals(atrasada.toString())))
+                .hasSize(2);
+        List<String> situacoes = JsonPath.read(corpo, "$.conteudo[*].situacao");
+        assertThat(situacoes).containsOnly("ATRASADA");
+        assertThat((Integer) JsonPath.read(corpo, "$.totalElementos")).isEqualTo(ids.size());
+    }
+
+    @Test
+    void listaDeAtrasadasPaginada() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            cobranca(1 + i, 10 + i);
+        }
+        String corpo = mvc.perform(get("/api/cobrancas/atrasadas").param("tamanho", "2").param("pagina", "0")
+                .with(recepcao())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        int total = JsonPath.read(corpo, "$.totalElementos");
+        assertThat(total).isGreaterThanOrEqualTo(3);
+        assertThat((List<?>) JsonPath.read(corpo, "$.conteudo")).hasSize(2);
+        assertThat((Integer) JsonPath.read(corpo, "$.totalPaginas")).isEqualTo((total + 1) / 2);
+        String ultima = mvc.perform(get("/api/cobrancas/atrasadas").param("tamanho", "2")
+                .param("pagina", String.valueOf((total - 1) / 2)).with(recepcao()))
+                .andReturn().getResponse().getContentAsString();
+        assertThat((List<?>) JsonPath.read(ultima, "$.conteudo")).hasSize(total % 2 == 0 ? 2 : 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"tamanho=101", "tamanho=0", "pagina=-1"})
+    void paginacaoForaDosLimites400(String parametro) throws Exception {
+        String[] partes = parametro.split("=");
+        mvc.perform(get("/api/cobrancas/atrasadas").param(partes[0], partes[1]).with(recepcao()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"INSTRUTOR", "ALUNO"})
+    void listaDeAtrasadasSoParaAEquipe(String perfil) throws Exception {
+        mvc.perform(get("/api/cobrancas/atrasadas").with(como(perfil, UUID.randomUUID())))
+                .andExpect(status().isForbidden());
+    }
+
     @Test
     void inexistente404() throws Exception {
         UUID nenhuma = UUID.randomUUID();

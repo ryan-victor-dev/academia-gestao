@@ -129,7 +129,7 @@ class VisoesDeMatriculaTest {
                 .andReturn().getResponse().getContentAsString();
         // Só o id e o sim/não: nada de valor, plano ou datas.
         assertThat(corpo).doesNotContain("valor").doesNotContain("plano").doesNotContain("inicio");
-        return corpo.contains("\"matriculaVigente\":true");
+        return corpo.contains("\"podeTreinar\":true");
     }
 
     @Test

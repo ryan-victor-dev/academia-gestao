@@ -108,13 +108,17 @@ class MatriculaService {
         return repository.findByAlunoIdOrderByInicioDesc(alunoId);
     }
 
-    /** Hoje cai numa matrícula vigente (não cancelada nem trancada)? É o que o instrutor precisa saber. */
+    /**
+     * Pode treinar hoje: matrícula vigente (não cancelada nem trancada) e nenhuma cobrança
+     * atrasada além do tolerado (ADR 0024). É o que o instrutor precisa saber.
+     */
     @Transactional(readOnly = true)
-    boolean temMatriculaVigente(UUID alunoId) {
+    boolean podeTreinar(UUID alunoId) {
         Instant agora = relogio.instant();
         LocalDate hoje = Matricula.hoje(agora);
         return repository.sobrepostas(alunoId, hoje, hoje).stream()
-                .anyMatch(m -> m.situacao(agora) == SituacaoMatricula.VIGENTE);
+                .anyMatch(m -> m.situacao(agora) == SituacaoMatricula.VIGENTE)
+                && !cobrancas.inadimplente(alunoId);
     }
 
     /**
