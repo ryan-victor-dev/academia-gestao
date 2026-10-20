@@ -20,6 +20,10 @@ import java.util.UUID;
  * só as que vencem de hoje em diante. Depois da primeira vez, não sobra nenhuma: as novas
  * ganham as cobranças na própria transação. Fora da recuperação de ADMIN (sobe sem web) e
  * desligável nos testes, que chamam {@link #gerar()} quando querem.
+ * <p>
+ * Uma matrícula que falha fica sem cronograma e é tentada de novo na próxima subida: o erro
+ * vai para o log, e a aplicação sobe mesmo assim. Uma exceção solta aqui derrubaria a subida,
+ * e o reinício automático a repetiria sem fim (diagnóstico de 2026-10-20, A2).
  */
 @Component
 @ConditionalOnWebApplication
@@ -54,9 +58,10 @@ class CobrancasDasMatriculasAntigas implements ApplicationRunner {
         gerar();
     }
 
-    /** Em lotes, cada matrícula na sua transação: uma com problema não desfaz as outras. */
+    /** Em lotes, cada matrícula na sua transação: uma com problema não desfaz nem impede as outras. */
     int gerar() {
         int geradas = 0;
+        int falhas = 0;
         UUID depoisDe = new UUID(0L, 0L);
         List<UUID> lote;
         do {
@@ -64,14 +69,22 @@ class CobrancasDasMatriculasAntigas implements ApplicationRunner {
             Set<UUID> semCronograma = cobrancas.semCronograma(lote);
             for (UUID id : lote) {
                 if (semCronograma.contains(id)) {
-                    service.acompanharCobranca(id);
-                    geradas++;
+                    try {
+                        service.acompanharCobranca(id);
+                        geradas++;
+                    } catch (RuntimeException e) {
+                        falhas++;
+                        log.error("Cobrança: a matrícula {} não ganhou as cobranças; fica para a próxima subida", id, e);
+                    }
                 }
             }
             depoisDe = lote.isEmpty() ? depoisDe : lote.getLast();
         } while (lote.size() == this.lote);
         if (geradas > 0) {
             log.info("Cobrança: {} matrícula(s) de antes da cobrança ganharam as cobranças de hoje em diante", geradas);
+        }
+        if (falhas > 0) {
+            log.error("Cobrança: {} matrícula(s) de antes da cobrança ficaram sem cobranças (ver os erros acima)", falhas);
         }
         return geradas;
     }

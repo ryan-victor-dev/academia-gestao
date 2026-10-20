@@ -25,6 +25,9 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 /** A matrícula gera e acerta as cobranças dela a cada mudança, na mesma transação (ADR 0024). */
 @Import(TestcontainersConfiguration.class)
@@ -283,5 +286,42 @@ class CobrancasDaMatriculaTest {
         }
         assertThat(antigas.gerar()).isZero();
         assertThat(cobrancas(matriculas.getFirst())).hasSize(3);
+    }
+
+    /**
+     * Uma matrícula antiga que falha não derruba a subida nem impede as outras (diagnóstico
+     * de 2026-10-20, A2): fica sem cronograma e é gerada na próxima vez.
+     */
+    @Test
+    void antigaQueFalhaNaoImpedeAsOutrasEFicaParaAProxima() {
+        UUID plano = plano(6, "MENSAL", null);
+        LocalDate inicio = hoje.minusMonths(2).minusDays(5);
+        UUID uma = matriculaAntiga(plano, inicio);
+        UUID outra = matriculaAntiga(plano, inicio);
+        // A que falha vem primeiro na ordem do banco (o texto do UUID segue a mesma ordem): a
+        // boa só é gerada se a falha não interromper o resto.
+        boolean umaPrimeiro = uma.toString().compareTo(outra.toString()) < 0;
+        UUID ruim = umaPrimeiro ? uma : outra;
+        UUID boa = umaPrimeiro ? outra : uma;
+        MatriculaService falhaNaRuim = mock(MatriculaService.class);
+        doAnswer(chamada -> {
+            UUID id = chamada.getArgument(0);
+            if (id.equals(ruim)) {
+                throw new IllegalStateException("falha simulada");
+            }
+            service.acompanharCobranca(id);
+            return null;
+        }).when(falhaNaRuim).acompanharCobranca(any());
+
+        // Lotes de 1: a ruim e a boa caem em lotes diferentes.
+        new CobrancasDasMatriculasAntigas(repository, falhaNaRuim, cobrancasDasMatriculas, 1).gerar();
+
+        assertThat(cobrancas(boa)).hasSize(3);
+        assertThat(cobrancas(ruim)).isEmpty();
+        assertThat(cobrancasDasMatriculas.semCronograma(List.of(ruim, boa))).containsExactly(ruim);
+
+        assertThat(new CobrancasDasMatriculasAntigas(repository, service, cobrancasDasMatriculas, 1).gerar())
+                .isGreaterThanOrEqualTo(1);
+        assertThat(cobrancas(ruim)).hasSize(3);
     }
 }
