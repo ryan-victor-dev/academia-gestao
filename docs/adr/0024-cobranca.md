@@ -121,3 +121,27 @@ resto, decidido pelo dono do projeto em 2026-10-19, e como foi implementado.
 - Sem pagamento parcial, desconto ou devolução no sistema: o que fugir disso fica fora dele.
 - **Vale conferir com um advogado ou contador** o acréscimo, os juros e a multa de
   fidelidade escolhidos.
+
+## Notas da implementação (2026-10-20)
+
+- **"Pode treinar?":** a resposta de `GET /api/matriculas/vigente` passou de
+  `matriculaVigente` para `podeTreinar`. É um sim ou não só, para o instrutor não ficar
+  sabendo se o "não" é falta de matrícula ou pagamento atrasado (LGPD, minimização).
+- **Troca no dia de um vencimento:** a cobrança daquele dia é cancelada, porque a nova
+  matrícula começa com a primeira mensalidade dela. No cancelamento no mesmo dia, ela fica,
+  porque o mês começou. Uma matrícula à vista trocada no próprio dia do início perde a
+  cobrança à vista e fica só com a multa, se houver.
+- **Matrículas antigas:** ao subir, a aplicação gera as cobranças das matrículas sem
+  cronograma, em lotes de 500, cada matrícula na sua transação
+  (`academia.cobranca.gerar-das-antigas-ao-subir`, ligado por padrão, desligado nos testes).
+- **Banco:** o usuário da aplicação não apaga cobranças nem cria ou apaga a configuração
+  (só altera). Os `CHECK` da V22 exigem o pagamento inteiro quando a cobrança está paga e o
+  total igual a valor + acréscimo + juros.
+- **Testes:** `LimpezaDoBanco.apagar(tabela, id)` apaga uma linha e tudo o que depende dela
+  pelas chaves estrangeiras, e a limpeza geral não apaga a configuração.
+- **Verificação:** ao todo, cerca de 60 mutações feitas à mão nas partes da cobrança, mais
+  138 do PIT no domínio, todas mortas no fim. As que sobreviveram de início pediram
+  testes: o cancelamento no próprio dia do vencimento, o segundo lote das matrículas
+  antigas, o perfil no `/me` e as travas da V22. Uma era equivalente (o filtro dos
+  trancamentos de 0 dias) e virou simplificação. Cada parte foi validada no Docker, e o
+  `scripts/e2e.sh` cobre a cobrança numa instalação do zero.

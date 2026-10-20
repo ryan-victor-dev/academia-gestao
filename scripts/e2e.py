@@ -177,6 +177,56 @@ confere("depois de cancelar, inativa", req("POST", f"/api/alunos/{MARIA}/inativa
 confere("aluno inativo não é matriculado",
         req("POST", "/api/matriculas", {"alunoId": ALUNO, "planoId": MENSAL}, REC)[0] == 409)
 
+secao("cobrança")
+def sql_e2e(consulta):
+    return sh("docker", "exec", P + "postgres", "psql", "-U", "academia", "-d", "academia", "-At", "-c", consulta).stdout.strip()
+s, b, h = req("GET", "/api/cobrancas/configuracao", token=REC)
+confere("configuração padrão do dono (2%, 1% ao mês, 10 dias)", s == 200 and (b["tipoAcrescimo"], b["acrescimo"], b["jurosAoMes"],
+        b["diasParaBloquear"]) == ("PERCENTUAL", 2.0, 1.0, 10), (s, b))
+s, cs, _ = req("GET", f"/api/cobrancas?alunoId={MARIA}", token=REC)
+por_tipo = {(c["tipo"], c["situacao"]): c for c in cs} if s == 200 else {}
+confere("multa da troca vira cobrança de 219,78", ("MULTA", "PENDENTE") in por_tipo
+        and por_tipo[("MULTA", "PENDENTE")]["valor"] == 219.78, cs)
+confere("à vista trocada no dia do vencimento: cancelada pelo sistema", ("A_VISTA", "CANCELADA") in por_tipo
+        and por_tipo[("A_VISTA", "CANCELADA")]["cancelamento"]["por"] is None, cs)
+confere("mensal cancelada no 1º dia: fica a 1ª, as outras não existem", [c["parcela"] for c in cs
+        if c["tipo"] == "MENSALIDADE" and c["situacao"] == "PENDENTE"] == [1], cs)
+multa = por_tipo.get(("MULTA", "PENDENTE"), {}).get("id")
+s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 200, "meioDePagamento": "PIX"}, REC)
+confere("pagar valor diferente = 409 com o devido", s == 409 and b["devidoHoje"]["total"] == 219.78, (s, b))
+s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDePagamento": "PIX"}, REC)
+confere("recepção recebe a multa", s == 200 and b["situacao"] == "PAGA", (s, b))
+confere("recepção não estorna", req("POST", f"/api/cobrancas/{multa}/estornar", {"motivo": "x"}, REC)[0] == 403)
+s, b, _ = req("POST", f"/api/cobrancas/{multa}/estornar", {"motivo": "Pix devolvido"}, ADM)
+confere("ADMIN estorna: volta a dever", s == 200 and b["situacao"] == "PENDENTE" and b["pagamento"] is None, (s, b))
+s, b, _ = req("GET", f"/api/auditoria?entidade=COBRANCA&entidadeId={multa}", token=ADM)
+confere("trilha do pagamento e do estorno", s == 200 and [r["acao"] for r in b["conteudo"]] == ["ESTORNADA", "PAGA"], (s, b))
+
+s, b, _ = req("POST", "/api/alunos", {"nome": "Ana Atrasada", "cpf": "390.533.447-05"}, REC)
+ANA = b["id"]
+s, m, _ = req("POST", "/api/matriculas", {"alunoId": ANA, "planoId": MENSAL}, REC)
+confere("mensal gera as mensalidades", s == 201 and len(req("GET", f"/api/cobrancas?alunoId={ANA}", token=REC)[1]) == 1, (s, m))
+pode = lambda: req("GET", f"/api/matriculas/vigente?alunoId={ANA}", token=INS)[1].get("podeTreinar")
+confere("em dia: pode treinar", pode() is True)
+# Sem mexer no relógio do servidor: a mensalidade passa a ter vencido há 11 dias.
+sql_e2e(f"UPDATE cobrancas SET vencimento = vencimento - 11 WHERE aluno_id = '{ANA}'")
+confere("11 dias de atraso: não pode treinar", pode() is False)
+s, at, _ = req("GET", "/api/cobrancas/atrasadas", token=REC)
+atrasada = next((c for c in at.get("conteudo", []) if c["alunoId"] == ANA), None)
+# 129,90 + 2% (2,60) + 1% ao mês por 11 dias (0,48)
+confere("na lista de atrasadas, com acréscimo e juros", atrasada is not None and atrasada["devidoHoje"]["total"] == 132.98, at)
+s, _, h = req("GET", "/api/cobrancas/configuracao", token=ADM)
+etag = {k.lower(): v for k, v in h.items()}.get("etag")
+s, b, _ = req("PUT", "/api/cobrancas/configuracao", {"tipoAcrescimo": "VALOR", "acrescimo": 7, "jurosAoMes": 1,
+              "diasParaBloquear": 30}, ADM, {"If-Match": etag})
+confere("ADMIN muda para R$ 7 e 30 dias", s == 200, (s, b))
+confere("com 30 dias de tolerância, volta a treinar", pode() is True)
+s, c, _ = req("GET", f"/api/cobrancas/{atrasada['id']}", token=REC) if atrasada else (0, {}, {})
+confere("R$ 7 cortado no teto de 2% (2,60)", c.get("devidoHoje", {}).get("acrescimo") == 2.6, c)
+s, b, _ = req("POST", f"/api/cobrancas/{atrasada['id']}/pagar", {"valor": 132.98, "meioDePagamento": "DINHEIRO"}, REC)
+confere("recepção recebe 132,98", s == 200 and b["situacao"] == "PAGA", (s, b))
+confere("cobranças só para a equipe", req("GET", f"/api/cobrancas?alunoId={ANA}", token=INS)[0] == 403)
+
 secao("cabeçalhos e JSON estrito")
 s, b, h = req("GET", "/actuator/health")
 confere("CSP", h.get("Content-Security-Policy") == "default-src 'none'; frame-ancestors 'none'", h.get("Content-Security-Policy"))

@@ -20,7 +20,8 @@ Monolito modular por domínio (ADR 0002): `auth`, `alunos`, `planos`, `cobranca`
 `matriculas`, `treinos`, `auditoria`, `compartilhado`. Em cada módulo: Controller
 (records de entrada/saída, nunca a entidade) → Service (transação, checagens que dependem
 do banco) → Entidade rica (fábrica, sem setters, valida tudo antes de alterar) → Repository.
-`cobranca` é Java puro (ADR 0004).
+As regras da cobrança ficam em `cobranca.dominio`, Java puro (ADRs 0004 e 0024); o resto
+do módulo usa Spring e SQL (`JdbcTemplate`), sem JPA.
 
 As fronteiras são verificadas pelo `ArquiteturaTest` (ArchUnit, ADR 0015): sem ciclos;
 `auth` e `compartilhado` não dependem de outros módulos; de fora de um módulo, só a porta
@@ -56,11 +57,14 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - O limitador grava em transação própria (REQUIRES_NEW): a do login é desfeita quando a
   senha está errada.
 - `psql -c` não substitui variáveis (`:'senha'`); passe o SQL pela entrada padrão.
-- O `/tmp` (e a pasta de rascunho) pode ser apagado: guarde utilitários em `target/` ou `scripts/`.
+- O `/tmp` (e a pasta de rascunho) pode ser apagado: guarde utilitários em `scripts/` ou
+  `revisao-local/ferramentas/` (fora do Git); `target/` some num `clean`.
 - Caddy sem root: o binário exige a capacidade `NET_BIND_SERVICE` (setcap); sem ela, nem executa.
 - Para apagar tudo num teste, use `LimpezaDoBanco.apagarTudo()` (ordem das chaves
-  estrangeiras, ADR 0023), nunca `DELETE FROM tabela` na mão. Quem apaga só o que criou
-  (por id) apaga os filhos antes (trancamentos, matrículas).
+  estrangeiras, ADR 0023), nunca `DELETE FROM tabela` na mão; para apagar só o que criou,
+  `limpeza.apagar("alunos", id)` (leva matrículas, trancamentos, cobranças e o login).
+  Linha criada pela migração e só alterada pela aplicação (a configuração da cobrança)
+  fica de fora (`LimpezaDoBanco.FICAM`): quem altera restaura.
 - `REQUIRES_NEW` dentro de outra transação usa uma segunda conexão: sob carga, o pool (20)
   esgota (ADR 0020). Hoje a espera é de 3 s e cada consulta tem teto de 5 s, com 503
   (ADR 0021); teste com mais requisições simultâneas do que conexões.
@@ -87,6 +91,14 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   no `@AfterEach`. Relógio no passado + tarefas agendadas (limpezas) = dados do teste
   apagados no meio: prefira a hora real ou o futuro. Datas de regra: `Calendario.hoje(...)`,
   no fuso da academia (o container roda em UTC).
+- A matrícula gera as cobranças na mesma transação (ADR 0024): teste que mexe em matrícula
+  cria cobranças, e o "pode treinar?" depende delas. Para atrasar uma cobrança, mude o
+  `vencimento` no banco ou o `RelogioDeTeste`.
+- Build incremental sujo: um `.class` auxiliar (`Classe$1`, do `switch` em enum) sumiu de
+  `target/classes` depois de muitas mutações, e o `verify` deu `NoClassDefFoundError`. Apague
+  `target/classes`, `target/test-classes` e `target/maven-status` e rode de novo. O
+  `./mvnw clean` falha aqui (`target/validacao/trivy-cache` é do root) e ainda apaga os
+  utilitários de `target/`: guarde-os em `revisao-local/ferramentas/` (fora do Git).
 - Filtro de log com grep não é resultado de teste: confira o código de saída do Maven
   (um erro de compilação passou batido num `grep "Tests run"`).
 - Toda alteração de plano, aluno ou usuário registra na trilha (`Auditoria`, ADR 0021), na
@@ -98,6 +110,6 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021 e 0022. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021 e 0022; dinheiro, no 0024. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.

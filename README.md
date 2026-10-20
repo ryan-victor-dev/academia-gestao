@@ -34,7 +34,7 @@ br.com.academiagestao
 ├── alunos         cadastro de alunos
 ├── planos         planos e valores
 ├── matriculas     vínculo aluno ↔ plano
-├── cobranca       mensalidades e pagamentos
+├── cobranca       cobranças, atraso, pagamentos (regras em Java puro em cobranca.dominio)
 ├── treinos        fichas de treino
 ├── auth           autenticação e perfis
 ├── auditoria      registro de quem fez o quê
@@ -190,8 +190,14 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/matriculas/{id}/cancelar` (`motivo` obrigatório; com fidelidade, grava a multa⁵) | ADMIN, RECEPCAO |
 | `POST /api/matriculas/{id}/trancar` (`voltaPrevista` e `motivo`; `inicio` opcional) e `/registrar-volta` | ADMIN, RECEPCAO |
 | `POST /api/matriculas/{id}/trocar-plano` (`planoId`; devolve a matrícula nova) | ADMIN, RECEPCAO |
-| `GET /api/matriculas/vigente?alunoId=` (só se o aluno pode treinar hoje) | ADMIN, RECEPCAO, INSTRUTOR |
+| `GET /api/matriculas/vigente?alunoId=` (`podeTreinar`: matrícula vigente e nenhuma cobrança atrasada além do tolerado⁷) | ADMIN, RECEPCAO, INSTRUTOR |
 | `GET /api/matriculas/me` | ALUNO (as próprias) |
+| `GET /api/cobrancas?alunoId=`, `GET /api/cobrancas/{id}` (situação e o devido hoje⁷) | ADMIN, RECEPCAO |
+| `GET /api/cobrancas/atrasadas?pagina=&tamanho=` (as em aberto já vencidas, da mais antiga) | ADMIN, RECEPCAO |
+| `POST /api/cobrancas/{id}/pagar` (`valor` igual ao devido hoje e `meioDePagamento`: `DINHEIRO`, `PIX`, `CARTAO_DEBITO` ou `CARTAO_CREDITO`) | ADMIN, RECEPCAO |
+| `POST /api/cobrancas/{id}/estornar` (volta a dever) e `/cancelar` (só em aberto), com `motivo` | ADMIN |
+| `GET /api/cobrancas/configuracao`, `PUT` (exige `If-Match`²; acréscimo, juros e dias para bloquear⁷) | Ler: ADMIN, RECEPCAO; alterar: ADMIN |
+| `GET /api/cobrancas/me` | ALUNO (as próprias) |
 | `GET /api/auditoria?entidade=&entidadeId=&pagina=&tamanho=` (quem alterou planos, alunos e usuários, e o valor anterior⁶) | ADMIN |
 
 ¹ O instrutor recebe só nome, data de nascimento, observações e se está ativo,
@@ -212,12 +218,24 @@ a nova começa hoje. O início pode ser agendado para até 1 ano à frente.
 do fim de uma matrícula com fidelidade gera multa = percentual × meses inteiros que
 faltam × valor mensal; a troca não gera multa só se a multa que o plano novo cobraria
 (saindo logo depois da troca) for pelo menos a que a matrícula atual cobraria hoje.
-⁶ `entidade` é `PLANO`, `ALUNO` ou `USUARIO`. Cada registro traz quem fez (`autor`, o id
+⁶ `entidade` é `PLANO`, `ALUNO`, `USUARIO`, `COBRANCA` ou `CONFIGURACAO`. Cada registro traz quem fez (`autor`, o id
 do usuário; vazio quando foi o próprio sistema, como a recuperação de ADMIN pela linha
 de comando), quando, a ação e só os campos que mudaram (`antes` e `depois`), nunca
 senhas. A trilha é gravada na mesma transação da alteração, e o usuário da aplicação no
 banco não consegue apagá-la nem reescrevê-la. Registros com mais de 5 anos são apagados
 todo dia (ADR 0022).
+⁷ Cobrança (ADR 0024): a matrícula gera as cobranças sozinha. No mensal, uma por mês, no
+dia do início (sem esse dia no mês, no último dia dele); no à vista, uma com o total no
+início. O trancamento empurra as seguintes pelos dias parados. O cancelamento cancela as
+que vencem depois do dia (o mês em curso conta como usado) e a multa de fidelidade vira
+uma cobrança avulsa. A recepção registra o pagamento no balcão, só pelo valor exato devido
+no dia: outro valor dá 409 com o devido de hoje. Atrasada desde o dia seguinte ao
+vencimento, ela soma um acréscimo único (percentual ou em reais, cortado em 2% do valor,
+o teto do CDC) e juros simples por dia (padrão 2% e 1% ao mês, editáveis pelo ADMIN e
+válidos para todas a partir da mudança). Depois de 10 dias de atraso (editável), o
+"pode treinar?" diz não. Só o ADMIN estorna (a cobrança volta a dever) ou cancela, com
+motivo; tudo vai para a trilha (`entidade` `COBRANCA` ou `CONFIGURACAO`). As matrículas
+que já existiam antes da cobrança ganharam só as cobranças de hoje em diante.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
@@ -232,7 +250,7 @@ Erros saem em `application/problem+json` (RFC 9457): 400 para dados inválidos
 (com a lista de campos em `erros`), 401 para token ausente, inválido ou
 expirado, e para login recusado, 403 para perfil sem permissão (ou senha
 temporária ainda não trocada), 404 para recurso inexistente, 409 para conflito
-(ex.: CPF já cadastrado, período de matrícula ocupado), 412 quando o aluno foi alterado por outra pessoa
+(ex.: CPF já cadastrado, período de matrícula ocupado, valor diferente do devido, cobrança já paga), 412 quando o aluno foi alterado por outra pessoa
 desde o `GET`, 428 quando falta o `If-Match`, 413 para corpo acima de 64 KB,
 429 para excesso de tentativas de login (20 por minuto por IP; 10 senhas erradas
 em 15 minutos bloqueiam o e-mail para aquele IP, e 100 somando todos os IPs o bloqueiam
@@ -328,7 +346,8 @@ um token dele. É só para desenvolvimento: ele se recusa a rodar se o `.env` ti
 - [x] **3. Alunos** — cadastro com validação de CPF, busca paginada, inativação e acesso por perfil
 - [x] **4. Planos** — preço com duas casas, nome único entre os ativos, só o ADMIN altera, aluno vê os ativos
 - [x] **5. Matrículas** — preço e regras do plano congelados na matrícula, períodos sem sobreposição garantidos pelo banco, fidelidade com multa, trancamento, troca de plano, visões do instrutor e do aluno
-- [ ] **6–8.** Cobrança, treinos e auditoria (a trilha de planos, alunos e usuários já existe: ADR 0021)
+- [x] **6. Cobrança** — mensalidades geradas pela matrícula (trancamento empurra, cancelamento cancela as futuras, multa vira cobrança), pagamento no balcão pelo valor exato, acréscimo com teto de 2% e juros editáveis, estorno e cancelamento pelo ADMIN, bloqueio do inadimplente no "pode treinar?"
+- [ ] **7–8.** Treinos e auditoria (a trilha de planos, alunos, usuários e cobranças já existe: ADRs 0021 e 0024)
 
 ## Autor
 
