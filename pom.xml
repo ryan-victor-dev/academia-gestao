@@ -177,7 +177,7 @@
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>
 								<param>br.com.academiagestao.compartilhado.VersaoEsperada</param>
 								<param>br.com.academiagestao.compartilhado.RecursoModificadoException</param>
-								<param>br.com.academiagestao.cobranca.*</param>
+								<param>br.com.academiagestao.cobranca.dominio.*</param>
 							</targetClasses>
 							<!-- Só testes de unidade (sem banco): rápidos o bastante para cada mutação. -->
 							<targetTests>
@@ -189,7 +189,7 @@
 								<param>br.com.academiagestao.auth.PoliticaDeSenhaTest</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporariaTest</param>
 								<param>br.com.academiagestao.compartilhado.VersaoEsperadaTest</param>
-								<param>br.com.academiagestao.cobranca.*Test</param>
+								<param>br.com.academiagestao.cobranca.dominio.*Test</param>
 							</targetTests>
 							<mutators>
 								<mutator>STRONGER</mutator>

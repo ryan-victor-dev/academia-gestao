@@ -1,4 +1,5 @@
 /**
- * Módulo Cobrança: mensalidades, máquina de estados, integração com o gateway, webhooks e reconciliação.
+ * Módulo Cobrança (ADR 0024): mensalidades, cobranças à vista e multas, atraso, pagamento
+ * registrado pela recepção e inadimplência. As regras ficam em {@code dominio}, em Java puro.
  */
 package br.com.academiagestao.cobranca;

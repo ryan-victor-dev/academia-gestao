@@ -71,9 +71,9 @@ class ArquiteturaTest {
 
     @ArchTest
     static final ArchRule cobrancaEmJavaPuro = classes()
-            .that().resideInAPackage("..cobranca..")
-            .should().onlyDependOnClassesThat().resideInAnyPackage("java..", "..cobranca..")
-            .because("a máquina de estados da mensalidade é Java puro, sem framework nem banco (ADR 0004)");
+            .that().resideInAPackage("..cobranca.dominio..")
+            .should().onlyDependOnClassesThat().resideInAnyPackage("java..", "..cobranca.dominio..")
+            .because("as regras da cobrança são Java puro, sem framework nem banco (ADRs 0004 e 0024)");
 
     @ArchTest
     static final ArchRule entidadesNaoDependemDoSpringNemDeOutrasCamadas = noClasses()
