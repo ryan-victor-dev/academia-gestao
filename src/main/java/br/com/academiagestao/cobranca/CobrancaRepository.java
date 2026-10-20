@@ -44,6 +44,22 @@ class CobrancaRepository {
                 this::mapear, matriculaId);
     }
 
+    /** Trava a cobrança até o fim da transação: dois pagamentos ao mesmo tempo passam um de cada vez. */
+    Optional<Cobranca> travar(UUID id) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM cobrancas WHERE id = ? FOR UPDATE", this::mapear, id)
+                .stream().findFirst();
+    }
+
+    Optional<Cobranca> buscar(UUID id) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM cobrancas WHERE id = ?", this::mapear, id).stream().findFirst();
+    }
+
+    /** As do aluno, da que vence primeiro para a última (inclusive as pagas e canceladas). */
+    List<Cobranca> doAluno(UUID alunoId) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM cobrancas WHERE aluno_id = ? ORDER BY vencimento, tipo, parcela",
+                this::mapear, alunoId);
+    }
+
     void inserir(Cobranca cobranca) {
         jdbc.update("""
                 INSERT INTO cobrancas (id, matricula_id, aluno_id, tipo, parcela, valor, vencimento, status)
