@@ -129,7 +129,7 @@ class MatriculaTest {
             "-10,       1,  maior que zero",
             "null,      1,  maior que zero",
             "129.999,   1,  2 casas",
-            "100000000, 1,  no máximo",
+            "100000.01, 1,  no máximo",
             "100,       0,  1 a 60",
             "100,       61, 1 a 60",
     })
@@ -162,7 +162,7 @@ class MatriculaTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"0.01", "129.900", "99999999.99"})
+    @ValueSource(strings = {"0.01", "129.900", "100000.00"})
     void aceitaValoresValidos(String valor) {
         assertThat(Matricula.nova(ALUNO, plano(valor, 1), null, em("2026-10-17T10:00")).getValorMensal().scale())
                 .isEqualTo(2);

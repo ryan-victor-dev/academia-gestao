@@ -43,8 +43,8 @@ public class Matricula {
     static final int DURACAO_MAXIMA_MESES = 60;
     static final int TAMANHO_MAXIMO_MOTIVO = 500;
     static final int TAMANHO_MAXIMO_NOME_DO_PLANO = 80;
-    // NUMERIC(10,2): até 8 dígitos antes da vírgula, como em planos.
-    static final BigDecimal VALOR_MAXIMO = new BigDecimal("99999999.99");
+    // O mesmo teto do plano (V23): o à vista de 60 meses (6 milhões) cabe na cobrança.
+    static final BigDecimal VALOR_MAXIMO = new BigDecimal("100000.00");
     static final BigDecimal CEM = new BigDecimal("100");
     static final int DIAS_MINIMOS_TRANCAMENTO = 7;
     static final int DIAS_MAXIMOS_TRANCADOS = 90;

@@ -119,7 +119,8 @@ class PlanoController {
 
             @NotNull(message = "é obrigatório")
             @Positive(message = "precisa ser maior que zero")
-            @Digits(integer = 8, fraction = 2, message = "até 8 dígitos e 2 casas decimais")
+            @DecimalMax(value = "100000", message = "pode ser no máximo {value}")
+            @Digits(integer = 6, fraction = 2, message = "até 6 dígitos e 2 casas decimais")
             BigDecimal valorMensal,
 
             @NotNull(message = "é obrigatório")

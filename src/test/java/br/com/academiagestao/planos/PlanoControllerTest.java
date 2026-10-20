@@ -113,6 +113,15 @@ class PlanoControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /** Teto de R$ 100.000 por mês (decisão do dono, 2026-10-20). */
+    @Test
+    void valorMensalAcimaDoTetoDa400() throws Exception {
+        cadastrar(json("No teto", "100000", 60)).andExpect(status().isCreated());
+        cadastrar(json("Acima", "100000.01", 1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erros[*].campo").value(hasItems("valorMensal")));
+    }
+
     @Test
     void editarComEtagFuncionaSemEtag428ComEtagAntigo412() throws Exception {
         String id = cadastrarPlano("Mensal");

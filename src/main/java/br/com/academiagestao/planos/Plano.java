@@ -24,8 +24,8 @@ public class Plano {
 
     static final int TAMANHO_MAXIMO_NOME = 80;
     static final int DURACAO_MAXIMA_MESES = 60;
-    // NUMERIC(10,2): até 8 dígitos antes da vírgula.
-    static final BigDecimal VALOR_MAXIMO = new BigDecimal("99999999.99");
+    // Teto decidido pelo dono (2026-10-20): o à vista de 60 meses (6 milhões) cabe na cobrança.
+    static final BigDecimal VALOR_MAXIMO = new BigDecimal("100000.00");
     static final BigDecimal PERCENTUAL_MAXIMO_MULTA = new BigDecimal("100");
 
     @Id

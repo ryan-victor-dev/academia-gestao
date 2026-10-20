@@ -219,6 +219,17 @@ class MatriculaRepositoryTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    /** O mesmo teto do plano (V23), também para quem grava sem passar pelo Java. */
+    @Test
+    void bancoRecusaValorMensalAcimaDoTeto() {
+        UUID id = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1)).getId();
+
+        jdbc.update("UPDATE matriculas SET valor_mensal = 100000.00 WHERE id = ?", id);
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET valor_mensal = 100000.01 WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_valor_maximo");
+    }
+
     private void inserirDireto(String inicio, int meses, String fim) {
         jdbc.update("""
                 INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim, criada_em)

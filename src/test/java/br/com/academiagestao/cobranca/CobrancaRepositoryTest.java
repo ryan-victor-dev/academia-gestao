@@ -93,6 +93,31 @@ class CobrancaRepositoryTest {
         assertThat(cancelada.getCancelamento()).isEqualTo(relida.getCancelamento());
     }
 
+    /**
+     * O pior caso do teto (V23): à vista de R$ 100.000 × 60 meses, paga com 20 anos de atraso
+     * e juros no máximo (10% ao mês). O total passa dos 99.999.999,99 que a coluna antiga guardava.
+     */
+    @Test
+    void pagamentoDoMaiorAVistaComAnosDeAtrasoCabe() {
+        jdbc.update("UPDATE matriculas SET valor_mensal = 100000, duracao_meses = 60, fim = ? WHERE id = ?",
+                inicio.plusMonths(60).minusDays(1), matricula);
+        var dados = new MatriculaParaCobranca(matricula, aluno, new BigDecimal("100000"), 60, true, inicio, List.of(),
+                null);
+        Cronograma.acertar(dados, List.of(), inicio, Instant.now()).novas().forEach(repository::inserir);
+        Cobranca aVista = repository.travarDaMatricula(matricula).getFirst();
+        assertThat(aVista.getValor()).isEqualByComparingTo("6000000");
+
+        var regras = new RegrasDeAtraso(RegrasDeAtraso.PADRAO.tipoAcrescimo(), RegrasDeAtraso.PADRAO.acrescimo(),
+                RegrasDeAtraso.JUROS_MAXIMOS_AO_MES, 10);
+        LocalDate vinteAnosDepois = inicio.plusYears(20);
+        BigDecimal devido = regras.devido(aVista, vinteAnosDepois).total();
+        aVista.pagar(regras, vinteAnosDepois, devido, MeioDePagamento.PIX, usuario, Instant.now());
+        repository.atualizar(aVista);
+
+        assertThat(repository.travarDaMatricula(matricula).getFirst().getPagamento().total())
+                .isEqualByComparingTo(devido).isGreaterThan(new BigDecimal("99999999.99"));
+    }
+
     /** Duas gravações a partir da mesma leitura: a segunda não sobrescreve a primeira. */
     @Test
     void versaoVelhaNaoGrava() {

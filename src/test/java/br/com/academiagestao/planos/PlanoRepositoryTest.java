@@ -90,6 +90,15 @@ class PlanoRepositoryTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    /** Teto de R$ 100.000 (V23): o à vista de 60 meses precisa caber na cobrança. */
+    @Test
+    void bancoRecusaValorMensalAcimaDoTeto() {
+        String sql = "INSERT INTO planos (id, nome, valor_mensal, duracao_meses) VALUES (?, ?, ?, 60)";
+        jdbc.update(sql, UUID.randomUUID(), "No teto", new BigDecimal("100000.00"));
+        assertThatThrownBy(() -> jdbc.update(sql, UUID.randomUUID(), "Acima", new BigDecimal("100000.01")))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_planos_valor_maximo");
+    }
+
     @Test
     void fidelidadeEFormaDePagamentoSaoGravadas() {
         Plano anual = repository.saveAndFlush(Plano.novo(new DadosPlano("Anual", new BigDecimal("99.90"), 12, true,

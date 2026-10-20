@@ -37,7 +37,7 @@ class PlanoTest {
             "Mensal,  -10,         1,  maior que zero",
             "Mensal,  null,        1,  maior que zero",
             "Mensal,  129.999,     1,  2 casas",
-            "Mensal,  100000000,   1,  no máximo",
+            "Mensal,  100000.01,   1,  no máximo",
             "Mensal,  100,         0,  1 a 60",
             "Mensal,  100,         61, 1 a 60",
             "Mensal,  100,         null, 1 a 60",
@@ -49,7 +49,7 @@ class PlanoTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"129.90", "129.900", "1", "0.01", "99999999.99"})
+    @ValueSource(strings = {"129.90", "129.900", "1", "0.01", "100000", "100000.00"})
     void aceitaValoresValidos(String valor) {
         assertThat(Plano.novo(dados("Mensal", valor, 1)).getValorMensal().scale()).isEqualTo(2);
     }
