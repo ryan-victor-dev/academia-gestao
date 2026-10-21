@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** As cobranças de uma matrícula, recalculadas a cada mudança (ADR 0024). */
 class CronogramaTest {
@@ -230,30 +231,31 @@ class CronogramaTest {
     /** No meio do mês: o mês em curso já foi cobrado pela antiga; a nova começa no próximo vencimento. */
     @Test
     void continuacaoNoMeioDoMesComecaNoProximoVencimento() {
-        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), dia(2026, 11, 1)).primeiroVencimento())
-                .isEqualTo(dia(2026, 11, 17));
+        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), List.of(), dia(2026, 11, 1))
+                .primeiroVencimento()).isEqualTo(dia(2026, 11, 17));
     }
 
     /** No dia de um vencimento: a mensalidade do dia sai da antiga, e a nova começa nele. */
     @Test
     void continuacaoNoDiaDoVencimentoComecaNele() {
-        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), dia(2026, 11, 17)).primeiroVencimento())
-                .isEqualTo(dia(2026, 11, 17));
-        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), INICIO).primeiroVencimento()).isEqualTo(INICIO);
+        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), List.of(), dia(2026, 11, 17))
+                .primeiroVencimento()).isEqualTo(dia(2026, 11, 17));
+        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), List.of(), INICIO).primeiroVencimento())
+                .isEqualTo(INICIO);
     }
 
     /** No último mês: a nova começa no dia seguinte ao fim da antiga. */
     @Test
     void continuacaoNoUltimoMesComecaDepoisDoFim() {
-        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), dia(2027, 1, 1)).primeiroVencimento())
-                .isEqualTo(dia(2027, 1, 17));
+        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), List.of(), dia(2027, 1, 1))
+                .primeiroVencimento()).isEqualTo(dia(2027, 1, 17));
     }
 
     /** Um trancamento já terminado empurrou os vencimentos: a conta usa os empurrados. */
     @Test
     void continuacaoDepoisDeUmTrancamento() {
         var trancada = mensal(3, List.of(new Pausa(dia(2026, 10, 20), 30)), null);
-        assertThat(Cronograma.continuacao(trancada, dia(2026, 12, 1)).primeiroVencimento())
+        assertThat(Cronograma.continuacao(trancada, List.of(), dia(2026, 12, 1)).primeiroVencimento())
                 .isEqualTo(dia(2026, 12, 17));
     }
 
@@ -262,23 +264,108 @@ class CronogramaTest {
     void continuacaoDeUmaAVista() {
         var aVista = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 12, true, INICIO,
                 List.of(), null);
-        assertThat(Cronograma.continuacao(aVista, dia(2027, 1, 5)).primeiroVencimento()).isEqualTo(dia(2027, 1, 17));
+        assertThat(Cronograma.continuacao(aVista, List.of(), dia(2027, 1, 5)).primeiroVencimento())
+                .isEqualTo(dia(2027, 1, 17));
     }
 
     /** A nova conta as parcelas do primeiro vencimento; o dia 31 continua no último dia do mês. */
     @Test
     void parcelasContamDoPrimeiroVencimento() {
         var continuacao = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 3, false,
-                dia(2026, 12, 20), List.of(), null, dia(2027, 1, 31));
+                dia(2026, 12, 20), List.of(), null, dia(2027, 1, 31), null);
         assertThat(vencimentos(Cronograma.previstas(continuacao)))
                 .containsExactly(dia(2027, 1, 31), dia(2027, 2, 28), dia(2027, 3, 31));
-        assertThat(Cronograma.continuacao(continuacao, dia(2027, 2, 10)).primeiroVencimento())
+        assertThat(Cronograma.continuacao(continuacao, List.of(), dia(2027, 2, 10)).primeiroVencimento())
                 .isEqualTo(dia(2027, 2, 28));
 
         var aVista = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 3, true,
-                dia(2026, 12, 20), List.of(), null, dia(2027, 1, 5));
+                dia(2026, 12, 20), List.of(), null, dia(2027, 1, 5), null);
         assertThat(vencimentos(Cronograma.previstas(aVista))).containsExactly(dia(2027, 1, 5));
         // Sem o primeiro vencimento, é o início.
         assertThat(mensal(1, List.of(), null).primeiroVencimento()).isEqualTo(INICIO);
+    }
+
+    // O que foi pago e não usado vira crédito na nova (decisão do dono, ADR 0026).
+
+    private static MatriculaParaCobranca comCredito(boolean aVista, String credito) {
+        return new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 3, aVista, INICIO, List.of(),
+                null, null, new BigDecimal(credito));
+    }
+
+    private static Cobranca gravada(TipoCobranca tipo, int parcela, String valor, LocalDate vencimento) {
+        return Cobranca.nova(MATRICULA, ALUNO, new ParcelaPrevista(tipo, parcela, new BigDecimal(valor), vencimento));
+    }
+
+    /** À vista de 12 meses trocada no 4º mês: 3 meses usados, 9 de crédito. */
+    @Test
+    void aVistaTrocadaNoMeioDeixaOsMesesNaoUsadosDeCredito() {
+        var aVista = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 12, true, INICIO,
+                List.of(), null);
+        var continuacao = Cronograma.continuacao(aVista,
+                List.of(gravada(TipoCobranca.A_VISTA, 1, "1200.00", INICIO)), dia(2027, 1, 5));
+
+        assertThat(continuacao.primeiroVencimento()).isEqualTo(dia(2027, 1, 17));
+        assertThat(continuacao.credito()).isEqualByComparingTo("900");
+    }
+
+    /**
+     * Só o cobrado que fica com a antiga conta: nem a cancelada, nem a multa, nem a que vence
+     * no dia da troca ou depois (sai da antiga). Sem cobrado, sem crédito (nunca negativo).
+     */
+    @Test
+    void soOCobradoQueFicaViraCredito() {
+        var aVista = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 12, true, INICIO,
+                List.of(), null);
+        Cobranca cancelada = gravada(TipoCobranca.A_VISTA, 1, "1200.00", INICIO);
+        cancelada.cancelar("cortesia", UUID.randomUUID(), AGORA);
+        assertThat(Cronograma.continuacao(aVista, List.of(cancelada), dia(2027, 1, 5)).credito()).isZero();
+
+        Cobranca multa = gravada(TipoCobranca.MULTA, 1, "500.00", INICIO);
+        assertThat(Cronograma.continuacao(aVista, List.of(multa), dia(2027, 1, 5)).credito()).isZero();
+
+        // No dia do vencimento da à vista (o primeiro), ela sai da antiga: nada foi usado nem fica.
+        assertThat(Cronograma.continuacao(aVista, List.of(gravada(TipoCobranca.A_VISTA, 1, "1200.00", INICIO)),
+                INICIO).credito()).isZero();
+
+        // Mensal em dia: cobrado = usado.
+        var mensal = mensal(3, List.of(), null);
+        List<Cobranca> parcelas = Cronograma.previstas(mensal).stream()
+                .map(p -> Cobranca.nova(MATRICULA, ALUNO, p)).toList();
+        assertThat(Cronograma.continuacao(mensal, parcelas, dia(2026, 12, 1)).credito()).isZero();
+    }
+
+    /** O crédito abate as primeiras parcelas, em ordem; a zerada não é cobrada. */
+    @Test
+    void creditoAbateAsPrimeirasParcelas() {
+        assertThat(Cronograma.previstas(comCredito(false, "250.00"))).containsExactly(
+                new ParcelaPrevista(TipoCobranca.MENSALIDADE, 3, new BigDecimal("50.00"), dia(2026, 12, 17)));
+        assertThat(Cronograma.previstas(comCredito(false, "30.00"))).extracting(ParcelaPrevista::valor)
+                .containsExactly(new BigDecimal("70.00"), new BigDecimal("100.00"), new BigDecimal("100.00"));
+        assertThat(Cronograma.previstas(comCredito(true, "250.00"))).containsExactly(
+                new ParcelaPrevista(TipoCobranca.A_VISTA, 1, new BigDecimal("50.00"), INICIO));
+        assertThat(Cronograma.previstas(comCredito(true, "300.00"))).isEmpty();
+        assertThat(Cronograma.previstas(comCredito(false, "300.00"))).isEmpty();
+    }
+
+    /** Trocada de novo: leva o crédito que sobrou (o recebido menos os meses usados). */
+    @Test
+    void creditoQueSobraPassaParaAProxima() {
+        var comCredito = comCredito(false, "250.00");
+        List<Cobranca> parcelas = Cronograma.previstas(comCredito).stream()
+                .map(p -> Cobranca.nova(MATRICULA, ALUNO, p)).toList();
+
+        // Dois meses usados (200), e a parcela 3 (50) sai da antiga: sobram 50.
+        assertThat(Cronograma.continuacao(comCredito, parcelas, dia(2026, 12, 1)).credito())
+                .isEqualByComparingTo("50");
+        // Três meses usados: o crédito acabou, e a parcela 3 (50) foi cobrada.
+        assertThat(Cronograma.continuacao(comCredito, parcelas, dia(2027, 1, 10)).credito()).isZero();
+    }
+
+    @Test
+    void continuacaoNaoAceitaCreditoNegativo() {
+        assertThatThrownBy(() -> new MatriculaParaCobranca.Continuacao(INICIO, new BigDecimal("-0.01")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new MatriculaParaCobranca.Continuacao(INICIO, null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

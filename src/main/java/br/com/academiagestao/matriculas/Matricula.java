@@ -26,6 +26,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -87,6 +88,11 @@ public class Matricula {
     // próximo vencimento da anterior, que já pagou até lá (ADR 0026). Vazio = o início.
     @Column(name = "primeiro_vencimento", updatable = false)
     private LocalDate primeiroVencimento;
+
+    // Na matrícula que veio de uma troca: o que o aluno pagou à anterior e não usou, abatido
+    // das primeiras parcelas desta (ADR 0026). Vazio = sem crédito.
+    @Column(updatable = false, precision = 10, scale = 2)
+    private BigDecimal credito;
 
     // Avança com os dias trancados (ADR 0018): primeiro vencimento + N meses - 1 dia + dias trancados.
     @Column(nullable = false)
@@ -330,6 +336,8 @@ public class Matricula {
      * Esta matrícula nova continua a de uma troca (ADR 0026): começa hoje, mas as parcelas e os
      * meses do plano contam do próximo vencimento da anterior, que já pagou até lá. O fim vai
      * junto: o aluno tem os meses inteiros do plano novo, mais os dias já pagos pelo anterior.
+     * O que o aluno pagou à anterior e não usou vira crédito nesta; crédito maior que o plano
+     * novo inteiro recusa a troca (decisão do dono): nada se perde sem ninguém ver.
      * Chamado antes de {@link #encerrarPorTroca}, que compara as multas pelo fim.
      */
     void continuar(MatriculaParaCobranca.Continuacao continuacao) {
@@ -338,6 +346,12 @@ public class Matricula {
                 || primeiro.isAfter(inicio.plusMonths(1))) {
             throw new IllegalStateException("continuação inválida para a matrícula " + id + ": " + primeiro);
         }
+        if (continuacao.credito().compareTo(getValorTotal()) > 0) {
+            throw new MatriculaRecusadaException("Troca recusada", ("O aluno tem %s de crédito do plano atual, mais"
+                    + " que o plano novo inteiro (%s); escolha um plano que o cubra")
+                    .formatted(reais(continuacao.credito()), reais(getValorTotal())));
+        }
+        this.credito = continuacao.credito().signum() > 0 ? continuacao.credito() : null;
         this.primeiroVencimento = primeiro.equals(inicio) ? null : primeiro;
         this.fim = fimDoPeriodo(primeiro, duracaoMeses);
     }
@@ -424,7 +438,12 @@ public class Matricula {
                     MatriculaParaCobranca.Encerramento.Tipo.TROCA, trocadaEm, multa);
         }
         return new MatriculaParaCobranca(id, alunoId, valorMensal, duracaoMeses,
-                formaPagamento == FormaPagamento.A_VISTA, inicio, pausas, encerramento, getPrimeiroVencimento());
+                formaPagamento == FormaPagamento.A_VISTA, inicio, pausas, encerramento, getPrimeiroVencimento(),
+                getCredito());
+    }
+
+    private static String reais(BigDecimal valor) {
+        return String.format(Locale.of("pt", "BR"), "R$ %,.2f", valor);
     }
 
     static LocalDate hoje(Instant agora) {
@@ -455,6 +474,7 @@ public class Matricula {
     public String getMotivoCancelamento() { return motivoCancelamento; }
     public BigDecimal getMulta() { return multa; }
     public LocalDate getPrimeiroVencimento() { return primeiroVencimento == null ? inicio : primeiroVencimento; }
+    public BigDecimal getCredito() { return credito == null ? BigDecimal.ZERO : credito; }
     public LocalDate getTrocadaEm() { return trocadaEm; }
     public UUID getTrocadaPor() { return trocadaPor; }
     public UUID getTrocaDe() { return trocaDe; }

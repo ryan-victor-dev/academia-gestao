@@ -7,6 +7,7 @@ import br.com.academiagestao.alunos.CpfsParaTeste;
 import br.com.academiagestao.auth.Perfil;
 import br.com.academiagestao.auth.Usuario;
 import br.com.academiagestao.auth.UsuarioRepository;
+import br.com.academiagestao.cobranca.dominio.MatriculaParaCobranca;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -24,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -557,6 +559,7 @@ class MatriculaControllerTest {
                 .andExpect(jsonPath("$.inicio").value(hoje().toString()))
                 // Trocada no primeiro dia: nada da atual foi usado, a nova cobra desde hoje.
                 .andExpect(jsonPath("$.primeiroVencimento").value(hoje().toString()))
+                .andExpect(jsonPath("$.credito").value(0))
                 .andExpect(jsonPath("$.situacao").value("VIGENTE"))
                 .andExpect(jsonPath("$.trocaDe").value(atual));
         String nova = idDe(troca);
@@ -567,6 +570,43 @@ class MatriculaControllerTest {
                 .andExpect(jsonPath("$.trocadaEm").value(hoje().toString()))
                 .andExpect(jsonPath("$.trocadaPor").value(recepcaoId.toString()))
                 .andExpect(jsonPath("$.multa").doesNotExist());
+    }
+
+    /**
+     * À vista trocada no meio (ADR 0026): a resposta mostra o crédito e o primeiro vencimento.
+     * Crédito maior que o plano novo inteiro: 409 (decisão do dono).
+     */
+    @Test
+    void trocaDeUmaAVistaMostraOCreditoOuEhRecusada() throws Exception {
+        String atual = idDe(matricular(aluno, criarPlanoComFidelidade("99.90", 12, "20"), null));
+        // Começou há 35 dias (sem adiantar o relógio, que venceria o token do login).
+        LocalDate comeco = hoje().minusDays(35);
+        jdbc.update("UPDATE matriculas SET inicio = ?, fim = ? WHERE id = ?::uuid",
+                comeco, comeco.plusMonths(12).minusDays(1), atual);
+        jdbc.update("UPDATE cobrancas SET vencimento = ? WHERE matricula_id = ?::uuid", comeco, atual);
+
+        trocarPlano(atual, criarPlano("100", 3, true))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Troca recusada"))
+                .andExpect(jsonPath("$.detail").value(containsString("R$ 999,00")));
+
+        // 12 × 99,90 cobrados, 2 meses usados: 999,00 de crédito.
+        trocarPlano(atual, criarPlano("129.90", 12, true))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.primeiroVencimento").value(comeco.plusMonths(2).toString()))
+                .andExpect(jsonPath("$.credito").value(999.00));
+    }
+
+    /** A visão do aluno também mostra de onde contam as parcelas e o crédito. */
+    @Test
+    void visaoDoAlunoMostraOPrimeiroVencimentoEOCredito() {
+        Matricula nova = Matricula.nova(UUID.randomUUID(), new PlanoContratado(UUID.randomUUID(), "Novo",
+                new BigDecimal("100"), 3), null, relogio.instant());
+        nova.continuar(new MatriculaParaCobranca.Continuacao(hoje().plusDays(10), new BigDecimal("150.00")));
+
+        var visao = MatriculaController.MatriculaParaAluno.de(nova, relogio.instant());
+        assertThat(visao.primeiroVencimento()).isEqualTo(hoje().plusDays(10));
+        assertThat(visao.credito()).isEqualByComparingTo("150");
     }
 
     @Test

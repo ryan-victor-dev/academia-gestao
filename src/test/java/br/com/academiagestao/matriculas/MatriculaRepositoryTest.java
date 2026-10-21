@@ -443,6 +443,31 @@ class MatriculaRepositoryTest {
                 .hasMessageContaining("ck_matriculas_primeiro_vencimento");
     }
 
+    /** O crédito da nova de uma troca é gravado; o banco o limita ao plano inteiro (ADR 0026). */
+    @Test
+    void bancoConfereOCredito() {
+        Matricula atual = repository.saveAndFlush(matricula(aluno, "2027-01-10", 3));
+        Matricula nova = Matricula.nova(aluno, new PlanoContratado(outroPlano(), "Outro", new BigDecimal("150"), 2),
+                LocalDate.parse("2027-01-20"), em("2027-01-20"));
+        nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-10"), new BigDecimal("100.50")));
+        atual.encerrarPorTroca(nova, usuario, em("2027-01-20"));
+        repository.saveAndFlush(atual);
+        UUID id = repository.saveAndFlush(nova).getId();
+
+        assertThat(repository.findById(id).orElseThrow().getCredito()).isEqualByComparingTo("100.50");
+        assertThat(repository.findById(atual.getId()).orElseThrow().getCredito()).isZero();
+
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET credito = 300.01 WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_matriculas_credito");
+        assertThatCode(() -> jdbc.update("UPDATE matriculas SET credito = 300 WHERE id = ?", id))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET credito = 0 WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_matriculas_credito");
+        // Só a nova de uma troca tem crédito.
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET credito = 10 WHERE id = ?", atual.getId()))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_matriculas_credito");
+    }
+
     @Test
     void umaMatriculaSoPodeVirarUmaNova() {
         Matricula atual = repository.saveAndFlush(matricula(aluno, "2027-01-10", 1));

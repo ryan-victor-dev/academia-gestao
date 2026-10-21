@@ -67,10 +67,12 @@ public class CobrancasDasMatriculas {
 
     /**
      * Na troca de plano no dia {@code dia}: de onde contam as parcelas da matrícula nova, que
-     * continua a antiga (ADR 0026). Só faz a conta; não lê nem grava nada.
+     * continua a antiga, e o crédito que ela leva (ADR 0026). Trava as cobranças da antiga: um
+     * cancelamento ao mesmo tempo não muda a conta. Não grava nada.
      */
+    @Transactional(propagation = Propagation.MANDATORY)
     public MatriculaParaCobranca.Continuacao continuacao(MatriculaParaCobranca antiga, LocalDate dia) {
-        return Cronograma.continuacao(antiga, dia);
+        return Cronograma.continuacao(antiga, repository.travarDaMatricula(antiga.matriculaId()), dia);
     }
 
     /** Das matrículas informadas, as que ainda não têm cobranças no sistema. */

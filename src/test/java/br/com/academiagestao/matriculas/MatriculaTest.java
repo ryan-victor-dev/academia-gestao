@@ -723,6 +723,32 @@ class MatriculaTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    /**
+     * O crédito da anterior (ADR 0026) fica na nova e vai para a cobrança. Maior que o plano novo
+     * inteiro, a troca é recusada (decisão do dono), sem mudar nada; igual, o plano sai pago.
+     */
+    @Test
+    void continuacaoLevaOCreditoERecusaOMaiorQueOPlano() {
+        Matricula nova = novaDoPlano(false, "150");  // 12 × 150 = 1.800
+        LocalDate fim = nova.getFim();
+        var demais = new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17"), new BigDecimal("1800.01"));
+        assertThatThrownBy(() -> nova.continuar(demais))
+                .isInstanceOf(MatriculaRecusadaException.class)
+                .hasMessageContaining("R$ 1.800,01").hasMessageContaining("R$ 1.800,00");
+        assertThat(nova.getCredito()).isZero();
+        assertThat(nova.getPrimeiroVencimento()).isEqualTo(nova.getInicio());
+        assertThat(nova.getFim()).isEqualTo(fim);
+
+        nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17"), new BigDecimal("1800.00")));
+        assertThat(nova.getCredito()).isEqualByComparingTo("1800");
+        assertThat(nova.paraCobranca().credito()).isEqualByComparingTo("1800");
+
+        Matricula semCredito = novaDoPlano(false, "150");
+        semCredito.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17")));
+        assertThat(semCredito.getCredito()).isZero();
+        assertThat(semCredito.paraCobranca().credito()).isZero();
+    }
+
     @Test
     void trocaRecusadaComTrancamentoEmAberto() {
         Matricula trancada = vigente();

@@ -24,17 +24,26 @@ public final class Cronograma {
      * Mensal: a parcela k vence em primeiro vencimento + (k − 1) meses (sem o dia no mês, no
      * último dia dele), adiada pelos trancamentos que começaram até lá. À vista: o total, no
      * primeiro vencimento. O primeiro vencimento é o início, salvo na matrícula que veio de uma
-     * troca (ver {@link #continuacao}). Encerrada, só ficam as de antes do encerramento, mais a multa.
+     * troca (ver {@link #continuacao}). O crédito dela abate as primeiras parcelas, em ordem; a
+     * que fica zerada não é cobrada. Encerrada, só ficam as de antes do encerramento, mais a multa.
      */
     public static List<ParcelaPrevista> previstas(MatriculaParaCobranca matricula) {
         List<ParcelaPrevista> parcelas = new ArrayList<>();
+        BigDecimal credito = matricula.credito();
         if (matricula.aVista()) {
             BigDecimal total = matricula.valorMensal().multiply(BigDecimal.valueOf(matricula.duracaoMeses()));
-            parcelas.add(new ParcelaPrevista(TipoCobranca.A_VISTA, 1, total, vencimento(matricula, 1)));
+            BigDecimal aPagar = total.subtract(credito);
+            if (aPagar.signum() > 0) {
+                parcelas.add(new ParcelaPrevista(TipoCobranca.A_VISTA, 1, aPagar, vencimento(matricula, 1)));
+            }
         } else {
             for (int k = 1; k <= matricula.duracaoMeses(); k++) {
-                parcelas.add(new ParcelaPrevista(TipoCobranca.MENSALIDADE, k, matricula.valorMensal(),
-                        vencimento(matricula, k)));
+                BigDecimal abatido = matricula.valorMensal().min(credito);
+                credito = credito.subtract(abatido);
+                BigDecimal aPagar = matricula.valorMensal().subtract(abatido);
+                if (aPagar.signum() > 0) {
+                    parcelas.add(new ParcelaPrevista(TipoCobranca.MENSALIDADE, k, aPagar, vencimento(matricula, k)));
+                }
             }
         }
         MatriculaParaCobranca.Encerramento encerramento = matricula.encerramento();
@@ -62,17 +71,31 @@ public final class Cronograma {
     }
 
     /**
-     * Troca de plano no dia {@code dia} (decisão do dono, ADR 0026): os meses desta que já
+     * Troca de plano no dia {@code dia} (decisões do dono, ADR 0026): os meses desta que já
      * começaram estão pagos (ou cobrados) inteiros, então a nova só cobra a partir do próximo
      * mês desta, o primeiro que começa no dia ou depois. Na troca no último mês, é o dia
      * seguinte ao fim.
+     *
+     * O crédito é o que foi cobrado desta (das {@code gravadas}, as que ficam com ela depois da
+     * troca), mais o crédito que ela já tinha, menos os meses usados: a à vista de 12 meses
+     * trocada no 3º deixa 10 meses de crédito. Só o cobrado conta: a cobrança cancelada (ou a que
+     * nunca existiu, numa matrícula de antes da cobrança) não vira crédito. Paga ou em aberto,
+     * tanto faz: a em aberto continua devida.
      */
-    public static MatriculaParaCobranca.Continuacao continuacao(MatriculaParaCobranca antiga, LocalDate dia) {
+    public static MatriculaParaCobranca.Continuacao continuacao(MatriculaParaCobranca antiga, List<Cobranca> gravadas,
+                                                                LocalDate dia) {
         int k = 1;
         while (vencimento(antiga, k).isBefore(dia)) {
             k++;
         }
-        return new MatriculaParaCobranca.Continuacao(vencimento(antiga, k));
+        BigDecimal cobrado = gravadas.stream()
+                .filter(c -> c.getTipo() != TipoCobranca.MULTA && c.getStatus() != StatusCobranca.CANCELADA
+                        && c.getVencimento().isBefore(dia))
+                .map(Cobranca::getValor)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal usado = antiga.valorMensal().multiply(BigDecimal.valueOf(k - 1));
+        BigDecimal credito = antiga.credito().add(cobrado).subtract(usado).max(BigDecimal.ZERO);
+        return new MatriculaParaCobranca.Continuacao(vencimento(antiga, k), credito);
     }
 
     /** Cada trancamento que começou até o vencimento (já adiado pelos anteriores) o empurra. */

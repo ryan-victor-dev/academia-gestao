@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -273,6 +274,38 @@ class CobrancasDaMatriculaTest {
         assertThat(vencimentos(atual.getId(), "PENDENTE")).containsExactly(hoje, hoje.plusMonths(1));
         assertThat(nova.getPrimeiroVencimento()).isEqualTo(hoje.plusMonths(2));
         assertThat(vencimentos(nova.getId(), "PENDENTE")).containsExactly(hoje.plusMonths(2));
+    }
+
+    /**
+     * À vista trocada no meio (ADR 0026): os 10 meses não usados viram crédito, que abate as
+     * primeiras parcelas da nova; as zeradas nem são criadas.
+     */
+    @Test
+    void aVistaTrocadaLevaOCreditoParaANova() {
+        Matricula atual = service.matricular(aluno(), plano(12, "A_VISTA", null), null);
+        relogio.adiantar(Duration.ofDays(35));
+
+        Matricula nova = service.trocarPlano(atual.getId(), plano(12, "MENSAL", null), usuario);
+
+        assertThat(vencimentos(atual.getId(), "PENDENTE")).containsExactly(hoje);
+        assertThat(nova.getCredito()).isEqualByComparingTo("1000");
+        assertThat(cobrancas(nova.getId())).extracting(c -> c.get("parcela")).containsExactly(11, 12);
+        assertThat(vencimentos(nova.getId(), "PENDENTE")).containsExactly(hoje.plusMonths(12), hoje.plusMonths(13));
+    }
+
+    /** Crédito maior que o plano novo inteiro: a troca é recusada e nada muda (decisão do dono). */
+    @Test
+    void creditoMaiorQueOPlanoNovoRecusaATroca() {
+        Matricula atual = service.matricular(aluno(), plano(12, "A_VISTA", null), null);
+        relogio.adiantar(Duration.ofDays(35));
+        UUID pequeno = plano(3, "MENSAL", null);
+
+        assertThatThrownBy(() -> service.trocarPlano(atual.getId(), pequeno, usuario))
+                .isInstanceOf(MatriculaRecusadaException.class).hasMessageContaining("R$ 1.000,00");
+
+        assertThat(repository.findById(atual.getId()).orElseThrow().getTrocadaEm()).isNull();
+        assertThat(repository.findByAlunoIdOrderByInicioDesc(atual.getAlunoId())).hasSize(1);
+        assertThat(vencimentos(atual.getId(), "PENDENTE")).containsExactly(hoje);
     }
 
     /**
