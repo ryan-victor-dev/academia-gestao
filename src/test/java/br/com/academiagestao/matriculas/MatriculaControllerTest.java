@@ -555,6 +555,8 @@ class MatriculaControllerTest {
                 .andExpect(jsonPath("$.valorMensal").value(99.90))
                 .andExpect(jsonPath("$.fidelidade").value(true))
                 .andExpect(jsonPath("$.inicio").value(hoje().toString()))
+                // Trocada no primeiro dia: nada da atual foi usado, a nova cobra desde hoje.
+                .andExpect(jsonPath("$.primeiroVencimento").value(hoje().toString()))
                 .andExpect(jsonPath("$.situacao").value("VIGENTE"))
                 .andExpect(jsonPath("$.trocaDe").value(atual));
         String nova = idDe(troca);

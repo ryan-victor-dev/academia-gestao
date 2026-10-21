@@ -224,4 +224,61 @@ class CronogramaTest {
         assertThat(acerto.alteradas()).hasSize(2);
         assertThat(gravadas.get(0).getVencimento()).isEqualTo(dia(2026, 10, 27));
     }
+
+    // Troca de plano: de onde contam as parcelas da nova (decisão do dono, ADR 0026).
+
+    /** No meio do mês: o mês em curso já foi cobrado pela antiga; a nova começa no próximo vencimento. */
+    @Test
+    void continuacaoNoMeioDoMesComecaNoProximoVencimento() {
+        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), dia(2026, 11, 1)).primeiroVencimento())
+                .isEqualTo(dia(2026, 11, 17));
+    }
+
+    /** No dia de um vencimento: a mensalidade do dia sai da antiga, e a nova começa nele. */
+    @Test
+    void continuacaoNoDiaDoVencimentoComecaNele() {
+        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), dia(2026, 11, 17)).primeiroVencimento())
+                .isEqualTo(dia(2026, 11, 17));
+        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), INICIO).primeiroVencimento()).isEqualTo(INICIO);
+    }
+
+    /** No último mês: a nova começa no dia seguinte ao fim da antiga. */
+    @Test
+    void continuacaoNoUltimoMesComecaDepoisDoFim() {
+        assertThat(Cronograma.continuacao(mensal(3, List.of(), null), dia(2027, 1, 1)).primeiroVencimento())
+                .isEqualTo(dia(2027, 1, 17));
+    }
+
+    /** Um trancamento já terminado empurrou os vencimentos: a conta usa os empurrados. */
+    @Test
+    void continuacaoDepoisDeUmTrancamento() {
+        var trancada = mensal(3, List.of(new Pausa(dia(2026, 10, 20), 30)), null);
+        assertThat(Cronograma.continuacao(trancada, dia(2026, 12, 1)).primeiroVencimento())
+                .isEqualTo(dia(2026, 12, 17));
+    }
+
+    /** À vista: o total cobre os meses, que começam no mesmo dia de cada mês. */
+    @Test
+    void continuacaoDeUmaAVista() {
+        var aVista = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 12, true, INICIO,
+                List.of(), null);
+        assertThat(Cronograma.continuacao(aVista, dia(2027, 1, 5)).primeiroVencimento()).isEqualTo(dia(2027, 1, 17));
+    }
+
+    /** A nova conta as parcelas do primeiro vencimento; o dia 31 continua no último dia do mês. */
+    @Test
+    void parcelasContamDoPrimeiroVencimento() {
+        var continuacao = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 3, false,
+                dia(2026, 12, 20), List.of(), null, dia(2027, 1, 31));
+        assertThat(vencimentos(Cronograma.previstas(continuacao)))
+                .containsExactly(dia(2027, 1, 31), dia(2027, 2, 28), dia(2027, 3, 31));
+        assertThat(Cronograma.continuacao(continuacao, dia(2027, 2, 10)).primeiroVencimento())
+                .isEqualTo(dia(2027, 2, 28));
+
+        var aVista = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 3, true,
+                dia(2026, 12, 20), List.of(), null, dia(2027, 1, 5));
+        assertThat(vencimentos(Cronograma.previstas(aVista))).containsExactly(dia(2027, 1, 5));
+        // Sem o primeiro vencimento, é o início.
+        assertThat(mensal(1, List.of(), null).primeiroVencimento()).isEqualTo(INICIO);
+    }
 }

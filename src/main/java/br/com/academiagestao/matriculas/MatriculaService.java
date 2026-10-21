@@ -2,6 +2,7 @@ package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.alunos.AlunosParaMatricula;
 import br.com.academiagestao.cobranca.CobrancasDasMatriculas;
+import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.planos.PlanoOfertado;
 import br.com.academiagestao.planos.PlanosParaMatricula;
@@ -154,7 +155,8 @@ class MatriculaService {
 
     /**
      * Troca imediata de plano (ADR 0018): a atual termina na véspera e a nova começa hoje, com
-     * nome, preço e regras do novo plano. Trava o aluno, como matricular e trancar.
+     * nome, preço e regras do novo plano; as parcelas dela começam no próximo vencimento da
+     * atual (ADR 0026). Trava o aluno, como matricular e trancar.
      */
     @Transactional
     Matricula trocarPlano(UUID id, UUID novoPlanoId, UUID usuarioId) {
@@ -179,6 +181,8 @@ class MatriculaService {
         PlanoContratado contratado = new PlanoContratado(plano.id(), plano.nome(), plano.valorMensal(),
                 plano.duracaoMeses(), plano.fidelidade(), plano.percentualMulta(), plano.formaPagamento());
         Matricula nova = Matricula.nova(alunoId, contratado, null, agora);
+        // Antes de encerrar a atual: a conta usa o cronograma inteiro dela (ADR 0026).
+        nova.continuar(cobrancas.continuacao(atual.paraCobranca(), Calendario.hoje(agora)));
         atual.encerrarPorTroca(nova, usuarioId, agora);
         // A atual é gravada primeiro: encurtada, ela libera o período para a nova, que começa hoje.
         gravar(atual);

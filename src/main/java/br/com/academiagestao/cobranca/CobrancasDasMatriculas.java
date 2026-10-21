@@ -65,6 +65,14 @@ public class CobrancasDasMatriculas {
         acerto.novas().forEach(repository::inserir);
     }
 
+    /**
+     * Na troca de plano no dia {@code dia}: de onde contam as parcelas da matrícula nova, que
+     * continua a antiga (ADR 0026). Só faz a conta; não lê nem grava nada.
+     */
+    public MatriculaParaCobranca.Continuacao continuacao(MatriculaParaCobranca antiga, LocalDate dia) {
+        return Cronograma.continuacao(antiga, dia);
+    }
+
     /** Das matrículas informadas, as que ainda não têm cobranças no sistema. */
     @Transactional(readOnly = true)
     public Set<UUID> semCronograma(Collection<UUID> matriculaIds) {

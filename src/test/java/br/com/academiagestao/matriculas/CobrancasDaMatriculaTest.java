@@ -208,10 +208,12 @@ class CobrancasDaMatriculaTest {
         Matricula atual = service.matricular(aluno(), plano(3, "MENSAL", null), null);
         relogio.fixar(hoje.plusMonths(1).atTime(12, 0).atZone(Calendario.FUSO).toInstant());
 
-        service.trocarPlano(atual.getId(), plano(2, "MENSAL", null), usuario);
+        Matricula nova = service.trocarPlano(atual.getId(), plano(2, "MENSAL", null), usuario);
 
         assertThat(vencimentos(atual.getId(), "PENDENTE")).containsExactly(hoje);
         assertThat(vencimentos(atual.getId(), "CANCELADA")).containsExactly(hoje.plusMonths(1), hoje.plusMonths(2));
+        assertThat(nova.getPrimeiroVencimento()).isEqualTo(hoje.plusMonths(1));
+        assertThat(vencimentos(nova.getId(), "PENDENTE")).containsExactly(hoje.plusMonths(1), hoje.plusMonths(2));
     }
 
     @Test
@@ -250,10 +252,27 @@ class CobrancasDaMatriculaTest {
 
         Matricula nova = service.trocarPlano(atual.getId(), plano(2, "MENSAL", null), usuario);
 
-        LocalDate dia = hoje.plusDays(35);
+        // O 2º mês da atual (de hoje + 1 mês) já foi cobrado: a nova começa no 3º (ADR 0026),
+        // sem cobrar duas vezes os dias que sobram dele, e vai até 2 meses depois disso.
         assertThat(vencimentos(atual.getId(), "PENDENTE")).containsExactly(hoje, hoje.plusMonths(1));
         assertThat(vencimentos(atual.getId(), "CANCELADA")).containsExactly(hoje.plusMonths(2));
-        assertThat(vencimentos(nova.getId(), "PENDENTE")).containsExactly(dia, dia.plusMonths(1));
+        assertThat(nova.getInicio()).isEqualTo(hoje.plusDays(35));
+        assertThat(nova.getPrimeiroVencimento()).isEqualTo(hoje.plusMonths(2));
+        assertThat(nova.getFim()).isEqualTo(hoje.plusMonths(4).minusDays(1));
+        assertThat(vencimentos(nova.getId(), "PENDENTE")).containsExactly(hoje.plusMonths(2), hoje.plusMonths(3));
+    }
+
+    /** Troca no último mês: a nova começa a cobrar no dia seguinte ao fim da atual. */
+    @Test
+    void trocaNoUltimoMesCobraDepoisDoFimDaAtual() {
+        Matricula atual = service.matricular(aluno(), plano(2, "MENSAL", null), null);
+        relogio.adiantar(Duration.ofDays(45));
+
+        Matricula nova = service.trocarPlano(atual.getId(), plano(1, "A_VISTA", null), usuario);
+
+        assertThat(vencimentos(atual.getId(), "PENDENTE")).containsExactly(hoje, hoje.plusMonths(1));
+        assertThat(nova.getPrimeiroVencimento()).isEqualTo(hoje.plusMonths(2));
+        assertThat(vencimentos(nova.getId(), "PENDENTE")).containsExactly(hoje.plusMonths(2));
     }
 
     /**

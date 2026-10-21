@@ -83,7 +83,12 @@ public class Matricula {
     @Column(nullable = false, updatable = false)
     private LocalDate inicio;
 
-    // Avança com os dias trancados (ADR 0018): início + N meses - 1 dia + dias trancados.
+    // Na matrícula que veio de uma troca, de onde contam as parcelas e os meses do plano: o
+    // próximo vencimento da anterior, que já pagou até lá (ADR 0026). Vazio = o início.
+    @Column(name = "primeiro_vencimento", updatable = false)
+    private LocalDate primeiroVencimento;
+
+    // Avança com os dias trancados (ADR 0018): primeiro vencimento + N meses - 1 dia + dias trancados.
     @Column(nullable = false)
     private LocalDate fim;
 
@@ -322,6 +327,22 @@ public class Matricula {
     }
 
     /**
+     * Esta matrícula nova continua a de uma troca (ADR 0026): começa hoje, mas as parcelas e os
+     * meses do plano contam do próximo vencimento da anterior, que já pagou até lá. O fim vai
+     * junto: o aluno tem os meses inteiros do plano novo, mais os dias já pagos pelo anterior.
+     * Chamado antes de {@link #encerrarPorTroca}, que compara as multas pelo fim.
+     */
+    void continuar(MatriculaParaCobranca.Continuacao continuacao) {
+        LocalDate primeiro = continuacao.primeiroVencimento();
+        if (trocaDe != null || canceladaEm != null || primeiro.isBefore(inicio)
+                || primeiro.isAfter(inicio.plusMonths(1))) {
+            throw new IllegalStateException("continuação inválida para a matrícula " + id + ": " + primeiro);
+        }
+        this.primeiroVencimento = primeiro.equals(inicio) ? null : primeiro;
+        this.fim = fimDoPeriodo(primeiro, duracaoMeses);
+    }
+
+    /**
      * Encerra esta matrícula na véspera de hoje porque o aluno trocou de plano (ADR 0018). Só
      * vigente e sem trancamento em aberto. Com fidelidade, a troca não tem multa só se o
      * compromisso continuar (ADR 0020): a multa que a nova cobraria se o aluno saísse logo
@@ -403,7 +424,7 @@ public class Matricula {
                     MatriculaParaCobranca.Encerramento.Tipo.TROCA, trocadaEm, multa);
         }
         return new MatriculaParaCobranca(id, alunoId, valorMensal, duracaoMeses,
-                formaPagamento == FormaPagamento.A_VISTA, inicio, pausas, encerramento);
+                formaPagamento == FormaPagamento.A_VISTA, inicio, pausas, encerramento, getPrimeiroVencimento());
     }
 
     static LocalDate hoje(Instant agora) {
@@ -433,6 +454,7 @@ public class Matricula {
     public UUID getCanceladaPor() { return canceladaPor; }
     public String getMotivoCancelamento() { return motivoCancelamento; }
     public BigDecimal getMulta() { return multa; }
+    public LocalDate getPrimeiroVencimento() { return primeiroVencimento == null ? inicio : primeiroVencimento; }
     public LocalDate getTrocadaEm() { return trocadaEm; }
     public UUID getTrocadaPor() { return trocadaPor; }
     public UUID getTrocaDe() { return trocaDe; }

@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.cobranca.dominio.MatriculaParaCobranca;
 import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
 import br.com.academiagestao.alunos.CpfsParaTeste;
@@ -402,6 +403,44 @@ class MatriculaRepositoryTest {
                                       cancelada_por = ?, motivo_cancelamento = 'x' WHERE id = ?""", usuario, usuario, id))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_matriculas_trocada_ou_cancelada");
+    }
+
+    /** O primeiro vencimento da nova de uma troca é gravado, e o banco confere o fim por ele (ADR 0026). */
+    @Test
+    void bancoConfereOPrimeiroVencimento() {
+        Matricula atual = repository.saveAndFlush(matricula(aluno, "2027-01-10", 3));
+        Matricula nova = Matricula.nova(aluno, new PlanoContratado(outroPlano(), "Outro", new BigDecimal("150"), 1),
+                LocalDate.parse("2027-01-20"), em("2027-01-20"));
+        nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-10")));
+        atual.encerrarPorTroca(nova, usuario, em("2027-01-20"));
+        repository.saveAndFlush(atual);
+        UUID id = repository.saveAndFlush(nova).getId();
+
+        Matricula lida = repository.findById(id).orElseThrow();
+        assertThat(lida.getPrimeiroVencimento()).isEqualTo(LocalDate.parse("2027-02-10"));
+        assertThat(lida.getFim()).isEqualTo(LocalDate.parse("2027-03-09"));
+        assertThat(repository.findById(atual.getId()).orElseThrow().getPrimeiroVencimento())
+                .isEqualTo(LocalDate.parse("2027-01-10"));
+
+        assertThatThrownBy(() -> jdbc.update("UPDATE matriculas SET fim = '2027-02-19' WHERE id = ?", id))
+                .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining("ck_matriculas_fim");
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE matriculas SET primeiro_vencimento = '2027-02-21', fim = '2027-03-20' WHERE id = ?""", id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_primeiro_vencimento");
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE matriculas SET primeiro_vencimento = '2027-01-20', fim = '2027-02-19' WHERE id = ?""", id))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_primeiro_vencimento");
+        assertThatCode(() -> jdbc.update("""
+                UPDATE matriculas SET primeiro_vencimento = '2027-02-20', fim = '2027-03-19' WHERE id = ?""", id))
+                .doesNotThrowAnyException();
+        // Só a nova de uma troca tem primeiro vencimento.
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE matriculas SET primeiro_vencimento = '2027-01-15', fim = '2027-04-14' WHERE id = ?""",
+                atual.getId()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_matriculas_primeiro_vencimento");
     }
 
     @Test

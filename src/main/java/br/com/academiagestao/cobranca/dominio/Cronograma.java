@@ -21,22 +21,20 @@ public final class Cronograma {
     }
 
     /**
-     * Mensal: a parcela k vence em início + (k − 1) meses (sem o dia no mês, no último dia
-     * dele), adiada pelos trancamentos que começaram até lá. À vista: o total, no início.
-     * Encerrada, só ficam as de antes do encerramento, mais a multa.
+     * Mensal: a parcela k vence em primeiro vencimento + (k − 1) meses (sem o dia no mês, no
+     * último dia dele), adiada pelos trancamentos que começaram até lá. À vista: o total, no
+     * primeiro vencimento. O primeiro vencimento é o início, salvo na matrícula que veio de uma
+     * troca (ver {@link #continuacao}). Encerrada, só ficam as de antes do encerramento, mais a multa.
      */
     public static List<ParcelaPrevista> previstas(MatriculaParaCobranca matricula) {
         List<ParcelaPrevista> parcelas = new ArrayList<>();
         if (matricula.aVista()) {
             BigDecimal total = matricula.valorMensal().multiply(BigDecimal.valueOf(matricula.duracaoMeses()));
-            parcelas.add(new ParcelaPrevista(TipoCobranca.A_VISTA, 1, total,
-                    adiar(matricula.inicio(), matricula.pausas())));
+            parcelas.add(new ParcelaPrevista(TipoCobranca.A_VISTA, 1, total, vencimento(matricula, 1)));
         } else {
             for (int k = 1; k <= matricula.duracaoMeses(); k++) {
-                // Sempre a partir do início: 31/01 → 28/02 → 31/03, sem "perder" o dia 31.
-                LocalDate vencimento = matricula.inicio().plusMonths(k - 1);
                 parcelas.add(new ParcelaPrevista(TipoCobranca.MENSALIDADE, k, matricula.valorMensal(),
-                        adiar(vencimento, matricula.pausas())));
+                        vencimento(matricula, k)));
             }
         }
         MatriculaParaCobranca.Encerramento encerramento = matricula.encerramento();
@@ -52,6 +50,29 @@ public final class Cronograma {
             ficam.add(new ParcelaPrevista(TipoCobranca.MULTA, 1, encerramento.multa(), encerramento.dia()));
         }
         return ficam;
+    }
+
+    /**
+     * O k-ésimo mês da matrícula começa (e a mensalidade dele vence) em primeiro vencimento +
+     * (k − 1) meses, adiado pelos trancamentos. Sempre a partir do primeiro: 31/01 → 28/02 →
+     * 31/03, sem "perder" o dia 31.
+     */
+    private static LocalDate vencimento(MatriculaParaCobranca matricula, int k) {
+        return adiar(matricula.primeiroVencimento().plusMonths(k - 1), matricula.pausas());
+    }
+
+    /**
+     * Troca de plano no dia {@code dia} (decisão do dono, ADR 0026): os meses desta que já
+     * começaram estão pagos (ou cobrados) inteiros, então a nova só cobra a partir do próximo
+     * mês desta, o primeiro que começa no dia ou depois. Na troca no último mês, é o dia
+     * seguinte ao fim.
+     */
+    public static MatriculaParaCobranca.Continuacao continuacao(MatriculaParaCobranca antiga, LocalDate dia) {
+        int k = 1;
+        while (vencimento(antiga, k).isBefore(dia)) {
+            k++;
+        }
+        return new MatriculaParaCobranca.Continuacao(vencimento(antiga, k));
     }
 
     /** Cada trancamento que começou até o vencimento (já adiado pelos anteriores) o empurra. */

@@ -1,5 +1,6 @@
 package br.com.academiagestao.matriculas;
 
+import br.com.academiagestao.cobranca.dominio.MatriculaParaCobranca;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.planos.FormaPagamento;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MatriculaTest {
@@ -674,6 +676,51 @@ class MatriculaTest {
                 .isInstanceOf(MatriculaNaoCancelavelException.class).hasMessageContaining("trocada");
         assertThatThrownBy(() -> trancar(atual, null, "2026-11-01", "2026-10-21T10:00"))
                 .isInstanceOf(MatriculaRecusadaException.class);
+    }
+
+    /**
+     * A nova de uma troca continua a anterior (ADR 0026): começa hoje, mas as parcelas e os
+     * meses do plano contam do próximo vencimento da anterior. O fim vai junto.
+     */
+    @Test
+    void continuacaoEstendeOFimPelosDiasJaPagos() {
+        Matricula nova = novaDoPlano(false, "150");  // 12 meses, a partir de 20/01/2027
+
+        nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17")));
+
+        assertThat(nova.getInicio()).isEqualTo(LocalDate.parse("2027-01-20"));
+        assertThat(nova.getPrimeiroVencimento()).isEqualTo(LocalDate.parse("2027-02-17"));
+        assertThat(nova.getFim()).isEqualTo(LocalDate.parse("2028-02-16"));
+        assertThat(nova.paraCobranca().primeiroVencimento()).isEqualTo(LocalDate.parse("2027-02-17"));
+        assertThat(nova.situacao(em("2027-01-20T10:00"))).isEqualTo(SituacaoMatricula.VIGENTE);
+    }
+
+    @Test
+    void continuacaoNoProprioInicioNaoMudaNada() {
+        Matricula nova = novaDoPlano(false, "150");
+        LocalDate fim = nova.getFim();
+
+        nova.continuar(new MatriculaParaCobranca.Continuacao(nova.getInicio()));
+
+        assertThat(nova.getPrimeiroVencimento()).isEqualTo(nova.getInicio());
+        assertThat(nova.getFim()).isEqualTo(fim);
+    }
+
+    @Test
+    void continuacaoForaDoPrimeiroMesOuDeMatriculaJaLigadaEhRecusada() {
+        Matricula nova = novaDoPlano(false, "150");
+        assertThatThrownBy(() -> nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-01-19"))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-21"))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatCode(() -> nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-20"))))
+                .doesNotThrowAnyException();
+
+        Matricula ligada = novaDoPlano(false, "150");
+        Matricula.nova(ALUNO, plano("100", 3), null, em("2027-01-01T10:00"))
+                .encerrarPorTroca(ligada, USUARIO, em("2027-01-20T10:00"));
+        assertThatThrownBy(() -> ligada.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-01"))))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
