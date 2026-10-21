@@ -368,4 +368,49 @@ class CronogramaTest {
         assertThatThrownBy(() -> new MatriculaParaCobranca.Continuacao(INICIO, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    /**
+     * Paga adiantada de um mês que começa depois da troca também vira crédito (decisão do
+     * dono): a mensal de 3 trocada no 2º mês, com a 3ª paga, deixa 100 (2 cobradas antes do dia
+     * mais a paga, menos 1 mês usado). A em aberto que sai (a 2ª) não conta.
+     */
+    @Test
+    void pagaAdiantadaViraCreditoNaTroca() {
+        var mensal = mensal(3, List.of(), null);
+        List<Cobranca> gravadas = Cronograma.acertar(mensal, List.of(), INICIO, AGORA).novas();
+        gravadas.get(2).pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX,
+                UUID.randomUUID(), AGORA);
+
+        assertThat(Cronograma.continuacao(mensal, gravadas, dia(2026, 11, 1)).credito()).isEqualByComparingTo("100");
+
+        // À vista paga e trocada no próprio dia: nada foi usado, tudo vira crédito.
+        var aVista = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 12, true, INICIO,
+                List.of(), null);
+        Cobranca total = Cronograma.acertar(aVista, List.of(), INICIO, AGORA).novas().getFirst();
+        total.pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("1200"), MeioDePagamento.PIX, UUID.randomUUID(),
+                AGORA);
+        assertThat(Cronograma.continuacao(aVista, List.of(total), INICIO).credito()).isEqualByComparingTo("1200");
+    }
+
+    /**
+     * Na troca, a paga adiantada que sai não é marcada fora do cronograma: virou crédito, então
+     * o estorno a faz voltar a dever (no cancelamento, ela seria cancelada).
+     */
+    @Test
+    void trocaNaoMarcaAPagaAdiantadaEOEstornoAFazDever() {
+        List<Cobranca> gravadas = Cronograma.acertar(mensal(3, List.of(), null), List.of(), INICIO, AGORA).novas();
+        Cobranca pagaAdiantada = gravadas.get(2);
+        pagaAdiantada.pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX,
+                UUID.randomUUID(), AGORA);
+        var trocada = mensal(3, List.of(), new Encerramento(Encerramento.Tipo.TROCA, dia(2026, 11, 1), null));
+
+        Cronograma.Acerto acerto = Cronograma.acertar(trocada, gravadas, INICIO, AGORA);
+
+        assertThat(acerto.alteradas()).containsExactly(gravadas.get(1));
+        assertThat(gravadas.get(1).getStatus()).isEqualTo(StatusCobranca.CANCELADA);
+        assertThat(pagaAdiantada.isForaDoCronograma()).isFalse();
+
+        pagaAdiantada.estornar(dia(2026, 11, 5), UUID.randomUUID(), AGORA);
+        assertThat(pagaAdiantada.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
+    }
 }

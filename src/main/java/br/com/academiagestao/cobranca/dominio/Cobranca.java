@@ -93,8 +93,9 @@ public class Cobranca {
     /**
      * Desfaz o pagamento: a cobrança volta a ficar em aberto e pode atrasar (ADR 0024), mas o
      * atraso só conta do dia do estorno em diante (ver {@link #getPrazo}). Se ela já saiu do
-     * cronograma (paga adiantada de uma matrícula encerrada), não é mais devida: fica cancelada,
-     * por quem estornou (decisão do dono, ADR 0026). O pagamento continua no registro, com o
+     * cronograma (paga adiantada de uma matrícula cancelada), não é mais devida: fica cancelada,
+     * por quem estornou (decisão do dono, ADR 0026). A paga adiantada de uma matrícula trocada
+     * não sai: virou crédito na nova, então o estorno a faz voltar a dever. O pagamento continua no registro, com o
      * estorno ao lado ({@link Lancamento}, ADR 0025).
      */
     public void estornar(LocalDate hoje, UUID por, Instant agora) {
@@ -130,7 +131,7 @@ public class Cobranca {
     }
 
     /**
-     * Paga, mas a matrícula encerrou antes do período dela: continua paga (ADR 0024), e um
+     * Paga, mas a matrícula foi cancelada antes do período dela: continua paga (ADR 0024), e um
      * estorno a cancela em vez de fazê-la voltar a dever.
      */
     void sairDoCronograma() {

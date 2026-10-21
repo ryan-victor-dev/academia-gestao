@@ -293,6 +293,28 @@ class CobrancasDaMatriculaTest {
         assertThat(vencimentos(nova.getId(), "PENDENTE")).containsExactly(hoje.plusMonths(12), hoje.plusMonths(13));
     }
 
+    /**
+     * Mensal com a 3ª paga adiantada, trocada no 2º mês (decisão do dono, ADR 0026): a paga vira
+     * crédito na nova e fica na antiga sem a marca de fora do cronograma.
+     */
+    @Test
+    void pagaAdiantadaViraCreditoNaTroca() {
+        Matricula atual = service.matricular(aluno(), plano(3, "MENSAL", null), null);
+        jdbc.update("""
+                UPDATE cobrancas SET status = 'PAGA', pago_acrescimo = 0, pago_juros = 0, pago_total = valor,
+                       meio_de_pagamento = 'PIX', paga_em = now(), paga_por = ?
+                WHERE matricula_id = ? AND parcela = 3""", usuario, atual.getId());
+        relogio.adiantar(Duration.ofDays(35));
+
+        Matricula nova = service.trocarPlano(atual.getId(), plano(3, "MENSAL", null), usuario);
+
+        assertThat(nova.getCredito()).isEqualByComparingTo("100");
+        assertThat(cobrancas(nova.getId())).extracting(c -> c.get("parcela")).containsExactly(2, 3);
+        assertThat(vencimentos(atual.getId(), "PAGA")).containsExactly(hoje.plusMonths(2));
+        assertThat(jdbc.queryForList("SELECT parcela FROM cobrancas WHERE matricula_id = ? AND fora_do_cronograma",
+                Integer.class, atual.getId())).isEmpty();
+    }
+
     /** Crédito maior que o plano novo inteiro: a troca é recusada e nada muda (decisão do dono). */
     @Test
     void creditoMaiorQueOPlanoNovoRecusaATroca() {

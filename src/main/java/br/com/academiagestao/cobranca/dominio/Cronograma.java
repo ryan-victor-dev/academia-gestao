@@ -76,11 +76,11 @@ public final class Cronograma {
      * mês desta, o primeiro que começa no dia ou depois. Na troca no último mês, é o dia
      * seguinte ao fim.
      *
-     * O crédito é o que foi cobrado desta (das {@code gravadas}, as que ficam com ela depois da
-     * troca), mais o crédito que ela já tinha, menos os meses usados: a à vista de 12 meses
-     * trocada no 3º deixa 10 meses de crédito. Só o cobrado conta: a cobrança cancelada (ou a que
-     * nunca existiu, numa matrícula de antes da cobrança) não vira crédito. Paga ou em aberto,
-     * tanto faz: a em aberto continua devida.
+     * O crédito é o que foi cobrado desta (das {@code gravadas}: as que ficam com ela depois da
+     * troca, pagas ou em aberto, e as pagas adiantadas que saem dela), mais o crédito que ela já
+     * tinha, menos os meses usados: a à vista de 12 meses trocada no 3º deixa 10 meses de
+     * crédito. Só o cobrado conta: a cobrança cancelada (ou a que nunca existiu, numa matrícula
+     * de antes da cobrança) não vira crédito. A em aberto que fica continua devida.
      */
     public static MatriculaParaCobranca.Continuacao continuacao(MatriculaParaCobranca antiga, List<Cobranca> gravadas,
                                                                 LocalDate dia) {
@@ -90,7 +90,7 @@ public final class Cronograma {
         }
         BigDecimal cobrado = gravadas.stream()
                 .filter(c -> c.getTipo() != TipoCobranca.MULTA && c.getStatus() != StatusCobranca.CANCELADA
-                        && c.getVencimento().isBefore(dia))
+                        && (c.getVencimento().isBefore(dia) || c.getStatus() == StatusCobranca.PAGA))
                 .map(Cobranca::getValor)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal usado = antiga.valorMensal().multiply(BigDecimal.valueOf(k - 1));
@@ -119,8 +119,10 @@ public final class Cronograma {
      * - prevista e ainda não gravada: cria, se vencer a partir de {@code aPartirDe} (as
      *   matrículas que já existiam antes da cobrança só têm as de dali em diante);
      * - gravada com outro vencimento: reprograma, se não estiver cancelada;
-     * - gravada e não prevista mais: cancela, se em aberto. Paga continua paga (ADR 0024), mas
-     *   fica marcada fora do cronograma: um estorno a cancela (ADR 0026).
+     * - gravada e não prevista mais: cancela, se em aberto. Paga continua paga (ADR 0024). No
+     *   cancelamento, fica marcada fora do cronograma: um estorno a cancela (ADR 0026). Na
+     *   troca, não: ela virou crédito na nova (ver {@link #continuacao}), e o estorno a faz
+     *   voltar a dever.
      * Uma cancelada nunca volta: nem a cancelada pelo ADMIN, nem a do encerramento.
      */
     public static Acerto acertar(MatriculaParaCobranca matricula, List<Cobranca> gravadas, LocalDate aPartirDe,
@@ -147,7 +149,8 @@ public final class Cronograma {
             if (sobrou.getStatus() == StatusCobranca.PENDENTE) {
                 sobrou.cancelar(MOTIVO_DO_ENCERRAMENTO, null, agora);
                 alteradas.add(sobrou);
-            } else if (sobrou.getStatus() == StatusCobranca.PAGA && !sobrou.isForaDoCronograma()) {
+            } else if (sobrou.getStatus() == StatusCobranca.PAGA && !sobrou.isForaDoCronograma()
+                    && matricula.encerramento().tipo() == MatriculaParaCobranca.Encerramento.Tipo.CANCELAMENTO) {
                 sobrou.sairDoCronograma();
                 alteradas.add(sobrou);
             }
