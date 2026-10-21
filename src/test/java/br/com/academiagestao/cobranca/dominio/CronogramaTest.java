@@ -171,13 +171,32 @@ class CronogramaTest {
             assertThat(multa.getValor()).isEqualByComparingTo("80");
             assertThat(multa.getVencimento()).isEqualTo(INICIO);
         });
-        assertThat(acerto.alteradas()).containsExactly(gravadas.get(1));
+        assertThat(acerto.alteradas()).containsExactly(gravadas.get(1), pagaAdiantada);
         assertThat(gravadas.get(0).getStatus()).isEqualTo(StatusCobranca.PENDENTE);
         assertThat(gravadas.get(1).getStatus()).isEqualTo(StatusCobranca.CANCELADA);
         assertThat(gravadas.get(1).getCancelamento().motivo()).isEqualTo(Cronograma.MOTIVO_DO_ENCERRAMENTO);
         assertThat(gravadas.get(1).getCancelamento().por()).isNull();
         // Paga adiantada continua paga: a devolução, se houver, é por fora (decisão do dono).
+        // Fica marcada fora do cronograma: um estorno a cancela (ADR 0026).
         assertThat(pagaAdiantada.getStatus()).isEqualTo(StatusCobranca.PAGA);
+        assertThat(pagaAdiantada.isForaDoCronograma()).isTrue();
+        assertThat(gravadas.get(0).isForaDoCronograma()).isFalse();
+
+        // De novo, nada muda: a marcada não volta a ser alterada.
+        assertThat(Cronograma.acertar(cancelada, gravadas, INICIO, AGORA).alteradas()).isEmpty();
+    }
+
+    /** Paga e ainda no cronograma não é marcada. */
+    @Test
+    void pagaNoCronogramaNaoEhMarcada() {
+        List<Cobranca> gravadas = Cronograma.acertar(mensal(2, List.of(), null), List.of(), INICIO, AGORA).novas();
+        gravadas.getFirst().pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX,
+                UUID.randomUUID(), AGORA);
+
+        Cronograma.Acerto acerto = Cronograma.acertar(mensal(2, List.of(), null), gravadas, INICIO, AGORA);
+
+        assertThat(acerto.alteradas()).isEmpty();
+        assertThat(gravadas.getFirst().isForaDoCronograma()).isFalse();
     }
 
     /** Cancelada pelo ADMIN não volta, nem é reprogramada, quando o cronograma muda. */

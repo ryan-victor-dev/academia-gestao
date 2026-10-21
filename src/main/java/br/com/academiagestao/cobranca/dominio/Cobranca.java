@@ -14,6 +14,8 @@ import java.util.UUID;
 public class Cobranca {
 
     public static final int TAMANHO_MAXIMO_MOTIVO = 500;
+    static final String MOTIVO_FORA_DO_CRONOGRAMA =
+            "Estornada depois de sair do cronograma (matrícula encerrada): não é mais devida";
 
     private final UUID id;
     private final UUID matriculaId;
@@ -26,11 +28,12 @@ public class Cobranca {
     private Pagamento pagamento;
     private Cancelamento cancelamento;
     private LocalDate estornadaNoDia;
+    private boolean foraDoCronograma;
     private final long versao;
 
     private Cobranca(UUID id, UUID matriculaId, UUID alunoId, TipoCobranca tipo, int parcela, BigDecimal valor,
                      LocalDate vencimento, StatusCobranca status, Pagamento pagamento, Cancelamento cancelamento,
-                     LocalDate estornadaNoDia, long versao) {
+                     LocalDate estornadaNoDia, boolean foraDoCronograma, long versao) {
         this.id = id;
         this.matriculaId = matriculaId;
         this.alunoId = alunoId;
@@ -42,6 +45,7 @@ public class Cobranca {
         this.pagamento = pagamento;
         this.cancelamento = cancelamento;
         this.estornadaNoDia = estornadaNoDia;
+        this.foraDoCronograma = foraDoCronograma;
         this.versao = versao;
     }
 
@@ -54,16 +58,16 @@ public class Cobranca {
             throw new IllegalArgumentException("valor da cobrança deve ser positivo");
         }
         return new Cobranca(UUID.randomUUID(), matriculaId, alunoId, prevista.tipo(), prevista.parcela(),
-                prevista.valor().setScale(2), prevista.vencimento(), StatusCobranca.PENDENTE, null, null, null, 0);
+                prevista.valor().setScale(2), prevista.vencimento(), StatusCobranca.PENDENTE, null, null, null, false, 0);
     }
 
     /** Remonta uma cobrança lida do banco. */
     public static Cobranca restaurar(UUID id, UUID matriculaId, UUID alunoId, TipoCobranca tipo, int parcela,
                                      BigDecimal valor, LocalDate vencimento, StatusCobranca status,
                                      Pagamento pagamento, Cancelamento cancelamento, LocalDate estornadaNoDia,
-                                     long versao) {
+                                     boolean foraDoCronograma, long versao) {
         return new Cobranca(id, matriculaId, alunoId, tipo, parcela, valor, vencimento, status, pagamento,
-                cancelamento, estornadaNoDia, versao);
+                cancelamento, estornadaNoDia, foraDoCronograma, versao);
     }
 
     /**
@@ -88,14 +92,21 @@ public class Cobranca {
 
     /**
      * Desfaz o pagamento: a cobrança volta a ficar em aberto e pode atrasar (ADR 0024), mas o
-     * atraso só conta do dia do estorno em diante (ver {@link #getPrazo}). O pagamento continua
-     * no registro, com o estorno ao lado ({@link Lancamento}, ADR 0025).
+     * atraso só conta do dia do estorno em diante (ver {@link #getPrazo}). Se ela já saiu do
+     * cronograma (paga adiantada de uma matrícula encerrada), não é mais devida: fica cancelada,
+     * por quem estornou (decisão do dono, ADR 0026). O pagamento continua no registro, com o
+     * estorno ao lado ({@link Lancamento}, ADR 0025).
      */
-    public void estornar(LocalDate hoje) {
+    public void estornar(LocalDate hoje, UUID por, Instant agora) {
         conferirTransicao(StatusCobranca.PENDENTE);
+        Objects.requireNonNull(hoje, "o dia do estorno é obrigatório");
+        Objects.requireNonNull(por, "quem estornou é obrigatório");
         this.status = StatusCobranca.PENDENTE;
         this.pagamento = null;
-        this.estornadaNoDia = Objects.requireNonNull(hoje);
+        this.estornadaNoDia = hoje;
+        if (foraDoCronograma) {
+            cancelar(MOTIVO_FORA_DO_CRONOGRAMA, por, agora);
+        }
     }
 
     /**
@@ -116,6 +127,17 @@ public class Cobranca {
                     + " caracteres");
         }
         return limpo;
+    }
+
+    /**
+     * Paga, mas a matrícula encerrou antes do período dela: continua paga (ADR 0024), e um
+     * estorno a cancela em vez de fazê-la voltar a dever.
+     */
+    void sairDoCronograma() {
+        if (status != StatusCobranca.PAGA) {
+            throw new TransicaoInvalidaException(status, status);
+        }
+        this.foraDoCronograma = true;
     }
 
     /** O cronograma mudou (trancamento, volta): a cobrança vence em outro dia. */
@@ -156,5 +178,6 @@ public class Cobranca {
     public Pagamento getPagamento() { return pagamento; }
     public Cancelamento getCancelamento() { return cancelamento; }
     public LocalDate getEstornadaNoDia() { return estornadaNoDia; }
+    public boolean isForaDoCronograma() { return foraDoCronograma; }
     public long getVersao() { return versao; }
 }

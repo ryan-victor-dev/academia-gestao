@@ -236,6 +236,9 @@ class CobrancasDaMatriculaTest {
         service.cancelar(matricula.getId(), "Desistiu", usuario);
 
         assertThat(vencimentos(matricula.getId(), "PAGA")).containsExactly(hoje.plusMonths(2));
+        // Marcada fora do cronograma: um estorno a cancela em vez de voltar a dever (ADR 0026).
+        assertThat(jdbc.queryForList("SELECT parcela FROM cobrancas WHERE matricula_id = ? AND fora_do_cronograma",
+                Integer.class, matricula.getId())).containsExactly(3);
     }
 
     /** Troca: a atual fica com as de antes do dia, e a nova começa com a primeira dela hoje. */

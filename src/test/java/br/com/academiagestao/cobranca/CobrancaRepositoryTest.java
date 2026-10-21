@@ -86,13 +86,35 @@ class CobrancaRepositoryTest {
         assertThat(relida.getValor()).isEqualByComparingTo("100");
         assertThat(relida.getVersao()).isEqualTo(1);
 
-        relida.estornar(inicio.plusDays(40));
+        relida.estornar(inicio.plusDays(40), usuario, Instant.parse("2026-10-18T09:00:00Z"));
         relida.cancelar("Engano", usuario, Instant.parse("2026-10-18T10:00:00Z"));
         repository.atualizar(relida);
         Cobranca cancelada = repository.travarDaMatricula(matricula).getFirst();
         assertThat(cancelada.getPagamento()).isNull();
         assertThat(cancelada.getCancelamento()).isEqualTo(relida.getCancelamento());
         assertThat(cancelada.getEstornadaNoDia()).isEqualTo(inicio.plusDays(40));
+    }
+
+    /** A marca de fora do cronograma é gravada, e o banco nunca a aceita numa em aberto (ADR 0026). */
+    @Test
+    void foraDoCronogramaGravadoENuncaEmAberto() {
+        List<Cobranca> gravadas = gravarCronograma();
+        Cobranca pagaAdiantada = gravadas.get(1);
+        pagaAdiantada.pagar(RegrasDeAtraso.PADRAO, inicio, new BigDecimal("100"), MeioDePagamento.PIX, usuario,
+                Instant.parse("2026-10-17T15:00:00Z"));
+        repository.atualizar(pagaAdiantada);
+        var cancelada = new MatriculaParaCobranca(matricula, aluno, new BigDecimal("100"), 2, false, inicio, List.of(),
+                new MatriculaParaCobranca.Encerramento(MatriculaParaCobranca.Encerramento.Tipo.CANCELAMENTO, inicio, null));
+        Cronograma.acertar(cancelada, repository.travarDaMatricula(matricula), inicio, Instant.now())
+                .alteradas().forEach(repository::atualizar);
+
+        assertThat(repository.travar(pagaAdiantada.getId()).orElseThrow().isForaDoCronograma()).isTrue();
+        assertThat(repository.travar(gravadas.getFirst().getId()).orElseThrow().isForaDoCronograma()).isFalse();
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE cobrancas SET status = 'PENDENTE', pago_acrescimo = NULL, pago_juros = NULL, pago_total = NULL,
+                    meio_de_pagamento = NULL, paga_em = NULL, paga_por = NULL WHERE id = ?""", pagaAdiantada.getId()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_cobrancas_fora_do_cronograma");
     }
 
     /** A coluna gerada {@code prazo} faz a mesma conta de {@code Cobranca.getPrazo()} (ADR 0026). */
@@ -109,8 +131,8 @@ class CobrancaRepositoryTest {
             c.pagar(RegrasDeAtraso.PADRAO, inicio, c.getValor(), MeioDePagamento.PIX, usuario,
                     Instant.parse("2026-10-17T15:00:00Z"));
         }
-        estornadaDepois.estornar(estornadaDepois.getVencimento().plusDays(45));
-        estornadaAntes.estornar(estornadaAntes.getVencimento().minusDays(3));
+        estornadaDepois.estornar(estornadaDepois.getVencimento().plusDays(45), usuario, Instant.now());
+        estornadaAntes.estornar(estornadaAntes.getVencimento().minusDays(3), usuario, Instant.now());
         repository.atualizar(estornadaDepois);
         repository.atualizar(estornadaAntes);
 

@@ -291,6 +291,33 @@ class CobrancaControllerTest {
         assertThat(cobrancas.inadimplente(aluno)).isTrue();
     }
 
+    /**
+     * Paga adiantada de uma matrícula encerrada, depois estornada: o dinheiro volta e ela não é
+     * mais devida. Fica cancelada por quem estornou, sem bloquear o aluno (decisão do dono, ADR 0026).
+     */
+    @Test
+    void estornoForaDoCronogramaCancela() throws Exception {
+        UUID id = cobranca(2, 30);
+        pagar(id, "103.00", recepcao()).andExpect(status().isOk());
+        jdbc.update("UPDATE cobrancas SET fora_do_cronograma = true WHERE id = ?", id);
+
+        acao(id, "estornar", "Devolvido ao aluno", admin())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.situacao").value("CANCELADA"))
+                .andExpect(jsonPath("$.pagamento").value(nullValue()))
+                .andExpect(jsonPath("$.devidoHoje").value(nullValue()))
+                .andExpect(jsonPath("$.cancelamento.por").value(admin.toString()))
+                .andExpect(jsonPath("$.cancelamento.motivo").value(containsString("não é mais devida")));
+        assertThat(statusNoBanco(id)).isEqualTo("CANCELADA");
+        assertThat(lancamentosNoBanco(id)).extracting(l -> l.get("tipo")).containsExactly("PAGAMENTO", "ESTORNO");
+        assertThat(trilha(id, "ESTORNADA")).startsWith(admin.toString())
+                .contains("\"status\": {\"antes\": \"PAGA\", \"depois\": \"CANCELADA\"}")
+                .contains("Devolvido ao aluno");
+        relogio.fixar(hoje.plusDays(60).atTime(12, 0).atZone(Calendario.FUSO).toInstant());
+        assertThat(cobrancas.inadimplente(aluno)).isFalse();
+        acao(id, "estornar", "De novo", admin()).andExpect(status().isConflict());
+    }
+
     private List<Map<String, Object>> lancamentosNoBanco(UUID id) {
         return jdbc.queryForList("SELECT id, tipo, estorna, total, meio_de_pagamento, registrado_por, motivo "
                 + "FROM lancamentos WHERE cobranca_id = ? ORDER BY registrado_em, tipo DESC", id);

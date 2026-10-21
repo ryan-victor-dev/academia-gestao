@@ -75,7 +75,8 @@ public final class Cronograma {
      * - prevista e ainda não gravada: cria, se vencer a partir de {@code aPartirDe} (as
      *   matrículas que já existiam antes da cobrança só têm as de dali em diante);
      * - gravada com outro vencimento: reprograma, se não estiver cancelada;
-     * - gravada e não prevista mais: cancela, se em aberto. Paga continua paga (ADR 0024).
+     * - gravada e não prevista mais: cancela, se em aberto. Paga continua paga (ADR 0024), mas
+     *   fica marcada fora do cronograma: um estorno a cancela (ADR 0026).
      * Uma cancelada nunca volta: nem a cancelada pelo ADMIN, nem a do encerramento.
      */
     public static Acerto acertar(MatriculaParaCobranca matricula, List<Cobranca> gravadas, LocalDate aPartirDe,
@@ -101,6 +102,9 @@ public final class Cronograma {
         for (Cobranca sobrou : porChave.values()) {
             if (sobrou.getStatus() == StatusCobranca.PENDENTE) {
                 sobrou.cancelar(MOTIVO_DO_ENCERRAMENTO, null, agora);
+                alteradas.add(sobrou);
+            } else if (sobrou.getStatus() == StatusCobranca.PAGA && !sobrou.isForaDoCronograma()) {
+                sobrou.sairDoCronograma();
                 alteradas.add(sobrou);
             }
         }

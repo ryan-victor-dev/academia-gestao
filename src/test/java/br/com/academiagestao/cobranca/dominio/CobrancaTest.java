@@ -147,7 +147,7 @@ class CobrancaTest {
         Cobranca cobranca = cobranca();
         pagarEmDia(cobranca);
 
-        cobranca.estornar(VENCIMENTO);
+        cobranca.estornar(VENCIMENTO, RECEPCAO, AGORA);
 
         assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
         assertThat(cobranca.getPagamento()).isNull();
@@ -163,7 +163,7 @@ class CobrancaTest {
         pagarEmDia(cobranca);
         LocalDate estorno = VENCIMENTO.plusDays(90);
 
-        cobranca.estornar(estorno);
+        cobranca.estornar(estorno, RECEPCAO, AGORA);
 
         assertThat(cobranca.getEstornadaNoDia()).isEqualTo(estorno);
         assertThat(cobranca.getPrazo()).isEqualTo(estorno);
@@ -178,7 +178,7 @@ class CobrancaTest {
     void estornoAntesDoVencimentoMantemOPrazo() {
         Cobranca cobranca = cobranca();
         pagarEmDia(cobranca);
-        cobranca.estornar(VENCIMENTO.minusDays(5));
+        cobranca.estornar(VENCIMENTO.minusDays(5), RECEPCAO, AGORA);
         assertThat(cobranca.getPrazo()).isEqualTo(VENCIMENTO);
 
         cobranca.reprogramar(VENCIMENTO.minusDays(10));
@@ -191,22 +191,60 @@ class CobrancaTest {
     void estornoGuardaOUltimoDia() {
         Cobranca cobranca = cobranca();
         pagarEmDia(cobranca);
-        cobranca.estornar(VENCIMENTO.plusDays(10));
+        cobranca.estornar(VENCIMENTO.plusDays(10), RECEPCAO, AGORA);
         cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO.plusDays(10), new BigDecimal("100"),
                 MeioDePagamento.PIX, RECEPCAO, AGORA);
-        cobranca.estornar(VENCIMENTO.plusDays(20));
+        cobranca.estornar(VENCIMENTO.plusDays(20), RECEPCAO, AGORA);
         assertThat(cobranca.getPrazo()).isEqualTo(VENCIMENTO.plusDays(20));
         Cobranca semDia = cobranca();
         pagarEmDia(semDia);
-        assertThatThrownBy(() -> semDia.estornar(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> semDia.estornar(null, RECEPCAO, AGORA)).isInstanceOf(NullPointerException.class);
+    }
+
+    /**
+     * Paga adiantada de uma matrícula encerrada: o estorno devolve o dinheiro e ela não é mais
+     * devida, então fica cancelada por quem estornou (decisão do dono, ADR 0026).
+     */
+    @Test
+    void estornoForaDoCronogramaCancela() {
+        Cobranca cobranca = cobranca();
+        pagarEmDia(cobranca);
+        cobranca.sairDoCronograma();
+        UUID admin = UUID.randomUUID();
+
+        cobranca.estornar(VENCIMENTO.plusDays(40), admin, AGORA);
+
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.CANCELADA);
+        assertThat(cobranca.getPagamento()).isNull();
+        assertThat(cobranca.getCancelamento().por()).isEqualTo(admin);
+        assertThat(cobranca.getCancelamento().motivo()).isEqualTo(Cobranca.MOTIVO_FORA_DO_CRONOGRAMA);
+        assertThat(cobranca.getCancelamento().em()).isEqualTo(AGORA.truncatedTo(java.time.temporal.ChronoUnit.MICROS));
+        assertThat(cobranca.atrasada(VENCIMENTO.plusDays(100))).isFalse();
+    }
+
+    @Test
+    void soPagaSaiDoCronograma() {
+        assertThatThrownBy(() -> cobranca().sairDoCronograma()).isInstanceOf(TransicaoInvalidaException.class);
+        Cobranca cancelada = cobranca();
+        cancelada.cancelar("Engano", RECEPCAO, AGORA);
+        assertThatThrownBy(cancelada::sairDoCronograma).isInstanceOf(TransicaoInvalidaException.class);
+        assertThat(cobranca().isForaDoCronograma()).isFalse();
+    }
+
+    @Test
+    void quemEstornouEhObrigatorio() {
+        Cobranca cobranca = cobranca();
+        pagarEmDia(cobranca);
+        assertThatThrownBy(() -> cobranca.estornar(VENCIMENTO, null, AGORA)).isInstanceOf(NullPointerException.class);
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PAGA);
     }
 
     @Test
     void soEstornaOQueFoiPago() {
         Cobranca cobranca = cobranca();
-        assertThatThrownBy(() -> cobranca.estornar(VENCIMENTO)).isInstanceOf(TransicaoInvalidaException.class);
+        assertThatThrownBy(() -> cobranca.estornar(VENCIMENTO, RECEPCAO, AGORA)).isInstanceOf(TransicaoInvalidaException.class);
         cobranca.cancelar("Engano", RECEPCAO, AGORA);
-        assertThatThrownBy(() -> cobranca.estornar(VENCIMENTO)).isInstanceOf(TransicaoInvalidaException.class);
+        assertThatThrownBy(() -> cobranca.estornar(VENCIMENTO, RECEPCAO, AGORA)).isInstanceOf(TransicaoInvalidaException.class);
     }
 
     @Test
@@ -295,13 +333,14 @@ class CobrancaTest {
         Pagamento pagamento = new Pagamento(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.TEN, MeioDePagamento.PIX,
                 AGORA, RECEPCAO);
         Cobranca cobranca = Cobranca.restaurar(id, UUID.randomUUID(), UUID.randomUUID(), TipoCobranca.MULTA, 1,
-                BigDecimal.TEN, VENCIMENTO, StatusCobranca.PAGA, pagamento, null, VENCIMENTO.minusDays(1), 7);
+                BigDecimal.TEN, VENCIMENTO, StatusCobranca.PAGA, pagamento, null, VENCIMENTO.minusDays(1), true, 7);
         assertThat(cobranca.getId()).isEqualTo(id);
         assertThat(cobranca.getPagamento()).isEqualTo(pagamento);
         assertThat(cobranca.getVersao()).isEqualTo(7);
         assertThat(cobranca.getEstornadaNoDia()).isEqualTo(VENCIMENTO.minusDays(1));
-        cobranca.estornar(VENCIMENTO);
-        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
+        assertThat(cobranca.isForaDoCronograma()).isTrue();
+        cobranca.estornar(VENCIMENTO, RECEPCAO, AGORA);
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.CANCELADA);
     }
 
     @ParameterizedTest

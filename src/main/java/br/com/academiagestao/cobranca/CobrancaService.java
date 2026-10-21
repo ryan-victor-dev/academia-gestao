@@ -96,8 +96,8 @@ class CobrancaService {
     }
 
     /**
-     * Só o ADMIN: a cobrança volta a ficar em aberto, e o pagamento continua no registro, com
-     * um lançamento de estorno ao lado (ADR 0025).
+     * Só o ADMIN: a cobrança volta a ficar em aberto (ou cancelada, se já saiu do cronograma,
+     * ADR 0026), e o pagamento continua no registro, com um lançamento de estorno ao lado (ADR 0025).
      */
     @Transactional
     Consulta estornar(UUID id, String motivo, UUID usuarioId) {
@@ -105,7 +105,7 @@ class CobrancaService {
         Cobranca cobranca = travar(id);
         Map<String, Object> antes = retrato(cobranca);
         LocalDate hoje = hoje();
-        cobranca.estornar(hoje);
+        cobranca.estornar(hoje, usuarioId, relogio.instant());
         Lancamento estorno = lancamentos.pagamentoEmVigor(id)
                 .orElseThrow(() -> new IllegalStateException("cobrança paga sem o lançamento do pagamento: " + id))
                 .estornar(motivoLimpo, usuarioId, relogio.instant());
