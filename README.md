@@ -87,6 +87,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0023](docs/adr/0023-relogio-unico-e-limpeza-central-dos-testes.md) | Relógio único (datas testáveis, fuso da academia) e limpeza central dos testes |
 | [0024](docs/adr/0024-cobranca.md) | Cobrança: mensalidades, atraso, pagamento e inadimplência |
 | [0025](docs/adr/0025-pendencias-medias-da-cobranca.md) | Pendências médias da cobrança: teto do plano, subida e registro de pagamentos |
+| [0026](docs/adr/0026-estorno-e-troca-na-cobranca.md) | Estorno e troca de plano na cobrança: prazo do estorno, crédito do não usado |
 
 ## Como rodar
 
@@ -236,8 +237,13 @@ válidos para todas a partir da mudança). Depois de 10 dias de atraso (editáve
 "pode treinar?" diz não. Só o ADMIN estorna (a cobrança volta a dever) ou cancela, com
 motivo; tudo vai para a trilha (`entidade` `COBRANCA` ou `CONFIGURACAO`). Cada pagamento e
 cada estorno entram também no registro de lançamentos, onde o estorno é um lançamento novo
-que aponta para o pagamento (ADR 0025). As matrículas que já existiam antes da cobrança
-ganharam só as cobranças de hoje em diante. O valor mensal de um plano vai até R$ 100.000.
+que aponta para o pagamento (ADR 0025). Depois de um estorno, acréscimo, juros e bloqueio
+contam do dia do estorno; o estorno de uma paga adiantada de matrícula cancelada a cancela
+(ADR 0026). Na troca de plano, a nova cobra a partir do próximo vencimento da antiga, e o
+que foi cobrado e não usado (o à vista, a paga adiantada) vira crédito abatido das primeiras
+parcelas dela; crédito maior que o plano novo inteiro recusa a troca (409). As matrículas
+que já existiam antes da cobrança ganharam só as cobranças de hoje em diante. O valor
+mensal de um plano vai até R$ 100.000.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.

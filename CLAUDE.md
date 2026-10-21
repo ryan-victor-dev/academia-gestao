@@ -112,9 +112,11 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - Nos testes, a aplicação conecta como o dono do banco (`@ServiceConnection`), e não como
   `academia_app`: para provar uma permissão, conecte como `academia_app` (veja
   `UsuarioDaAplicacaoNoBancoTest`).
+- A API da cobrança mostra a `situacao` (calculada: `ATRASADA` é a pendente vencida), não o
+  `status` do banco: em scripts de validação, compare com a situação certa.
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021 e 0022; dinheiro, nos 0024 e 0025. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021 e 0022; dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.
