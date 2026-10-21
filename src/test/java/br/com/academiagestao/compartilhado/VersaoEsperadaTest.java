@@ -41,6 +41,10 @@ class VersaoEsperadaTest {
                 .isEqualTo("Plano alterado por outra pessoa");
         assertThatThrownBy(() -> VersaoEsperada.conferir(null, 3, "o plano"))
                 .hasMessage("Envie o cabeçalho If-Match com o ETag recebido no GET do plano.");
+        assertThatThrownBy(() -> VersaoEsperada.conferir("\"1\"", 3, "a ficha"))
+                .hasMessageStartingWith("A ficha foi alterada por outra pessoa depois que você a carregou.")
+                .extracting(e -> ((RecursoModificadoException) e).titulo())
+                .isEqualTo("Ficha alterada por outra pessoa");
     }
 
     @Test

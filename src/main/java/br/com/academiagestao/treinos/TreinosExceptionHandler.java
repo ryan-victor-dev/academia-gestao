@@ -22,4 +22,18 @@ class TreinosExceptionHandler {
         problema.setTitle("Nome de exercício em uso");
         return problema;
     }
+
+    @ExceptionHandler(FichaNaoEncontradaException.class)
+    ProblemDetail fichaNaoEncontrada(FichaNaoEncontradaException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+        problema.setTitle("Ficha não encontrada");
+        return problema;
+    }
+
+    @ExceptionHandler(FichaRecusadaException.class)
+    ProblemDetail fichaRecusada(FichaRecusadaException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle(e.titulo());
+        return problema;
+    }
 }

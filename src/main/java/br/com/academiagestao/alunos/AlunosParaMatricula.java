@@ -7,8 +7,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * O que o módulo de matrículas pode pedir ao de alunos. Devolve dados, não lança as
- * exceções daqui: quem decide a resposta HTTP é o módulo que chamou.
+ * O que os módulos de matrículas e de treinos podem pedir ao de alunos. Devolve dados, não
+ * lança as exceções daqui: quem decide a resposta HTTP é o módulo que chamou.
  */
 @Service
 public class AlunosParaMatricula {
@@ -21,8 +21,9 @@ public class AlunosParaMatricula {
 
     /**
      * Trava a linha do aluno até o fim da transação de quem chamou (SELECT ... FOR UPDATE)
-     * e diz se ele existe e está ativo. Com a trava, matricular e inativar o mesmo aluno
-     * ao mesmo tempo não passam juntos pelas checagens: um espera o outro (ADR 0016).
+     * e diz se ele existe e está ativo. Com a trava, matricular (ou montar uma ficha) e
+     * inativar o mesmo aluno ao mesmo tempo não passam juntos pelas checagens: um espera o
+     * outro (ADR 0016).
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public EstadoDoAluno travar(UUID alunoId) {
