@@ -86,12 +86,45 @@ class CobrancaRepositoryTest {
         assertThat(relida.getValor()).isEqualByComparingTo("100");
         assertThat(relida.getVersao()).isEqualTo(1);
 
-        relida.estornar();
+        relida.estornar(inicio.plusDays(40));
         relida.cancelar("Engano", usuario, Instant.parse("2026-10-18T10:00:00Z"));
         repository.atualizar(relida);
         Cobranca cancelada = repository.travarDaMatricula(matricula).getFirst();
         assertThat(cancelada.getPagamento()).isNull();
         assertThat(cancelada.getCancelamento()).isEqualTo(relida.getCancelamento());
+        assertThat(cancelada.getEstornadaNoDia()).isEqualTo(inicio.plusDays(40));
+    }
+
+    /** A coluna gerada {@code prazo} faz a mesma conta de {@code Cobranca.getPrazo()} (ADR 0026). */
+    @Test
+    void prazoDoBancoIgualAoDoDominio() {
+        var tresMeses = new MatriculaParaCobranca(matricula, aluno, new BigDecimal("100"), 3, false, inicio,
+                List.of(), null);
+        Cronograma.acertar(tresMeses, List.of(), inicio, Instant.now()).novas().forEach(repository::inserir);
+        List<Cobranca> cronograma = repository.travarDaMatricula(matricula);
+        Cobranca semEstorno = cronograma.getFirst();
+        Cobranca estornadaDepois = cronograma.get(1);
+        Cobranca estornadaAntes = cronograma.get(2);
+        for (Cobranca c : List.of(estornadaDepois, estornadaAntes)) {
+            c.pagar(RegrasDeAtraso.PADRAO, inicio, c.getValor(), MeioDePagamento.PIX, usuario,
+                    Instant.parse("2026-10-17T15:00:00Z"));
+        }
+        estornadaDepois.estornar(estornadaDepois.getVencimento().plusDays(45));
+        estornadaAntes.estornar(estornadaAntes.getVencimento().minusDays(3));
+        repository.atualizar(estornadaDepois);
+        repository.atualizar(estornadaAntes);
+
+        for (Cobranca lida : repository.travarDaMatricula(matricula)) {
+            LocalDate doBanco = jdbc.queryForObject("SELECT prazo FROM cobrancas WHERE id = ?", LocalDate.class,
+                    lida.getId());
+            assertThat(doBanco).as("parcela %d", lida.getParcela()).isEqualTo(lida.getPrazo());
+        }
+        assertThat(repository.travar(semEstorno.getId()).orElseThrow().getPrazo())
+                .isEqualTo(semEstorno.getVencimento());
+        assertThat(repository.travar(estornadaDepois.getId()).orElseThrow().getPrazo())
+                .isEqualTo(estornadaDepois.getVencimento().plusDays(45));
+        assertThat(repository.travar(estornadaAntes.getId()).orElseThrow().getPrazo())
+                .isEqualTo(estornadaAntes.getVencimento());
     }
 
     /**

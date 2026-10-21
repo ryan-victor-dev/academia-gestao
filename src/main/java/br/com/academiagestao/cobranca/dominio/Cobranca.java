@@ -25,11 +25,12 @@ public class Cobranca {
     private StatusCobranca status;
     private Pagamento pagamento;
     private Cancelamento cancelamento;
+    private LocalDate estornadaNoDia;
     private final long versao;
 
     private Cobranca(UUID id, UUID matriculaId, UUID alunoId, TipoCobranca tipo, int parcela, BigDecimal valor,
                      LocalDate vencimento, StatusCobranca status, Pagamento pagamento, Cancelamento cancelamento,
-                     long versao) {
+                     LocalDate estornadaNoDia, long versao) {
         this.id = id;
         this.matriculaId = matriculaId;
         this.alunoId = alunoId;
@@ -40,6 +41,7 @@ public class Cobranca {
         this.status = status;
         this.pagamento = pagamento;
         this.cancelamento = cancelamento;
+        this.estornadaNoDia = estornadaNoDia;
         this.versao = versao;
     }
 
@@ -52,15 +54,16 @@ public class Cobranca {
             throw new IllegalArgumentException("valor da cobrança deve ser positivo");
         }
         return new Cobranca(UUID.randomUUID(), matriculaId, alunoId, prevista.tipo(), prevista.parcela(),
-                prevista.valor().setScale(2), prevista.vencimento(), StatusCobranca.PENDENTE, null, null, 0);
+                prevista.valor().setScale(2), prevista.vencimento(), StatusCobranca.PENDENTE, null, null, null, 0);
     }
 
     /** Remonta uma cobrança lida do banco. */
     public static Cobranca restaurar(UUID id, UUID matriculaId, UUID alunoId, TipoCobranca tipo, int parcela,
                                      BigDecimal valor, LocalDate vencimento, StatusCobranca status,
-                                     Pagamento pagamento, Cancelamento cancelamento, long versao) {
+                                     Pagamento pagamento, Cancelamento cancelamento, LocalDate estornadaNoDia,
+                                     long versao) {
         return new Cobranca(id, matriculaId, alunoId, tipo, parcela, valor, vencimento, status, pagamento,
-                cancelamento, versao);
+                cancelamento, estornadaNoDia, versao);
     }
 
     /**
@@ -84,13 +87,15 @@ public class Cobranca {
     }
 
     /**
-     * Desfaz o pagamento: a cobrança volta a ficar em aberto e pode atrasar (ADR 0024). O
-     * pagamento continua no registro, com o estorno ao lado ({@link Lancamento}, ADR 0025).
+     * Desfaz o pagamento: a cobrança volta a ficar em aberto e pode atrasar (ADR 0024), mas o
+     * atraso só conta do dia do estorno em diante (ver {@link #getPrazo}). O pagamento continua
+     * no registro, com o estorno ao lado ({@link Lancamento}, ADR 0025).
      */
-    public void estornar() {
+    public void estornar(LocalDate hoje) {
         conferirTransicao(StatusCobranca.PENDENTE);
         this.status = StatusCobranca.PENDENTE;
         this.pagamento = null;
+        this.estornadaNoDia = Objects.requireNonNull(hoje);
     }
 
     /**
@@ -121,6 +126,15 @@ public class Cobranca {
         this.vencimento = Objects.requireNonNull(novoVencimento);
     }
 
+    /**
+     * Até quando se paga sem atraso: o vencimento ou, se depois dele, o dia do último estorno.
+     * Até o estorno, a academia dava a cobrança por paga: acréscimo, juros e bloqueio contam
+     * só dali em diante (decisão do dono, ADR 0026). O banco faz a mesma conta (coluna {@code prazo}).
+     */
+    public LocalDate getPrazo() {
+        return estornadaNoDia != null && estornadaNoDia.isAfter(vencimento) ? estornadaNoDia : vencimento;
+    }
+
     public boolean atrasada(LocalDate hoje) {
         return RegrasDeAtraso.diasDeAtraso(this, hoje) > 0;
     }
@@ -141,5 +155,6 @@ public class Cobranca {
     public StatusCobranca getStatus() { return status; }
     public Pagamento getPagamento() { return pagamento; }
     public Cancelamento getCancelamento() { return cancelamento; }
+    public LocalDate getEstornadaNoDia() { return estornadaNoDia; }
     public long getVersao() { return versao; }
 }

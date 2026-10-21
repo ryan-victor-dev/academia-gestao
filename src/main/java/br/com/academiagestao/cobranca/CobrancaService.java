@@ -104,11 +104,12 @@ class CobrancaService {
         String motivoLimpo = Cobranca.motivoValido(motivo);
         Cobranca cobranca = travar(id);
         Map<String, Object> antes = retrato(cobranca);
-        cobranca.estornar();
+        LocalDate hoje = hoje();
+        cobranca.estornar(hoje);
         Lancamento estorno = lancamentos.pagamentoEmVigor(id)
                 .orElseThrow(() -> new IllegalStateException("cobrança paga sem o lançamento do pagamento: " + id))
                 .estornar(motivoLimpo, usuarioId, relogio.instant());
-        Consulta estornada = gravar(cobranca, "ESTORNADA", antes, motivoLimpo, configuracao.ler().regras(), hoje());
+        Consulta estornada = gravar(cobranca, "ESTORNADA", antes, motivoLimpo, configuracao.ler().regras(), hoje);
         lancamentos.inserir(estorno);
         return estornada;
     }

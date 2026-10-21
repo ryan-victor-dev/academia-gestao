@@ -73,12 +73,12 @@ public record RegrasDeAtraso(TipoAcrescimo tipoAcrescimo, BigDecimal acrescimo, 
         return new ValorDevido(valor, configurado.min(teto), juros, dias);
     }
 
-    /** Do 1º dia depois do vencimento em diante (sem tolerância, ADR 0024). */
+    /** Do 1º dia depois do prazo (o vencimento, ou o estorno) em diante (sem tolerância, ADR 0024). */
     public static long diasDeAtraso(Cobranca cobranca, LocalDate hoje) {
         if (cobranca.getStatus() != StatusCobranca.PENDENTE) {
             return 0;
         }
-        return Math.max(0, ChronoUnit.DAYS.between(cobranca.getVencimento(), hoje));
+        return Math.max(0, ChronoUnit.DAYS.between(cobranca.getPrazo(), hoje));
     }
 
     /** Atrasada há mais dias do que o tolerado: o "pode treinar?" diz não. */

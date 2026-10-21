@@ -63,6 +63,9 @@ class CobrancaControllerTest {
     @Autowired
     RelogioDeTeste relogio;
 
+    @Autowired
+    CobrancasDasMatriculas cobrancas;
+
     private final UUID aluno = UUID.randomUUID();
     private final UUID plano = UUID.randomUUID();
     private final UUID matricula = UUID.randomUUID();
@@ -252,6 +255,42 @@ class CobrancaControllerTest {
                 .andExpect(jsonPath("$.detail").value(containsString("não há pagamento")));
     }
 
+    /**
+     * Estorno meses depois (contestação do cartão): até ali a cobrança estava paga, então
+     * acréscimo, juros e bloqueio contam do dia do estorno (decisão do dono, ADR 0026).
+     */
+    @Test
+    void estornoTardioAtrasaSoDoDiaDoEstorno() throws Exception {
+        UUID id = cobranca(1, 40);
+        pagar(id, "103.33", recepcao()).andExpect(status().isOk());
+
+        acao(id, "estornar", "Cartão contestado", admin())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vencimento").value(hoje.minusDays(40).toString()))
+                .andExpect(jsonPath("$.prazo").value(hoje.toString()))
+                .andExpect(jsonPath("$.situacao").value("PENDENTE"))
+                .andExpect(jsonPath("$.diasDeAtraso").value(0))
+                .andExpect(jsonPath("$.devidoHoje.total").value(100.00));
+        assertThat(cobrancas.inadimplente(aluno)).isFalse();
+        String atrasadasHoje = mvc.perform(get("/api/cobrancas/atrasadas").param("tamanho", "100").with(recepcao()))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(atrasadasHoje).doesNotContain(id.toString());
+        // A contagem usa a mesma regra da lista: com 100 por página, cabem todas.
+        assertThat((Integer) JsonPath.read(atrasadasHoje, "$.totalElementos"))
+                .isEqualTo(((List<?>) JsonPath.read(atrasadasHoje, "$.conteudo")).size());
+
+        relogio.fixar(hoje.plusDays(3).atTime(12, 0).atZone(Calendario.FUSO).toInstant());
+        mvc.perform(get("/api/cobrancas/" + id).with(recepcao()))
+                .andExpect(jsonPath("$.situacao").value("ATRASADA"))
+                .andExpect(jsonPath("$.diasDeAtraso").value(3))
+                .andExpect(jsonPath("$.devidoHoje.juros").value(0.10))
+                .andExpect(jsonPath("$.devidoHoje.total").value(102.10));
+        assertThat(cobrancas.inadimplente(aluno)).isFalse();
+
+        relogio.fixar(hoje.plusDays(11).atTime(12, 0).atZone(Calendario.FUSO).toInstant());
+        assertThat(cobrancas.inadimplente(aluno)).isTrue();
+    }
+
     private List<Map<String, Object>> lancamentosNoBanco(UUID id) {
         return jdbc.queryForList("SELECT id, tipo, estorna, total, meio_de_pagamento, registrado_por, motivo "
                 + "FROM lancamentos WHERE cobranca_id = ? ORDER BY registrado_em, tipo DESC", id);
@@ -269,7 +308,7 @@ class CobrancaControllerTest {
         acao(id, "estornar", "Cartão contestado", admin()).andExpect(status().isOk());
         relogio.adiantar(Duration.ofMinutes(5));
         mvc.perform(post("/api/cobrancas/" + id + "/pagar").with(como("RECEPCAO", outraRecepcao))
-                .contentType(MediaType.APPLICATION_JSON).content("{\"valor\": 102.50, \"meioDePagamento\": \"DINHEIRO\"}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"valor\": 100.00, \"meioDePagamento\": \"DINHEIRO\"}"))
                 .andExpect(status().isOk());
 
         List<Map<String, Object>> registro = lancamentosNoBanco(id);
@@ -280,8 +319,9 @@ class CobrancaControllerTest {
                 .containsEntry("motivo", "Cartão contestado");
         assertThat(registro.get(2)).containsEntry("meio_de_pagamento", "DINHEIRO")
                 .containsEntry("registrado_por", outraRecepcao).containsEntry("estorna", null);
+        // O novo pagamento é do mesmo dia do estorno: sem atraso (ADR 0026).
         assertThat(registro).extracting(l -> ((BigDecimal) l.get("total")).toPlainString())
-                .containsOnly("102.50");
+                .containsExactly("102.50", "102.50", "100.00");
 
         mvc.perform(get("/api/cobrancas/" + id + "/lancamentos").with(recepcao()))
                 .andExpect(status().isOk())

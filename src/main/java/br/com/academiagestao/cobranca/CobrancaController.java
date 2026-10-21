@@ -125,11 +125,13 @@ class CobrancaController {
     }
 
     /**
-     * {@code situacao}: PENDENTE, ATRASADA (pendente com o vencimento no passado), PAGA ou
-     * CANCELADA. {@code devidoHoje} só existe em aberto.
+     * {@code situacao}: PENDENTE, ATRASADA (pendente com o prazo no passado), PAGA ou
+     * CANCELADA. {@code prazo}: o vencimento ou, se depois dele, o dia do último estorno; o
+     * atraso conta dali (ADR 0026). {@code devidoHoje} só existe em aberto.
      */
     record CobrancaResponse(UUID id, UUID matriculaId, UUID alunoId, TipoCobranca tipo, int parcela,
-                            BigDecimal valor, LocalDate vencimento, String situacao, long diasDeAtraso,
+                            BigDecimal valor, LocalDate vencimento, LocalDate prazo, String situacao,
+                            long diasDeAtraso,
                             DevidoResponse devidoHoje, PagamentoResponse pagamento,
                             CancelamentoResponse cancelamento) {
 
@@ -138,7 +140,7 @@ class CobrancaController {
             String situacao = c.getStatus() == StatusCobranca.PENDENTE && c.atrasada(consulta.hoje())
                     ? "ATRASADA" : c.getStatus().name();
             return new CobrancaResponse(c.getId(), c.getMatriculaId(), c.getAlunoId(), c.getTipo(), c.getParcela(),
-                    c.getValor(), c.getVencimento(), situacao,
+                    c.getValor(), c.getVencimento(), c.getPrazo(), situacao,
                     consulta.devido().map(ValorDevido::diasDeAtraso).orElse(0L),
                     consulta.devido().map(DevidoResponse::de).orElse(null),
                     c.getPagamento() == null ? null : PagamentoResponse.de(c.getPagamento()),
@@ -148,13 +150,13 @@ class CobrancaController {
 
     /** O que o aluno vê: sem os ids de quem registrou ou cancelou (dados da equipe). */
     record CobrancaParaAluno(UUID id, TipoCobranca tipo, int parcela, BigDecimal valor, LocalDate vencimento,
-                             String situacao, long diasDeAtraso, DevidoResponse devidoHoje, Instant pagaEm,
+                             LocalDate prazo, String situacao, long diasDeAtraso, DevidoResponse devidoHoje, Instant pagaEm,
                              MeioDePagamento meioDePagamento, BigDecimal pagoTotal) {
         static CobrancaParaAluno de(Consulta consulta) {
             CobrancaResponse completa = CobrancaResponse.de(consulta);
             Pagamento pagamento = consulta.cobranca().getPagamento();
             return new CobrancaParaAluno(completa.id(), completa.tipo(), completa.parcela(), completa.valor(),
-                    completa.vencimento(), completa.situacao(), completa.diasDeAtraso(), completa.devidoHoje(),
+                    completa.vencimento(), completa.prazo(), completa.situacao(), completa.diasDeAtraso(), completa.devidoHoje(),
                     pagamento == null ? null : pagamento.em(), pagamento == null ? null : pagamento.meio(),
                     pagamento == null ? null : pagamento.total());
         }

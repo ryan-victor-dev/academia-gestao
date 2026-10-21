@@ -147,7 +147,7 @@ class CobrancaTest {
         Cobranca cobranca = cobranca();
         pagarEmDia(cobranca);
 
-        cobranca.estornar();
+        cobranca.estornar(VENCIMENTO);
 
         assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
         assertThat(cobranca.getPagamento()).isNull();
@@ -156,12 +156,57 @@ class CobrancaTest {
         assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PAGA);
     }
 
+    /** Estorno depois do vencimento: o atraso conta do dia do estorno, não do vencimento (ADR 0026). */
+    @Test
+    void estornoDepoisDoVencimentoAtrasaSoDaliEmDiante() {
+        Cobranca cobranca = cobranca();
+        pagarEmDia(cobranca);
+        LocalDate estorno = VENCIMENTO.plusDays(90);
+
+        cobranca.estornar(estorno);
+
+        assertThat(cobranca.getEstornadaNoDia()).isEqualTo(estorno);
+        assertThat(cobranca.getPrazo()).isEqualTo(estorno);
+        assertThat(cobranca.getVencimento()).isEqualTo(VENCIMENTO);
+        assertThat(cobranca.atrasada(estorno)).isFalse();
+        assertThat(cobranca.atrasada(estorno.plusDays(1))).isTrue();
+        assertThat(RegrasDeAtraso.diasDeAtraso(cobranca, estorno.plusDays(3))).isEqualTo(3);
+    }
+
+    /** Estorno antes do vencimento: o prazo continua o vencimento; reprogramada, vale o novo. */
+    @Test
+    void estornoAntesDoVencimentoMantemOPrazo() {
+        Cobranca cobranca = cobranca();
+        pagarEmDia(cobranca);
+        cobranca.estornar(VENCIMENTO.minusDays(5));
+        assertThat(cobranca.getPrazo()).isEqualTo(VENCIMENTO);
+
+        cobranca.reprogramar(VENCIMENTO.minusDays(10));
+        assertThat(cobranca.getPrazo()).isEqualTo(VENCIMENTO.minusDays(5));
+        cobranca.reprogramar(VENCIMENTO.plusDays(30));
+        assertThat(cobranca.getPrazo()).isEqualTo(VENCIMENTO.plusDays(30));
+    }
+
+    @Test
+    void estornoGuardaOUltimoDia() {
+        Cobranca cobranca = cobranca();
+        pagarEmDia(cobranca);
+        cobranca.estornar(VENCIMENTO.plusDays(10));
+        cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO.plusDays(10), new BigDecimal("100"),
+                MeioDePagamento.PIX, RECEPCAO, AGORA);
+        cobranca.estornar(VENCIMENTO.plusDays(20));
+        assertThat(cobranca.getPrazo()).isEqualTo(VENCIMENTO.plusDays(20));
+        Cobranca semDia = cobranca();
+        pagarEmDia(semDia);
+        assertThatThrownBy(() -> semDia.estornar(null)).isInstanceOf(NullPointerException.class);
+    }
+
     @Test
     void soEstornaOQueFoiPago() {
         Cobranca cobranca = cobranca();
-        assertThatThrownBy(cobranca::estornar).isInstanceOf(TransicaoInvalidaException.class);
+        assertThatThrownBy(() -> cobranca.estornar(VENCIMENTO)).isInstanceOf(TransicaoInvalidaException.class);
         cobranca.cancelar("Engano", RECEPCAO, AGORA);
-        assertThatThrownBy(cobranca::estornar).isInstanceOf(TransicaoInvalidaException.class);
+        assertThatThrownBy(() -> cobranca.estornar(VENCIMENTO)).isInstanceOf(TransicaoInvalidaException.class);
     }
 
     @Test
@@ -250,11 +295,12 @@ class CobrancaTest {
         Pagamento pagamento = new Pagamento(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.TEN, MeioDePagamento.PIX,
                 AGORA, RECEPCAO);
         Cobranca cobranca = Cobranca.restaurar(id, UUID.randomUUID(), UUID.randomUUID(), TipoCobranca.MULTA, 1,
-                BigDecimal.TEN, VENCIMENTO, StatusCobranca.PAGA, pagamento, null, 7);
+                BigDecimal.TEN, VENCIMENTO, StatusCobranca.PAGA, pagamento, null, VENCIMENTO.minusDays(1), 7);
         assertThat(cobranca.getId()).isEqualTo(id);
         assertThat(cobranca.getPagamento()).isEqualTo(pagamento);
         assertThat(cobranca.getVersao()).isEqualTo(7);
-        cobranca.estornar();
+        assertThat(cobranca.getEstornadaNoDia()).isEqualTo(VENCIMENTO.minusDays(1));
+        cobranca.estornar(VENCIMENTO);
         assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
     }
 

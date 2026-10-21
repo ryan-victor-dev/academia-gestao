@@ -30,7 +30,8 @@ class CobrancaRepository {
 
     private static final String COLUNAS = """
             id, matricula_id, aluno_id, tipo, parcela, valor, vencimento, status, pago_acrescimo, pago_juros,
-            pago_total, meio_de_pagamento, paga_em, paga_por, cancelada_em, cancelada_por, motivo_cancelamento, versao""";
+            pago_total, meio_de_pagamento, paga_em, paga_por, cancelada_em, cancelada_por, motivo_cancelamento, estornada_no_dia,
+            versao""";
 
     private final JdbcTemplate jdbc;
 
@@ -60,20 +61,23 @@ class CobrancaRepository {
                 this::mapear, alunoId);
     }
 
-    /** Alguma em aberto vencida antes do dia limite? (o "pode treinar?") */
+    /**
+     * Alguma em aberto com o prazo antes do dia limite? (o "pode treinar?"). O prazo é o
+     * vencimento ou o dia do estorno, o que vier depois (coluna gerada, V25).
+     */
     boolean temEmAbertoVencidaAntesDe(UUID alunoId, LocalDate limite) {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM cobrancas WHERE aluno_id = ? "
-                + "AND status = 'PENDENTE' AND vencimento < ?)", Boolean.class, alunoId, limite));
+                + "AND status = 'PENDENTE' AND prazo < ?)", Boolean.class, alunoId, limite));
     }
 
-    /** As em aberto vencidas antes de hoje, da mais antiga para a mais nova. */
+    /** As em aberto com o prazo antes de hoje, da que atrasou primeiro para a última. */
     List<Cobranca> atrasadas(LocalDate hoje, int pagina, int tamanho) {
-        return jdbc.query("SELECT " + COLUNAS + " FROM cobrancas WHERE status = 'PENDENTE' AND vencimento < ? "
-                + "ORDER BY vencimento, id LIMIT ? OFFSET ?", this::mapear, hoje, tamanho, (long) pagina * tamanho);
+        return jdbc.query("SELECT " + COLUNAS + " FROM cobrancas WHERE status = 'PENDENTE' AND prazo < ? "
+                + "ORDER BY prazo, id LIMIT ? OFFSET ?", this::mapear, hoje, tamanho, (long) pagina * tamanho);
     }
 
     long contarAtrasadas(LocalDate hoje) {
-        return jdbc.queryForObject("SELECT count(*) FROM cobrancas WHERE status = 'PENDENTE' AND vencimento < ?",
+        return jdbc.queryForObject("SELECT count(*) FROM cobrancas WHERE status = 'PENDENTE' AND prazo < ?",
                 Long.class, hoje);
     }
 
@@ -93,7 +97,7 @@ class CobrancaRepository {
                 UPDATE cobrancas
                 SET vencimento = ?, status = ?, pago_acrescimo = ?, pago_juros = ?, pago_total = ?, meio_de_pagamento = ?,
                     paga_em = ?, paga_por = ?, cancelada_em = ?, cancelada_por = ?, motivo_cancelamento = ?,
-                    versao = versao + 1
+                    estornada_no_dia = ?, versao = versao + 1
                 WHERE id = ? AND versao = ?""",
                 cobranca.getVencimento(), cobranca.getStatus().name(),
                 pagamento == null ? null : pagamento.acrescimo(), pagamento == null ? null : pagamento.juros(),
@@ -101,7 +105,7 @@ class CobrancaRepository {
                 pagamento == null ? null : Timestamp.from(pagamento.em()), pagamento == null ? null : pagamento.por(),
                 cancelamento == null ? null : Timestamp.from(cancelamento.em()),
                 cancelamento == null ? null : cancelamento.por(), cancelamento == null ? null : cancelamento.motivo(),
-                cobranca.getId(), cobranca.getVersao());
+                cobranca.getEstornadaNoDia(), cobranca.getId(), cobranca.getVersao());
         if (linhas != 1) {
             throw new ObjectOptimisticLockingFailureException(Cobranca.class, cobranca.getId());
         }
@@ -139,6 +143,7 @@ class CobrancaRepository {
         return Cobranca.restaurar(rs.getObject("id", UUID.class), rs.getObject("matricula_id", UUID.class),
                 rs.getObject("aluno_id", UUID.class), TipoCobranca.valueOf(rs.getString("tipo")), rs.getInt("parcela"),
                 rs.getBigDecimal("valor"), rs.getObject("vencimento", LocalDate.class),
-                StatusCobranca.valueOf(rs.getString("status")), pagamento, cancelamento, rs.getLong("versao"));
+                StatusCobranca.valueOf(rs.getString("status")), pagamento, cancelamento,
+                rs.getObject("estornada_no_dia", LocalDate.class), rs.getLong("versao"));
     }
 }
