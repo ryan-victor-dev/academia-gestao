@@ -15,6 +15,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -98,7 +99,10 @@ public class Matricula {
     private int diasTrancados;
 
     // Poucos por matrícula, e a situação depende deles: vêm junto (open-in-view está desligado).
+    // BatchSize (R6): numa lista, os trancamentos de até 50 matrículas vêm numa consulta só,
+    // em vez de uma consulta por matrícula. (SUBSELECT não: ignora a paginação, ADR 0028.)
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @BatchSize(size = 50)
     @JoinColumn(name = "matricula_id", nullable = false, updatable = false)
     @OrderBy("inicio")
     private List<Trancamento> trancamentos = new ArrayList<>();
