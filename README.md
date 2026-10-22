@@ -90,6 +90,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0026](docs/adr/0026-estorno-e-troca-na-cobranca.md) | Estorno e troca de plano na cobrança: prazo do estorno, crédito do não usado |
 | [0027](docs/adr/0027-treinos.md) | Treinos: catálogo de exercícios, ficha atual com histórico e quem vê o quê |
 | [0028](docs/adr/0028-pendencias-medias-dos-treinos.md) | Pendências médias dos treinos: OOM, histórico imutável no banco, caractere de controle, listas em páginas, teto da revisão |
+| [0029](docs/adr/0029-login-do-aluno-inativo-so-de-leitura.md) | Login do aluno inativo, só de leitura: vê os próprios dados, não altera nada |
 
 ## Como rodar
 
@@ -180,7 +181,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/alunos/{id}` | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `POST /api/alunos` | ADMIN, RECEPCAO |
 | `PUT /api/alunos/{id}` (exige `If-Match`²) | ADMIN, RECEPCAO |
-| `POST /api/alunos/{id}/inativar`, `/reativar` (levam o login junto; inativar com matrícula vigente ou agendada dá 409) | ADMIN, RECEPCAO |
+| `POST /api/alunos/{id}/inativar`, `/reativar` (inativar deixa o login só de leitura⁹, reativar o libera; inativar com matrícula vigente ou agendada dá 409) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/login` (cria o login com senha temporária) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/login/nova-senha` ("esqueci minha senha") | ADMIN, RECEPCAO |
 | `GET /api/alunos/me` | ALUNO (o próprio cadastro) |
@@ -265,6 +266,11 @@ ficar mesmo inativado depois, para corrigir a carga sem trocá-lo. A data de rev
 opcional e precisa ser depois do dia da montagem; vencida, a ficha continua valendo, e
 a lista de revisões vencidas deixa de fora os alunos inativos. O aluno não vê quem da
 equipe montou a ficha.
+⁹ Aluno inativo (ADR 0029): o login dele continua, só de leitura. Ele entra, consulta os
+próprios dados (cadastro, matrículas, cobranças, fichas) e os planos, e troca a própria
+senha; qualquer outra coisa que não seja consulta dá 403. Os tokens de antes da
+inativação caem na hora. Não ganha senha nova pela recepção nem login novo: para isso,
+reative o aluno. `/api/me` mostra `somenteLeitura`.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.

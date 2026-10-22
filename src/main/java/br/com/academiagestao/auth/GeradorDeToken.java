@@ -43,6 +43,9 @@ class GeradorDeToken {
         if (usuario.isPrecisaTrocarSenha()) {
             claims.claim(ClaimsDoToken.TROCAR_SENHA, true);
         }
+        if (usuario.isSomenteLeitura()) {
+            claims.claim(ClaimsDoToken.SOMENTE_LEITURA, true);
+        }
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
 
         String token = encoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();

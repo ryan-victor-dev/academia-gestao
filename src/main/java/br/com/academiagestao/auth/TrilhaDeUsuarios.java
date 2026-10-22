@@ -19,7 +19,8 @@ class TrilhaDeUsuarios {
 
     static Map<String, Object> retrato(Usuario usuario) {
         return Auditoria.campos("nome", usuario.getNome(), "email", usuario.getEmail(), "perfil", usuario.getPerfil(),
-                "alunoId", usuario.getAlunoId(), "ativo", usuario.isAtivo());
+                "alunoId", usuario.getAlunoId(), "ativo", usuario.isAtivo(),
+                "somenteLeitura", usuario.isSomenteLeitura());
     }
 
     void criado(Usuario usuario) {

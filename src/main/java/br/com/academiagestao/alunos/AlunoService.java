@@ -109,7 +109,7 @@ class AlunoService {
         }
         Map<String, Object> antes = retrato(aluno);
         aluno.inativar();
-        loginsDeAlunos.desativar(id);
+        loginsDeAlunos.restringirALeitura(id);
         interessados.forEach(i -> i.inativado(id));
         auditoria.registrar(ALUNO, id, "INATIVADO", antes, retrato(aluno));
         return aluno;
@@ -120,7 +120,7 @@ class AlunoService {
         Aluno aluno = buscar(id);
         Map<String, Object> antes = retrato(aluno);
         aluno.reativar();
-        loginsDeAlunos.reativar(id);
+        loginsDeAlunos.liberarDaLeitura(id);
         interessados.forEach(i -> i.reativado(id));
         auditoria.registrar(ALUNO, id, "REATIVADO", antes, retrato(aluno));
         return aluno;

@@ -10,8 +10,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
 import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -30,11 +33,13 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import javax.crypto.SecretKey;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 
 // Só existe com servidor web; o comando de recuperação de ADMIN sobe sem ele.
@@ -46,6 +51,19 @@ class SegurancaConfig {
 
     /** Autoridade de quem entrou com senha temporária; substitui o ROLE_ do perfil. */
     static final String SENHA_TEMPORARIA = "SENHA_TEMPORARIA";
+
+    /** Autoridade do login de aluno inativo (ADR 0029); vem junto com o ROLE_ALUNO. */
+    static final String SOMENTE_LEITURA = "SOMENTE_LEITURA";
+
+    /**
+     * O login só de leitura passa só em consulta (GET), em qualquer rota que o perfil já
+     * permitiria; nada que altere, nem nas rotas que forem criadas no futuro.
+     */
+    static final AuthorizationManager<RequestAuthorizationContext> SO_CONSULTA_SE_SOMENTE_LEITURA =
+            (autenticacao, contexto) -> new AuthorizationDecision(
+                    HttpMethod.GET.matches(contexto.getRequest().getMethod())
+                            || autenticacao.get().getAuthorities().stream()
+                                    .noneMatch(a -> SOMENTE_LEITURA.equals(a.getAuthority())));
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -67,13 +85,15 @@ class SegurancaConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         // Deixa o Spring montar a página de erro de uma rota já autorizada.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        // Quem entrou com senha temporária só pode trocá-la (e ver quem é).
+                        // Quem entrou com senha temporária só pode trocá-la (e ver quem é). O
+                        // aluno inativo (só de leitura) também pode trocar a senha.
                         .requestMatchers(HttpMethod.POST, "/api/auth/trocar-senha").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
                         .anyRequest().access(AuthorizationManagers.allOf(
                                 AuthenticatedAuthorizationManager.authenticated(),
                                 AuthorizationManagers.not(
-                                        AuthorityAuthorizationManager.hasAuthority(SENHA_TEMPORARIA)))))
+                                        AuthorityAuthorizationManager.hasAuthority(SENHA_TEMPORARIA)),
+                                SO_CONSULTA_SE_SOMENTE_LEITURA)))
                 .oauth2ResourceServer(rs -> rs
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
                         .authenticationEntryPoint(entryPoint)
@@ -161,10 +181,16 @@ class SegurancaConfig {
         perfis.setAuthorityPrefix("ROLE_");
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(jwt ->
-                Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.TROCAR_SENHA))
-                        ? List.of(new SimpleGrantedAuthority(SENHA_TEMPORARIA))
-                        : perfis.convert(jwt));
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            if (Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.TROCAR_SENHA))) {
+                return List.of(new SimpleGrantedAuthority(SENHA_TEMPORARIA));
+            }
+            List<GrantedAuthority> autoridades = new ArrayList<>(perfis.convert(jwt));
+            if (Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.SOMENTE_LEITURA))) {
+                autoridades.add(new SimpleGrantedAuthority(SOMENTE_LEITURA));
+            }
+            return autoridades;
+        });
         return converter;
     }
 }

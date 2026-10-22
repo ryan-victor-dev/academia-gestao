@@ -121,6 +121,14 @@ TOK_ALUNO = ativar("jose@email.com", b["senhaTemporaria"], "senha-do-jose-123")
 confere("aluno vê o próprio cadastro", req("GET", "/api/alunos/me", token=TOK_ALUNO)[0] == 200)
 req("POST", f"/api/alunos/{ALUNO}/inativar", token=REC)
 confere("inativar derruba o token do aluno", req("GET", "/api/alunos/me", token=TOK_ALUNO)[0] == 401)
+# Inativo continua entrando, só para consultar os próprios dados (ADR 0029).
+s, b, _ = login("jose@email.com", "senha-do-jose-123")
+TOK_INATIVO = b.get("token") if s == 200 else ""
+s, b, _ = req("GET", "/api/me", token=TOK_INATIVO)
+confere("inativo entra só de leitura", s == 200 and b["somenteLeitura"] is True, (s, b))
+s, b, _ = req("GET", "/api/alunos/me", token=TOK_INATIVO)
+confere("inativo vê o próprio cadastro", s == 200 and b["ativo"] is False, (s, b))
+confere("inativo não ganha senha nova", req("POST", f"/api/alunos/{ALUNO}/login/nova-senha", token=REC)[0] == 409)
 
 secao("planos")
 s, b, _ = req("POST", "/api/planos", {"nome": "Mensal", "valorMensal": 129.9, "duracaoMeses": 1}, ADM)

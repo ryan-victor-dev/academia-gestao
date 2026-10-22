@@ -42,6 +42,10 @@ public class Usuario {
     @Column(name = "precisa_trocar_senha", nullable = false)
     private boolean precisaTrocarSenha;
 
+    // Login de aluno inativo: entra, mas só consulta (ADR 0029). Vai no token.
+    @Column(name = "somente_leitura", nullable = false)
+    private boolean somenteLeitura;
+
     // Vai no token. Aumentar o número invalida todos os tokens já emitidos.
     @Column(name = "versao_token", nullable = false)
     private int versaoToken;
@@ -130,6 +134,29 @@ public class Usuario {
         revogarTokens();
     }
 
+    /**
+     * Aluno inativado: o login continua, mas só para consultar os próprios dados (ADR 0029).
+     * Os tokens de antes são revogados: um token com acesso completo não sobrevive.
+     */
+    public void restringirALeitura() {
+        exigirAluno();
+        this.somenteLeitura = true;
+        revogarTokens();
+    }
+
+    /** Aluno reativado: o login volta ao uso normal, e os tokens só de leitura deixam de valer. */
+    public void liberarDaLeitura() {
+        exigirAluno();
+        this.somenteLeitura = false;
+        revogarTokens();
+    }
+
+    private void exigirAluno() {
+        if (perfil != Perfil.ALUNO) {
+            throw new IllegalStateException("só login de aluno fica só de leitura");
+        }
+    }
+
     /** A senha atual é temporária: o usuário só poderá usar o sistema depois de trocá-la. */
     public void exigirTrocaDeSenha() {
         this.precisaTrocarSenha = true;
@@ -164,6 +191,7 @@ public class Usuario {
     public UUID getAlunoId() { return alunoId; }
     public boolean isAtivo() { return ativo; }
     public boolean isPrecisaTrocarSenha() { return precisaTrocarSenha; }
+    public boolean isSomenteLeitura() { return somenteLeitura; }
     public int getVersaoToken() { return versaoToken; }
     public Instant getCriadoEm() { return criadoEm; }
 }

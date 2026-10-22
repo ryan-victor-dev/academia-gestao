@@ -162,9 +162,10 @@ class TrilhaDeAuditoriaTest {
                 .andExpect(jsonPath("$.conteudo[1].alteracoes.telefone.antes").value("31987654321"))
                 .andExpect(jsonPath("$.conteudo[1].alteracoes.telefone.depois").value("31912345678"))
                 .andExpect(jsonPath("$.conteudo[2].alteracoes.cpf.depois").value(cpf));
-        // O login do aluno nasce e cai junto com ele, e também fica na trilha.
+        // O login do aluno nasce com ele e fica só de leitura na inativação (ADR 0029), na trilha.
         trilha("USUARIO", login)
-                .andExpect(jsonPath("$.conteudo[*].acao").value(contains("DESATIVADO", "CRIADO")))
+                .andExpect(jsonPath("$.conteudo[*].acao").value(contains("SOMENTE_LEITURA", "CRIADO")))
+                .andExpect(jsonPath("$.conteudo[0].alteracoes.somenteLeitura.depois").value(true))
                 .andExpect(jsonPath("$.conteudo[1].alteracoes.perfil.depois").value("ALUNO"))
                 .andExpect(jsonPath("$.conteudo[1].alteracoes.alunoId.depois").value(aluno.toString()))
                 .andExpect(jsonPath("$.conteudo[0].autor").value(adminId.toString()));
@@ -174,8 +175,8 @@ class TrilhaDeAuditoriaTest {
                 .andExpect(jsonPath("$.conteudo[0].acao").value("REATIVADO"))
                 .andExpect(jsonPath("$.conteudo[0].alteracoes.ativo.depois").value(true));
         trilha("USUARIO", login)
-                .andExpect(jsonPath("$.conteudo[0].acao").value("REATIVADO"))
-                .andExpect(jsonPath("$.conteudo[0].alteracoes.ativo.depois").value(true));
+                .andExpect(jsonPath("$.conteudo[0].acao").value("LIBERADO"))
+                .andExpect(jsonPath("$.conteudo[0].alteracoes.somenteLeitura.depois").value(false));
     }
 
     @Test

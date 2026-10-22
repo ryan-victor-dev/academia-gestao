@@ -63,23 +63,26 @@ public class LoginsDeAlunos {
         return redefinicaoDeSenha.aplicar(usuario);
     }
 
-    /** Aluno inativado: o login dele (se existir) para de funcionar. */
+    /**
+     * Aluno inativado: o login dele (se existir) passa a ser só de leitura. Ele continua
+     * vendo os próprios dados, direito dele (LGPD, art. 18; ADRs 0008 e 0029).
+     */
     @Transactional
-    public void desativar(UUID alunoId) {
+    public void restringirALeitura(UUID alunoId) {
         repository.findByAlunoId(alunoId).ifPresent(usuario -> {
             Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
-            usuario.desativar();
-            trilha.alterado(usuario, "DESATIVADO", antes);
+            usuario.restringirALeitura();
+            trilha.alterado(usuario, "SOMENTE_LEITURA", antes);
         });
     }
 
-    /** Aluno reativado: o login dele (se existir) volta a funcionar. */
+    /** Aluno reativado: o login dele (se existir) volta ao uso normal. */
     @Transactional
-    public void reativar(UUID alunoId) {
+    public void liberarDaLeitura(UUID alunoId) {
         repository.findByAlunoId(alunoId).ifPresent(usuario -> {
             Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
-            usuario.reativar();
-            trilha.alterado(usuario, "REATIVADO", antes);
+            usuario.liberarDaLeitura();
+            trilha.alterado(usuario, "LIBERADO", antes);
         });
     }
 }

@@ -82,6 +82,32 @@ class UsuarioTest {
         assertThat(u.getVersaoToken()).isEqualTo(inicial + 3);
     }
 
+    /** Aluno inativo (ADR 0029): o login fica, só de leitura; cada mudança derruba os tokens. */
+    @Test
+    void loginDeAlunoFicaSoDeLeituraEVoltaAoNormal() {
+        Usuario u = Usuario.deAluno("Ana", "ana@x.com", HASH, java.util.UUID.randomUUID());
+        int inicial = u.getVersaoToken();
+        assertThat(u.isSomenteLeitura()).isFalse();
+
+        u.restringirALeitura();
+        assertThat(u.isSomenteLeitura()).isTrue();
+        assertThat(u.isAtivo()).isTrue();
+        assertThat(u.getVersaoToken()).isEqualTo(inicial + 1);
+
+        u.liberarDaLeitura();
+        assertThat(u.isSomenteLeitura()).isFalse();
+        assertThat(u.getVersaoToken()).isEqualTo(inicial + 2);
+    }
+
+    @Test
+    void soLoginDeAlunoFicaSoDeLeitura() {
+        Usuario u = Usuario.daEquipe("Rita", "rita@x.com", HASH, Perfil.RECEPCAO);
+
+        assertThatThrownBy(u::restringirALeitura).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(u::liberarDaLeitura).isInstanceOf(IllegalStateException.class);
+        assertThat(u.isSomenteLeitura()).isFalse();
+    }
+
     @Test
     void redefinirComSenhaTemporariaExigeTrocaERevogaTokens() {
         Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);

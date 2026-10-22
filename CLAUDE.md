@@ -99,6 +99,8 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   `target/classes`, `target/test-classes` e `target/maven-status` e rode de novo. O
   `./mvnw clean` falha aqui (`target/validacao/trivy-cache` é do root) e ainda apaga os
   utilitários de `target/`: guarde-os em `revisao-local/ferramentas/` (fora do Git).
+  Em rodada longa de mutações isso volta: apague essas pastas a cada mutante, ou trate
+  `NoClassDefFoundError` como mutante inválido (senão ele conta como "morto" sem ser).
 - Filtro de log com grep não é resultado de teste: confira o código de saída do Maven
   (um erro de compilação passou batido num `grep "Tests run"`).
 - Toda alteração de plano, aluno ou usuário registra na trilha (`Auditoria`, ADR 0021), na
@@ -124,6 +126,6 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022 e 0028; dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028 e 0029; dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.
