@@ -68,6 +68,11 @@ As regras de negócio abaixo foram decididas com o dono antes da implementação
 - A correção da ficha atual troca as divisões inteiras e usa `If-Match` (edição simultânea,
   ADR 0009): duas correções ao mesmo tempo não se sobrescrevem.
 - A trilha ganha as entidades `EXERCICIO` e `FICHA` (ADR 0021).
+- Tomadas durante a implementação (etapa 7, partes 2 e 3): na correção, um exercício que
+  já estava na ficha pode ficar mesmo que tenha sido inativado depois (corrigir a carga não
+  obriga a trocar o exercício); ficha nova só aceita ativos. A lista de revisões vencidas
+  deixa de fora os alunos inativos, que não estão treinando. O aluno vê as fichas sem quem
+  da equipe as montou, como nas matrículas.
 
 ## Alternativas descartadas
 - **Instrutor responsável por aluno:** exigiria atribuir e trocar responsável; a academia é

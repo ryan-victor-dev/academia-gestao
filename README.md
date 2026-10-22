@@ -88,6 +88,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0024](docs/adr/0024-cobranca.md) | Cobrança: mensalidades, atraso, pagamento e inadimplência |
 | [0025](docs/adr/0025-pendencias-medias-da-cobranca.md) | Pendências médias da cobrança: teto do plano, subida e registro de pagamentos |
 | [0026](docs/adr/0026-estorno-e-troca-na-cobranca.md) | Estorno e troca de plano na cobrança: prazo do estorno, crédito do não usado |
+| [0027](docs/adr/0027-treinos.md) | Treinos: catálogo de exercícios, ficha atual com histórico e quem vê o quê |
 
 ## Como rodar
 
@@ -199,7 +200,14 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/cobrancas/{id}/lancamentos` (pagamentos e estornos, na ordem; nada se apaga⁷) | ADMIN, RECEPCAO |
 | `GET /api/cobrancas/configuracao`, `PUT` (exige `If-Match`²; acréscimo, juros e dias para bloquear⁷) | Ler: ADMIN, RECEPCAO; alterar: ADMIN |
 | `GET /api/cobrancas/me` | ALUNO (as próprias) |
-| `GET /api/auditoria?entidade=&entidadeId=&pagina=&tamanho=` (quem alterou planos, alunos e usuários, e o valor anterior⁶) | ADMIN |
+| `GET /api/exercicios?grupoMuscular=&incluirInativos=`, `GET /api/exercicios/{id}` (catálogo⁸) | ADMIN, INSTRUTOR |
+| `POST /api/exercicios`, `PUT /api/exercicios/{id}` (exige `If-Match`²), `POST /api/exercicios/{id}/inativar`, `/reativar` | ADMIN, INSTRUTOR |
+| `POST /api/fichas` (`alunoId`, `divisoes`, `revisaoEm` opcional; encerra a atual⁸) | ADMIN, INSTRUTOR |
+| `PUT /api/fichas/{id}` (corrige a atual; exige `If-Match`²) | ADMIN, INSTRUTOR |
+| `GET /api/fichas/{id}`, `GET /api/fichas/atual?alunoId=`, `GET /api/fichas?alunoId=` (histórico) | ADMIN, INSTRUTOR, RECEPCAO |
+| `GET /api/fichas/revisoes-vencidas` (atuais com a revisão até hoje, da mais antiga) | ADMIN, INSTRUTOR |
+| `GET /api/fichas/me` | ALUNO (as próprias, a atual primeiro) |
+| `GET /api/auditoria?entidade=&entidadeId=&pagina=&tamanho=` (quem alterou planos, alunos, usuários, cobranças e fichas, e o valor anterior⁶) | ADMIN |
 
 ¹ O instrutor recebe só nome, data de nascimento, observações e se está ativo,
 e busca apenas por nome.
@@ -219,7 +227,7 @@ a nova começa hoje. O início pode ser agendado para até 1 ano à frente.
 do fim de uma matrícula com fidelidade gera multa = percentual × meses inteiros que
 faltam × valor mensal; a troca não gera multa só se a multa que o plano novo cobraria
 (saindo logo depois da troca) for pelo menos a que a matrícula atual cobraria hoje.
-⁶ `entidade` é `PLANO`, `ALUNO`, `USUARIO`, `COBRANCA` ou `CONFIGURACAO`. Cada registro traz quem fez (`autor`, o id
+⁶ `entidade` é `PLANO`, `ALUNO`, `USUARIO`, `COBRANCA`, `CONFIGURACAO`, `EXERCICIO` ou `FICHA`. Cada registro traz quem fez (`autor`, o id
 do usuário; vazio quando foi o próprio sistema, como a recuperação de ADMIN pela linha
 de comando), quando, a ação e só os campos que mudaram (`antes` e `depois`), nunca
 senhas. A trilha é gravada na mesma transação da alteração, e o usuário da aplicação no
@@ -244,6 +252,18 @@ que foi cobrado e não usado (o à vista, a paga adiantada) vira crédito abatid
 parcelas dela; crédito maior que o plano novo inteiro recusa a troca (409). As matrículas
 que já existiam antes da cobrança ganharam só as cobranças de hoje em diante. O valor
 mensal de um plano vai até R$ 100.000.
+⁸ Treinos (ADR 0027): os instrutores mantêm o catálogo de exercícios (nome único entre os
+ativos, grupo muscular, observação de execução); exercício não se apaga, é inativado e sai
+das fichas novas. A ficha tem de 1 a 7 divisões (Treino A, B…), cada uma com 1 a 20
+exercícios em ordem: séries (1 a 20), repetições e carga em texto ("8 a 12", "peso do
+corpo"), descanso (0 a 600 s) e observação. Ela copia o nome do exercício: renomear no
+catálogo não muda as fichas. Cada aluno ativo tem no máximo uma ficha atual; montar outra
+encerra a anterior, que fica no histórico e nunca mais muda (o banco recusa). A correção
+troca as divisões da atual e vai para a trilha; um exercício que já estava na ficha pode
+ficar mesmo inativado depois, para corrigir a carga sem trocá-lo. A data de revisão é
+opcional e precisa ser depois do dia da montagem; vencida, a ficha continua valendo, e
+a lista de revisões vencidas deixa de fora os alunos inativos. O aluno não vê quem da
+equipe montou a ficha.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
@@ -355,7 +375,8 @@ um token dele. É só para desenvolvimento: ele se recusa a rodar se o `.env` ti
 - [x] **4. Planos** — preço com duas casas, nome único entre os ativos, só o ADMIN altera, aluno vê os ativos
 - [x] **5. Matrículas** — preço e regras do plano congelados na matrícula, períodos sem sobreposição garantidos pelo banco, fidelidade com multa, trancamento, troca de plano, visões do instrutor e do aluno
 - [x] **6. Cobrança** — mensalidades geradas pela matrícula (trancamento empurra, cancelamento cancela as futuras, multa vira cobrança), pagamento no balcão pelo valor exato, acréscimo com teto de 2% e juros editáveis, estorno e cancelamento pelo ADMIN, bloqueio do inadimplente no "pode treinar?"
-- [ ] **7–8.** Treinos e auditoria (a trilha de planos, alunos, usuários e cobranças já existe: ADRs 0021 e 0024)
+- [x] **7. Treinos** — catálogo de exercícios, ficha com divisões e uma atual por aluno (garantido pelo banco), correção com trilha, histórico imutável, revisões vencidas para os instrutores, visão do aluno
+- [ ] **8.** Fechamento de caixa e auditoria completa (a trilha de planos, alunos, usuários, cobranças e fichas já existe: ADRs 0021, 0024 e 0027)
 
 ## Autor
 

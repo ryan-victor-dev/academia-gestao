@@ -231,6 +231,54 @@ s, b, _ = req("POST", f"/api/cobrancas/{atrasada['id']}/pagar", {"valor": 132.98
 confere("recepção recebe 132,98", s == 200 and b["situacao"] == "PAGA", (s, b))
 confere("cobranças só para a equipe", req("GET", f"/api/cobrancas?alunoId={ANA}", token=INS)[0] == 403)
 
+secao("treinos")
+# A Maria foi inativada nas matrículas: a ficha é de uma aluna nova, com login.
+s, b, _ = req("POST", "/api/alunos", {"nome": "Bruna", "cpf": "987.654.321-00", "email": "bruna@email.com"}, REC)
+BRUNA = b["id"]
+s, b, _ = req("POST", f"/api/alunos/{BRUNA}/login", token=REC)
+TOK_BRUNA = ativar("bruna@email.com", b["senhaTemporaria"], "senha-da-bruna-123")
+ex = {}
+for nome, grupo in (("Supino reto", "PEITO"), ("Agachamento", "QUADRICEPS")):
+    s, b, _ = req("POST", "/api/exercicios", {"nome": nome, "grupoMuscular": grupo}, INS)
+    confere(f"instrutor cadastra {nome}", s == 201, (s, b))
+    ex[nome] = b.get("id")
+confere("recepção não mexe no catálogo",
+        req("POST", "/api/exercicios", {"nome": "Remada", "grupoMuscular": "COSTAS"}, REC)[0] == 403)
+def treino(carga):
+    return [{"nome": "A — peito", "exercicios": [{"exercicioId": ex["Supino reto"], "series": 4, "repeticoes": "8 a 12",
+                                                   "carga": carga, "descansoSegundos": 90}]},
+            {"nome": "B — pernas", "exercicios": [{"exercicioId": ex["Agachamento"], "series": 4, "repeticoes": "10"}]}]
+s, f1, h = req("POST", "/api/fichas", {"alunoId": BRUNA, "revisaoEm": (hoje + timedelta(days=30)).isoformat(),
+                                       "divisoes": treino("20 kg")}, INS)
+confere("instrutor monta a ficha", s == 201 and h.get("ETag") == '"0"' and f1["atual"]
+        and [d["nome"] for d in f1["divisoes"]] == ["A — peito", "B — pernas"], (s, f1))
+confere("recepção não monta", req("POST", "/api/fichas", {"alunoId": BRUNA, "divisoes": treino(None)}, REC)[0] == 403)
+s, b, _ = req("PUT", f"/api/fichas/{f1['id']}", {"divisoes": treino("25 kg")}, INS, {"If-Match": '"0"'})
+confere("corrigir a carga com If-Match", s == 200 and b["divisoes"][0]["exercicios"][0]["carga"] == "25 kg", (s, b))
+confere("If-Match antigo = 412",
+        req("PUT", f"/api/fichas/{f1['id']}", {"divisoes": treino("30 kg")}, INS, {"If-Match": '"0"'})[0] == 412)
+s, f2, _ = req("POST", "/api/fichas", {"alunoId": BRUNA, "divisoes": treino("27 kg")}, INS)
+confere("ficha nova encerra a anterior", s == 201 and req("GET", f"/api/fichas/{f1['id']}", token=REC)[1]["atual"] is False,
+        (s, f2))
+s, b, _ = req("GET", f"/api/fichas/atual?alunoId={BRUNA}", token=REC)
+confere("recepção vê a atual", s == 200 and b["id"] == f2["id"], (s, b))
+confere("aluno inativo não ganha ficha nova",
+        req("POST", "/api/fichas", {"alunoId": ALUNO, "divisoes": treino(None)}, INS)[0] == 409)
+r = sh("docker", "exec", P + "postgres", "psql", "-U", "academia", "-d", "academia", "-c",
+       f"UPDATE fichas SET revisao_em = CURRENT_DATE WHERE id = '{f1['id']}'")
+confere("o banco recusa mudar a ficha encerrada", r.returncode != 0 and "ficha encerrada não muda" in r.stderr, r.stderr)
+# A API só aceita revisão futura: a data chega mudando direto no banco.
+sql_e2e(f"UPDATE fichas SET revisao_em = '{hoje.isoformat()}' WHERE id = '{f2['id']}'")
+s, b, _ = req("GET", "/api/fichas/revisoes-vencidas", token=INS)
+confere("revisão vencida na lista do instrutor", s == 200 and [(x["fichaId"], x["alunoNome"]) for x in b] == [(f2["id"], "Bruna")],
+        (s, b))
+s, b, _ = req("GET", "/api/fichas/me", token=TOK_BRUNA)
+confere("aluna vê as próprias, a atual primeiro, sem quem montou", s == 200 and [x["id"] for x in b] == [f2["id"], f1["id"]]
+        and b[1]["divisoes"][0]["exercicios"][0]["carga"] == "25 kg" and "montadaPor" not in b[0], (s, b))
+confere("aluna não vê pela rota da equipe", req("GET", f"/api/fichas/{f2['id']}", token=TOK_BRUNA)[0] == 403)
+s, b, _ = req("GET", f"/api/auditoria?entidade=FICHA&entidadeId={f1['id']}", token=ADM)
+confere("trilha da ficha", s == 200 and [r["acao"] for r in b["conteudo"]] == ["ENCERRADA", "CORRIGIDA", "MONTADA"], (s, b))
+
 secao("cabeçalhos e JSON estrito")
 s, b, h = req("GET", "/actuator/health")
 confere("CSP", h.get("Content-Security-Policy") == "default-src 'none'; frame-ancestors 'none'", h.get("Content-Security-Policy"))
