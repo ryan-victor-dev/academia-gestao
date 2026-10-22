@@ -2,6 +2,7 @@ package br.com.academiagestao.compartilhado;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpHeaders;
@@ -61,8 +62,28 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 problema.setTitle("Corpo grande demais");
                 return handleExceptionInternal(e, problema, headers, HttpStatus.CONTENT_TOO_LARGE, request);
             }
+            if (causa instanceof CaractereDeControleException controle) {
+                return handleExceptionInternal(e, caractereDeControle(controle), headers, HttpStatus.BAD_REQUEST,
+                        request);
+            }
         }
         return super.handleHttpMessageNotReadable(e, headers, status, request);
+    }
+
+    // Parâmetro ou cabeçalho com caractere de controle (ver TextoNaUrlSemCaractereDeControle).
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException e, HttpHeaders headers,
+                                                        HttpStatusCode status, WebRequest request) {
+        if (e.getMostSpecificCause() instanceof CaractereDeControleException controle) {
+            return handleExceptionInternal(e, caractereDeControle(controle), headers, HttpStatus.BAD_REQUEST, request);
+        }
+        return super.handleTypeMismatch(e, headers, status, request);
+    }
+
+    private static ProblemDetail caractereDeControle(CaractereDeControleException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+        problema.setTitle("Dados inválidos");
+        return problema;
     }
 
     // Validação de parâmetros da URL, como ?tamanho=500.
