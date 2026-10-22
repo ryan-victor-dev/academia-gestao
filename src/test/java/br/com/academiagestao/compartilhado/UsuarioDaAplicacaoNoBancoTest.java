@@ -118,6 +118,27 @@ class UsuarioDaAplicacaoNoBancoTest {
         }
     }
 
+    /**
+     * O histórico de treinos não se apaga, e divisões e exercícios da ficha não se alteram
+     * (ADR 0027, V32). "WHERE false": a permissão é conferida mesmo sem linhas.
+     */
+    @Test
+    void treinosNaoSaoApagadosNemReescritos() {
+        assertThatCode(() -> {
+            executar("UPDATE fichas SET versao = versao WHERE false");
+            executar("UPDATE exercicios SET versao = versao WHERE false");
+            executar("DELETE FROM ficha_divisoes WHERE false");
+            executar("DELETE FROM ficha_exercicios WHERE false");
+        }).doesNotThrowAnyException();
+        for (String ataque : List.of("DELETE FROM fichas WHERE false", "TRUNCATE fichas",
+                "DELETE FROM exercicios WHERE false", "TRUNCATE exercicios",
+                "UPDATE ficha_divisoes SET nome = nome WHERE false",
+                "UPDATE ficha_exercicios SET series = series WHERE false")) {
+            assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
+                    .hasMessageContaining("permission denied");
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "DROP TABLE alunos",

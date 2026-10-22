@@ -13,7 +13,12 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,8 +26,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * O que o banco garante das fichas, mesmo que um erro no código tente o contrário (V30):
- * uma atual por aluno, e a encerrada não muda.
+ * O que o banco garante das fichas, mesmo que um erro no código (ou uma injeção de SQL) tente
+ * o contrário (V30 e V32): uma atual por aluno, e a encerrada não muda nem perde nada.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -36,6 +41,9 @@ class FichaNoBancoTest {
 
     @Autowired
     TransactionTemplate transacao;
+
+    @Autowired
+    PostgreSQLContainer postgres;
 
     private UUID aluno;
     private UUID usuario;
@@ -80,6 +88,18 @@ class FichaNoBancoTest {
                 VALUES (?, ?, ?, ?, 'Supino', ?, '10')""", UUID.randomUUID(), divisao, posicao, exercicio, series);
     }
 
+    /** Como a aplicação conecta em produção (nos testes, ela usa o dono do banco). */
+    private int comoAplicacao(String sql) throws SQLException {
+        try (Connection c = DriverManager.getConnection(postgres.getJdbcUrl(), "academia_app",
+                "senha-do-app-so-para-testes"); Statement s = c.createStatement()) {
+            return s.executeUpdate(sql);
+        }
+    }
+
+    private int contar(String tabela, String coluna, UUID id) {
+        return jdbc.queryForObject("SELECT count(*) FROM " + tabela + " WHERE " + coluna + " = ?", Integer.class, id);
+    }
+
     @Test
     void umaSoAtualPorAluno() {
         ficha(false);
@@ -109,12 +129,88 @@ class FichaNoBancoTest {
                 .as("nem volta a ser a atual").hasMessageContaining("ficha encerrada não muda");
         assertThatThrownBy(() -> divisao(ficha, 2)).hasMessageContaining("ficha encerrada não muda");
         assertThatThrownBy(() -> jdbc.update("UPDATE ficha_divisoes SET nome = 'B' WHERE id = ?", divisao))
-                .hasMessageContaining("ficha encerrada não muda");
+                .hasMessageContaining("não se alteram");
         assertThatThrownBy(() -> item(divisao, 2, 3)).hasMessageContaining("ficha encerrada não muda");
         assertThatThrownBy(() -> jdbc.update("UPDATE ficha_exercicios SET series = 4 WHERE divisao_id = ?", divisao))
-                .hasMessageContaining("ficha encerrada não muda");
+                .hasMessageContaining("não se alteram");
         assertThat(jdbc.queryForObject("SELECT series FROM ficha_exercicios WHERE divisao_id = ?", Integer.class,
                 divisao)).isEqualTo(3);
+    }
+
+    /** T1 do diagnóstico da etapa 7: a V30 olhava só a linha nova, e a divisão saía da encerrada. */
+    @Test
+    void divisaoNaoSaiDaEncerradaNemMudaNaAtual() {
+        UUID antiga = ficha(false);
+        UUID daEncerrada = divisao(antiga, 1);
+        item(daEncerrada, 1, 3);
+        jdbc.update("UPDATE fichas SET encerrada_em = now() WHERE id = ?", antiga);
+        UUID nova = ficha(false);
+        UUID daAtual = divisao(nova, 1);
+        item(daAtual, 1, 3);
+
+        assertThatThrownBy(() -> jdbc.update("UPDATE ficha_divisoes SET ficha_id = ? WHERE id = ?", nova, daEncerrada))
+                .hasMessageContaining("não se alteram");
+        assertThatThrownBy(() -> jdbc.update("UPDATE ficha_exercicios SET divisao_id = ? WHERE divisao_id = ?",
+                daAtual, daEncerrada)).hasMessageContaining("não se alteram");
+        // Nem na atual: a correção apaga as divisões e grava novas.
+        assertThatThrownBy(() -> jdbc.update("UPDATE ficha_divisoes SET nome = 'B' WHERE id = ?", daAtual))
+                .hasMessageContaining("não se alteram");
+        assertThatThrownBy(() -> jdbc.update("UPDATE ficha_exercicios SET series = 4 WHERE divisao_id = ?", daAtual))
+                .hasMessageContaining("não se alteram");
+        assertThat(contar("ficha_divisoes", "ficha_id", antiga)).isEqualTo(1);
+        assertThat(contar("ficha_divisoes", "ficha_id", nova)).isEqualTo(1);
+    }
+
+    @Test
+    void alunoMontagemEAutorDaFichaNaoMudam() {
+        UUID ficha = ficha(false);
+        UUID outroAluno = UUID.randomUUID();
+        jdbc.update("INSERT INTO alunos (id, nome, cpf) VALUES (?, 'Outro', ?)", outroAluno, CpfsParaTeste.aleatorio());
+        try {
+            for (String mudanca : new String[] {"aluno_id = '" + outroAluno + "'", "montada_por = '" + aluno + "'",
+                    "montada_em = montada_em - interval '1 day'", "id = gen_random_uuid()"}) {
+                assertThatThrownBy(() -> jdbc.update("UPDATE fichas SET " + mudanca + " WHERE id = ?", ficha))
+                        .as(mudanca).hasMessageContaining("não mudam");
+            }
+            // O resto da ficha atual muda normalmente (a correção e o encerramento).
+            assertThatCode(() -> jdbc.update("""
+                    UPDATE fichas SET revisao_em = current_date + 30, corrigida_em = now(), versao = versao + 1,
+                                      aluno_id = aluno_id, montada_por = montada_por WHERE id = ?""", ficha))
+                    .doesNotThrowAnyException();
+        } finally {
+            limpeza.apagar("alunos", outroAluno);
+        }
+    }
+
+    /**
+     * A aplicação (academia_app) apaga divisões e exercícios só da ficha atual (a correção);
+     * os da encerrada, só o dono do banco (a limpeza dos testes). A ficha, nunca.
+     */
+    @Test
+    void aplicacaoNaoApagaNadaDaEncerrada() throws SQLException {
+        UUID atual = ficha(false);
+        UUID divisao = divisao(atual, 1);
+        item(divisao, 1, 3);
+        jdbc.update("UPDATE fichas SET encerrada_em = now() WHERE id = ?", atual);
+
+        assertThatThrownBy(() -> comoAplicacao("DELETE FROM ficha_exercicios WHERE divisao_id = '" + divisao + "'"))
+                .hasMessageContaining("ficha encerrada não muda");
+        assertThatThrownBy(() -> comoAplicacao("DELETE FROM ficha_divisoes WHERE id = '" + divisao + "'"))
+                .hasMessageContaining("ficha encerrada não muda");
+        assertThatThrownBy(() -> comoAplicacao("DELETE FROM fichas WHERE id = '" + atual + "'"))
+                .hasMessageContaining("permission denied");
+        assertThat(contar("ficha_exercicios", "divisao_id", divisao)).isEqualTo(1);
+        assertThat(contar("ficha_divisoes", "ficha_id", atual)).isEqualTo(1);
+
+        UUID nova = ficha(false);
+        UUID daNova = divisao(nova, 1);
+        item(daNova, 1, 3);
+        assertThat(comoAplicacao("DELETE FROM ficha_exercicios WHERE divisao_id = '" + daNova + "'")).isEqualTo(1);
+        assertThat(comoAplicacao("DELETE FROM ficha_divisoes WHERE id = '" + daNova + "'")).isEqualTo(1);
+
+        jdbc.update("DELETE FROM ficha_exercicios WHERE divisao_id = ?", divisao);
+        jdbc.update("DELETE FROM ficha_divisoes WHERE id = ?", divisao);
+        assertThat(contar("ficha_divisoes", "ficha_id", atual)).as("o dono apaga").isZero();
     }
 
     @Test

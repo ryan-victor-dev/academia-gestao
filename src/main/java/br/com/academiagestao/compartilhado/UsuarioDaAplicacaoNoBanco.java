@@ -82,6 +82,12 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             // O registro de pagamentos só cresce: o estorno é um lançamento novo (ADR 0025).
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE lancamentos FROM " + usuario);
             sql.execute("REVOKE INSERT, DELETE, TRUNCATE ON TABLE configuracao_cobranca FROM " + usuario);
+            // O histórico de treinos não se apaga (ADR 0027): a ficha encerrada fica, e o
+            // exercício inativo continua nas fichas antigas. Divisões e exercícios da ficha
+            // nunca se alteram: a correção apaga os da atual e grava novos (o gatilho da V32
+            // recusa apagar os de uma encerrada).
+            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE fichas, exercicios FROM " + usuario);
+            sql.execute("REVOKE UPDATE, TRUNCATE ON TABLE ficha_divisoes, ficha_exercicios FROM " + usuario);
             // A única saída da trilha: a função do dono que só apaga o que passou do prazo (V21).
             sql.execute("GRANT EXECUTE ON FUNCTION apagar_auditoria_vencida(integer) TO " + usuario);
             sql.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + usuario);
