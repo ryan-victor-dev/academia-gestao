@@ -112,11 +112,18 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - Nos testes, a aplicação conecta como o dono do banco (`@ServiceConnection`), e não como
   `academia_app`: para provar uma permissão, conecte como `academia_app` (veja
   `UsuarioDaAplicacaoNoBancoTest`).
+- `@Fetch(SUBSELECT)` ignora a paginação: repete a consulta sem o limite e carrega as filhas
+  de todas as linhas (ADR 0028). Em lista paginada, use `@BatchSize`. Para ver o SQL num
+  teste: `JAVA_TOOL_OPTIONS="-Dlogging.level.org.hibernate.SQL=DEBUG" ./mvnw test -Dtest=...`.
+- Ficha encerrada não ganha divisões nem exercícios (V32): num teste que insere direto no
+  banco, insira a ficha aberta, os filhos, e só então encerre.
+- A lista de revisões vencidas usa `fichas.aluno_ativo`, mantida pelo aviso da inativação
+  (V33): teste que inativa aluno direto no banco não passa pelo aviso; use a API.
 - A API da cobrança mostra a `situacao` (calculada: `ATRASADA` é a pendente vencida), não o
   `status` do banco: em scripts de validação, compare com a situação certa.
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021 e 0022; dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022 e 0028; dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.

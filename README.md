@@ -89,6 +89,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0025](docs/adr/0025-pendencias-medias-da-cobranca.md) | Pendências médias da cobrança: teto do plano, subida e registro de pagamentos |
 | [0026](docs/adr/0026-estorno-e-troca-na-cobranca.md) | Estorno e troca de plano na cobrança: prazo do estorno, crédito do não usado |
 | [0027](docs/adr/0027-treinos.md) | Treinos: catálogo de exercícios, ficha atual com histórico e quem vê o quê |
+| [0028](docs/adr/0028-pendencias-medias-dos-treinos.md) | Pendências médias dos treinos: OOM, histórico imutável no banco, caractere de controle, listas em páginas, teto da revisão |
 
 ## Como rodar
 
