@@ -60,7 +60,8 @@ class ArquiteturaTest {
 
     @ArchTest
     static final ArchRule alunosSoPelaPortaPublica = soPelaPortaPublica("alunos",
-            Set.of("AlunosParaMatricula", "EstadoDoAluno", "ImpedimentoParaInativar"));
+            Set.of("AlunosParaMatricula", "EstadoDoAluno", "ImpedimentoParaInativar",
+                    "AoMudarASituacaoDoAluno"));
 
     @ArchTest
     static final ArchRule planosSoPelaPortaPublica = soPelaPortaPublica("planos",

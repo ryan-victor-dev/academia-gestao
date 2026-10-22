@@ -270,11 +270,14 @@ confere("o banco recusa mudar a ficha encerrada", r.returncode != 0 and "ficha e
 # A API só aceita revisão futura: a data chega mudando direto no banco.
 sql_e2e(f"UPDATE fichas SET revisao_em = '{hoje.isoformat()}' WHERE id = '{f2['id']}'")
 s, b, _ = req("GET", "/api/fichas/revisoes-vencidas", token=INS)
-confere("revisão vencida na lista do instrutor", s == 200 and [(x["fichaId"], x["alunoNome"]) for x in b] == [(f2["id"], "Bruna")],
-        (s, b))
+confere("revisão vencida na lista do instrutor (paginada)", s == 200 and b["totalElementos"] == 1
+        and [(x["fichaId"], x["alunoNome"]) for x in b["conteudo"]] == [(f2["id"], "Bruna")], (s, b))
 s, b, _ = req("GET", "/api/fichas/me", token=TOK_BRUNA)
-confere("aluna vê as próprias, a atual primeiro, sem quem montou", s == 200 and [x["id"] for x in b] == [f2["id"], f1["id"]]
-        and b[1]["divisoes"][0]["exercicios"][0]["carga"] == "25 kg" and "montadaPor" not in b[0], (s, b))
+confere("aluna vê as próprias, a atual primeiro, sem quem montou", s == 200
+        and [x["id"] for x in b["conteudo"]] == [f2["id"], f1["id"]]
+        and b["conteudo"][1]["divisoes"][0]["exercicios"][0]["carga"] == "25 kg" and "montadaPor" not in b["conteudo"][0], (s, b))
+s, b, _ = req("GET", f"/api/fichas?alunoId={BRUNA}&tamanho=1&pagina=1", token=REC)
+confere("histórico em páginas", s == 200 and b["totalElementos"] == 2 and [x["id"] for x in b["conteudo"]] == [f1["id"]], (s, b))
 confere("aluna não vê pela rota da equipe", req("GET", f"/api/fichas/{f2['id']}", token=TOK_BRUNA)[0] == 403)
 s, b, _ = req("GET", f"/api/auditoria?entidade=FICHA&entidadeId={f1['id']}", token=ADM)
 confere("trilha da ficha", s == 200 and [r["acao"] for r in b["conteudo"]] == ["ENCERRADA", "CORRIGIDA", "MONTADA"], (s, b))

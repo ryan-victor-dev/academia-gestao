@@ -204,9 +204,9 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/exercicios`, `PUT /api/exercicios/{id}` (exige `If-Match`²), `POST /api/exercicios/{id}/inativar`, `/reativar` | ADMIN, INSTRUTOR |
 | `POST /api/fichas` (`alunoId`, `divisoes`, `revisaoEm` opcional; encerra a atual⁸) | ADMIN, INSTRUTOR |
 | `PUT /api/fichas/{id}` (corrige a atual; exige `If-Match`²) | ADMIN, INSTRUTOR |
-| `GET /api/fichas/{id}`, `GET /api/fichas/atual?alunoId=`, `GET /api/fichas?alunoId=` (histórico) | ADMIN, INSTRUTOR, RECEPCAO |
-| `GET /api/fichas/revisoes-vencidas` (atuais com a revisão até hoje, da mais antiga) | ADMIN, INSTRUTOR |
-| `GET /api/fichas/me` | ALUNO (as próprias, a atual primeiro) |
+| `GET /api/fichas/{id}`, `GET /api/fichas/atual?alunoId=`, `GET /api/fichas?alunoId=&pagina=&tamanho=` (histórico, a mais nova primeiro; 10 por página, até 20) | ADMIN, INSTRUTOR, RECEPCAO |
+| `GET /api/fichas/revisoes-vencidas?pagina=&tamanho=` (atuais com a revisão até hoje, da mais antiga; 20 por página, até 100) | ADMIN, INSTRUTOR |
+| `GET /api/fichas/me?pagina=&tamanho=` | ALUNO (as próprias, a atual primeiro; páginas como o histórico) |
 | `GET /api/auditoria?entidade=&entidadeId=&pagina=&tamanho=` (quem alterou planos, alunos, usuários, cobranças e fichas, e o valor anterior⁶) | ADMIN |
 
 ¹ O instrutor recebe só nome, data de nascimento, observações e se está ativo,

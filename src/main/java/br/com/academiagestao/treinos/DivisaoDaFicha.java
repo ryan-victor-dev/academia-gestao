@@ -10,8 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.Fetch;
-import org.hibernate.annotations.FetchMode;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,10 +31,11 @@ class DivisaoDaFicha {
     @Column(nullable = false, updatable = false, length = Ficha.TAMANHO_MAXIMO_NOME_DIVISAO)
     private String nome;
 
-    // Vêm sempre junto com a ficha (open-in-view está desligado). SUBSELECT: uma consulta para
-    // os exercícios de todas as divisões carregadas, em vez de uma por divisão.
+    // Vêm sempre junto com a ficha (open-in-view está desligado). BatchSize: uma consulta para
+    // os exercícios das divisões carregadas (até 7 por ficha numa página inteira), pelos ids
+    // delas, em vez de uma por divisão (e sem o SUBSELECT, que ignorava o limite da página).
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    @Fetch(FetchMode.SUBSELECT)
+    @BatchSize(size = Ficha.MAXIMO_FICHAS_NUMA_CONSULTA * Ficha.MAXIMO_DIVISOES)
     @JoinColumn(name = "divisao_id", nullable = false, updatable = false)
     @OrderBy("posicao")
     private List<ExercicioDaFicha> exercicios;

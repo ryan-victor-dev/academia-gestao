@@ -1,6 +1,7 @@
 package br.com.academiagestao.treinos;
 
 import br.com.academiagestao.auth.ClaimsDoToken;
+import br.com.academiagestao.compartilhado.Pagina;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -38,6 +39,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/fichas")
 class FichaController {
+
+    // Cada ficha vai inteira (até 7 divisões de 20 exercícios): 20 por página ainda é pouco.
+    static final int MAXIMO_FICHAS_POR_PAGINA = Ficha.MAXIMO_FICHAS_NUMA_CONSULTA;
 
     private final FichaService service;
 
@@ -78,12 +82,19 @@ class FichaController {
         return comEtag(service.atual(alunoId));
     }
 
-    /** Histórico do aluno: a atual e as encerradas, da mais nova para a mais antiga. */
+    /**
+     * Histórico do aluno: a atual e as encerradas, da mais nova para a mais antiga, em páginas
+     * (cada ficha vem inteira, então a página é pequena).
+     */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUTOR', 'RECEPCAO')")
-    List<FichaResponse> historico(@RequestParam UUID alunoId) {
+    Pagina<FichaResponse> historico(
+            @RequestParam UUID alunoId,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
+            @RequestParam(defaultValue = "10") @Min(value = 1, message = "deve ser pelo menos {value}")
+            @Max(value = MAXIMO_FICHAS_POR_PAGINA, message = "pode ser no máximo {value}") int tamanho) {
         LocalDate hoje = service.hoje();
-        return service.historico(alunoId).stream().map(f -> FichaResponse.de(f, hoje)).toList();
+        return Pagina.de(service.historico(alunoId, pagina, tamanho), f -> FichaResponse.de(f, hoje));
     }
 
     /**
@@ -92,19 +103,28 @@ class FichaController {
      */
     @GetMapping("/me")
     @PreAuthorize("hasRole('ALUNO')")
-    List<FichaParaAluno> minhas(@AuthenticationPrincipal Jwt jwt) {
+    Pagina<FichaParaAluno> minhas(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
+            @RequestParam(defaultValue = "10") @Min(value = 1, message = "deve ser pelo menos {value}")
+            @Max(value = MAXIMO_FICHAS_POR_PAGINA, message = "pode ser no máximo {value}") int tamanho) {
         String alunoId = jwt.getClaimAsString(ClaimsDoToken.ALUNO_ID);
         if (alunoId == null) {
             throw new AccessDeniedException("Token de aluno sem alunoId");
         }
-        return service.historico(UUID.fromString(alunoId)).stream().map(FichaParaAluno::de).toList();
+        return Pagina.de(service.historico(UUID.fromString(alunoId), pagina, tamanho), FichaParaAluno::de);
     }
 
     /** Fichas atuais com a revisão vencida (até hoje), da mais antiga; só alunos ativos. */
     @GetMapping("/revisoes-vencidas")
     @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUTOR')")
-    List<RevisaoVencidaResponse> revisoesVencidas() {
-        return service.revisoesVencidas().stream().map(RevisaoVencidaResponse::de).toList();
+    Pagina<RevisaoVencidaResponse> revisoesVencidas(
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
+            @RequestParam(defaultValue = "20") @Min(value = 1, message = "deve ser pelo menos {value}")
+            @Max(value = 100, message = "pode ser no máximo {value}") int tamanho) {
+        Pagina<FichaService.RevisaoPendente> vencidas = service.revisoesVencidas(pagina, tamanho);
+        return new Pagina<>(vencidas.conteudo().stream().map(RevisaoVencidaResponse::de).toList(), vencidas.pagina(),
+                vencidas.tamanho(), vencidas.totalElementos(), vencidas.totalPaginas());
     }
 
     private ResponseEntity<FichaResponse> comEtag(Ficha ficha) {

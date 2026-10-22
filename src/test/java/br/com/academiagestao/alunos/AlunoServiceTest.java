@@ -30,7 +30,7 @@ class AlunoServiceTest {
         Aluno ana = Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now());
         when(repository.findById(ana.getId())).thenReturn(Optional.of(ana));
         when(repository.saveAndFlush(any())).thenThrow(new ObjectOptimisticLockingFailureException(Aluno.class, ana.getId()));
-        AlunoService service = new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class), Clock.systemUTC());
+        AlunoService service = new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), List.of(), mock(Auditoria.class), Clock.systemUTC());
 
         assertThatThrownBy(() -> service.atualizar(ana.getId(),
                 new DadosAluno("Ana Maria", "52998224725", null, null, null, null), "\"0\""))
@@ -41,7 +41,7 @@ class AlunoServiceTest {
         AlunoRepository repository = mock(AlunoRepository.class);
         when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("recusado",
                 new ConstraintViolationException("recusado", new SQLException("recusado"), indice)));
-        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class), Clock.systemUTC());
+        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), List.of(), mock(Auditoria.class), Clock.systemUTC());
     }
 
     @Test
@@ -67,6 +67,6 @@ class AlunoServiceTest {
     private static AlunoService comRecusaDoBancoSemIndice() {
         AlunoRepository repository = mock(AlunoRepository.class);
         when(repository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("data fora do intervalo"));
-        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), mock(Auditoria.class), Clock.systemUTC());
+        return new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), List.of(), mock(Auditoria.class), Clock.systemUTC());
     }
 }

@@ -57,6 +57,7 @@ class FichaControllerTest {
 
     private UUID instrutorId;
     private RequestPostProcessor instrutor;
+    private RequestPostProcessor admin;
     private UUID aluno;
     private String supino;
     private String remada;
@@ -69,6 +70,8 @@ class FichaControllerTest {
                 instrutorId, instrutorId + "@academia.com");
         instrutor = jwt().jwt(j -> j.subject(instrutorId.toString()).claim("perfil", "INSTRUTOR"))
                 .authorities(new SimpleGrantedAuthority("ROLE_INSTRUTOR"));
+        admin = jwt().jwt(j -> j.subject(instrutorId.toString()).claim("perfil", "ADMIN"))
+                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
         aluno = novoAluno(true);
         supino = novoExercicio("Supino reto", true);
         remada = novoExercicio("Remada curvada", true);
@@ -177,15 +180,15 @@ class FichaControllerTest {
                 .andExpect(jsonPath("$.id").value(segunda));
         ver("/api/fichas?alunoId=" + aluno)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].id", contains(segunda, primeira)))
-                .andExpect(jsonPath("$[*].atual", contains(true, false)))
-                .andExpect(jsonPath("$[1].encerradaEm").exists())
-                .andExpect(jsonPath("$[1].divisoes[0].exercicios[0].nome").value("Supino reto"));
+                .andExpect(jsonPath("$.conteudo[*].id", contains(segunda, primeira)))
+                .andExpect(jsonPath("$.conteudo[*].atual", contains(true, false)))
+                .andExpect(jsonPath("$.conteudo[1].encerradaEm").exists())
+                .andExpect(jsonPath("$.conteudo[1].divisoes[0].exercicios[0].nome").value("Supino reto"));
         ver("/api/fichas/" + primeira).andExpect(status().isOk()).andExpect(jsonPath("$.atual").value(false));
         // As fichas de outro aluno não se misturam.
         UUID outro = novoAluno(true);
         String doOutro = montarFicha(outro, divisoes(item(supino, 3, "10", null)));
-        ver("/api/fichas?alunoId=" + outro).andExpect(jsonPath("$[*].id", contains(doOutro)));
+        ver("/api/fichas?alunoId=" + outro).andExpect(jsonPath("$.conteudo[*].id", contains(doOutro)));
         ver("/api/fichas/atual?alunoId=" + aluno).andExpect(jsonPath("$.id").value(segunda));
     }
 
@@ -195,7 +198,7 @@ class FichaControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Ficha não encontrada"));
         ver("/api/fichas/" + UUID.randomUUID()).andExpect(status().isNotFound());
-        ver("/api/fichas?alunoId=" + aluno).andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
+        ver("/api/fichas?alunoId=" + aluno).andExpect(status().isOk()).andExpect(jsonPath("$.conteudo").isEmpty());
     }
 
     @Test
@@ -228,8 +231,8 @@ class FichaControllerTest {
                                 Calendario.hoje(relogio.instant()), divisoes(item(remada, 3, "10", null)))))
                 .andExpect(status().isBadRequest());
 
-        ver("/api/fichas?alunoId=" + aluno).andExpect(jsonPath("$[*].id", contains(atual)))
-                .andExpect(jsonPath("$[0].atual").value(true));
+        ver("/api/fichas?alunoId=" + aluno).andExpect(jsonPath("$.conteudo[*].id", contains(atual)))
+                .andExpect(jsonPath("$.conteudo[0].atual").value(true));
     }
 
     @Test
@@ -251,7 +254,7 @@ class FichaControllerTest {
                 "{\"nome\": \"A\", \"exercicios\": [%s]}".formatted(item(supino, 3, "10", null))));
         montar(aluno, "[" + oito + "]").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erros[*].campo", hasItems("divisoes")));
-        ver("/api/fichas?alunoId=" + aluno).andExpect(jsonPath("$").isEmpty());
+        ver("/api/fichas?alunoId=" + aluno).andExpect(jsonPath("$.conteudo").isEmpty());
     }
 
     @Test
@@ -272,7 +275,7 @@ class FichaControllerTest {
                 .andExpect(jsonPath("$.title").value("Ficha alterada por outra pessoa"));
         corrigir(UUID.randomUUID().toString(), "\"0\"", correcao).andExpect(status().isNotFound());
         // Correção, e não ficha nova: o histórico continua com uma só.
-        ver("/api/fichas?alunoId=" + aluno).andExpect(jsonPath("$.length()").value(1));
+        ver("/api/fichas?alunoId=" + aluno).andExpect(jsonPath("$.conteudo.length()").value(1));
         ver("/api/fichas/" + id).andExpect(header().string("ETag", "\"1\""))
                 .andExpect(jsonPath("$.divisoes[0].exercicios[*].nome", contains("Supino reto", "Remada curvada")));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ficha_divisoes", Integer.class))
@@ -357,18 +360,18 @@ class FichaControllerTest {
 
         mvc.perform(get("/api/fichas/me").with(tokenDeAluno(aluno)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].id").value(atual))
-                .andExpect(jsonPath("$[0].atual").value(true))
-                .andExpect(jsonPath("$[0].divisoes[0].exercicios[0].nome").value("Remada curvada"))
-                .andExpect(jsonPath("$[0].divisoes[0].exercicios[0].repeticoes").value("8 a 12"))
-                .andExpect(jsonPath("$[1].id").value(antiga))
-                .andExpect(jsonPath("$[1].atual").value(false))
-                .andExpect(jsonPath("$[1].encerradaEm").exists())
-                .andExpect(jsonPath("$[1].divisoes[0].exercicios[0].carga").value("20 kg"))
+                .andExpect(jsonPath("$.conteudo.length()").value(2))
+                .andExpect(jsonPath("$.conteudo[0].id").value(atual))
+                .andExpect(jsonPath("$.conteudo[0].atual").value(true))
+                .andExpect(jsonPath("$.conteudo[0].divisoes[0].exercicios[0].nome").value("Remada curvada"))
+                .andExpect(jsonPath("$.conteudo[0].divisoes[0].exercicios[0].repeticoes").value("8 a 12"))
+                .andExpect(jsonPath("$.conteudo[1].id").value(antiga))
+                .andExpect(jsonPath("$.conteudo[1].atual").value(false))
+                .andExpect(jsonPath("$.conteudo[1].encerradaEm").exists())
+                .andExpect(jsonPath("$.conteudo[1].divisoes[0].exercicios[0].carga").value("20 kg"))
                 // Quem da equipe montou é dado interno; a revisão vencida é tarefa do instrutor.
-                .andExpect(jsonPath("$[0].montadaPor").doesNotExist())
-                .andExpect(jsonPath("$[0].revisaoVencida").doesNotExist());
+                .andExpect(jsonPath("$.conteudo[0].montadaPor").doesNotExist())
+                .andExpect(jsonPath("$.conteudo[0].revisaoVencida").doesNotExist());
     }
 
     @Test
@@ -378,11 +381,11 @@ class FichaControllerTest {
 
         mvc.perform(get("/api/fichas/me").with(tokenDeAluno(aluno)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(ficha));
+                .andExpect(jsonPath("$.conteudo.length()").value(1))
+                .andExpect(jsonPath("$.conteudo[0].id").value(ficha));
         mvc.perform(get("/api/fichas/me").with(tokenDeAluno(novoAluno(true))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.conteudo.length()").value(0));
     }
 
     @Test
@@ -407,18 +410,69 @@ class FichaControllerTest {
         UUID trocou = novoAluno("Trocou", true);
         revisaoEm(montarFicha(trocou, divisoes(item(supino, 3, "10", null))), hoje.minusDays(10));
         montarFicha(trocou, divisoes(item(remada, 3, "10", null)));
+        // Inativado pela API: o módulo de alunos avisa os treinos (V33); reativado, volta à lista.
+        // Com uma ficha encerrada também: o aviso muda só a atual (o banco recusaria a encerrada).
         UUID inativo = novoAluno("Inativo", true);
-        revisaoEm(montarFicha(inativo, divisoes(item(supino, 3, "10", null))), hoje.minusDays(20));
-        jdbc.update("UPDATE alunos SET ativo = false WHERE id = ?", inativo);
+        montarFicha(inativo, divisoes(item(remada, 3, "10", null)));
+        String doInativo = montarFicha(inativo, divisoes(item(supino, 3, "10", null)));
+        revisaoEm(doInativo, hoje.minusDays(20));
+        mvc.perform(post("/api/alunos/" + inativo + "/inativar").with(admin)).andExpect(status().isOk());
 
         ver("/api/fichas/revisoes-vencidas")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].fichaId", contains(vencidaOntem, vencidaHoje)))
-                .andExpect(jsonPath("$[0].alunoId").value(ana.toString()))
-                .andExpect(jsonPath("$[0].alunoNome").value("Ana"))
-                .andExpect(jsonPath("$[0].revisaoEm").value(hoje.minusDays(1).toString()))
-                .andExpect(jsonPath("$[0].montadaPor").value(instrutorId.toString()))
-                .andExpect(jsonPath("$[0].montadaEm").exists())
-                .andExpect(jsonPath("$[1].alunoNome").value("Bia"));
+                .andExpect(jsonPath("$.totalElementos").value(2))
+                .andExpect(jsonPath("$.conteudo[*].fichaId", contains(vencidaOntem, vencidaHoje)))
+                .andExpect(jsonPath("$.conteudo[0].alunoId").value(ana.toString()))
+                .andExpect(jsonPath("$.conteudo[0].alunoNome").value("Ana"))
+                .andExpect(jsonPath("$.conteudo[0].revisaoEm").value(hoje.minusDays(1).toString()))
+                .andExpect(jsonPath("$.conteudo[0].montadaPor").value(instrutorId.toString()))
+                .andExpect(jsonPath("$.conteudo[0].montadaEm").exists())
+                .andExpect(jsonPath("$.conteudo[1].alunoNome").value("Bia"));
+        ver("/api/fichas/revisoes-vencidas?tamanho=1&pagina=1")
+                .andExpect(jsonPath("$.conteudo[*].fichaId", contains(vencidaHoje)))
+                .andExpect(jsonPath("$.totalElementos").value(2))
+                .andExpect(jsonPath("$.totalPaginas").value(2));
+
+        mvc.perform(post("/api/alunos/" + inativo + "/reativar").with(admin)).andExpect(status().isOk());
+        ver("/api/fichas/revisoes-vencidas")
+                .andExpect(jsonPath("$.conteudo[*].fichaId", contains(doInativo, vencidaOntem, vencidaHoje)))
+                .andExpect(jsonPath("$.totalElementos").value(3));
+
+        // Inativo sem o aviso (uma inativação entre a consulta das fichas e a dos nomes, ou uma
+        // mudança direto no banco): o nome não vem, e a ficha fica de fora mesmo assim.
+        jdbc.update("UPDATE alunos SET ativo = false WHERE id = ?", bia);
+        ver("/api/fichas/revisoes-vencidas")
+                .andExpect(jsonPath("$.conteudo[*].fichaId", contains(doInativo, vencidaOntem)));
+    }
+
+    @Test
+    void historicoEmPaginasDaMaisNova() throws Exception {
+        String primeira = montarFicha(aluno, divisoes(item(supino, 3, "10", null)));
+        String segunda = montarFicha(aluno, divisoes(item(remada, 3, "10", null)));
+        String terceira = montarFicha(aluno, divisoes(item(supino, 4, "8", null)));
+
+        ver("/api/fichas?alunoId=" + aluno)
+                .andExpect(jsonPath("$.conteudo[*].id", contains(terceira, segunda, primeira)))
+                .andExpect(jsonPath("$.tamanho").value(10));
+        ver("/api/fichas?alunoId=%s&tamanho=2".formatted(aluno))
+                .andExpect(jsonPath("$.conteudo[*].id", contains(terceira, segunda)))
+                .andExpect(jsonPath("$.totalElementos").value(3))
+                .andExpect(jsonPath("$.totalPaginas").value(2));
+        ver("/api/fichas?alunoId=%s&tamanho=2&pagina=1".formatted(aluno))
+                .andExpect(jsonPath("$.conteudo[*].id", contains(primeira)))
+                .andExpect(jsonPath("$.conteudo[0].divisoes[0].exercicios[0].nome").value("Supino reto"));
+        mvc.perform(get("/api/fichas/me?tamanho=1&pagina=2").with(tokenDeAluno(aluno)))
+                .andExpect(jsonPath("$.conteudo[*].id", contains(primeira)))
+                .andExpect(jsonPath("$.totalElementos").value(3));
+
+        for (String limites : new String[] {"tamanho=21", "tamanho=0", "pagina=-1"}) {
+            ver("/api/fichas?alunoId=%s&%s".formatted(aluno, limites)).andExpect(status().isBadRequest());
+            mvc.perform(get("/api/fichas/me?" + limites).with(tokenDeAluno(aluno))).andExpect(status().isBadRequest());
+        }
+        ver("/api/fichas?alunoId=%s&tamanho=20".formatted(aluno)).andExpect(status().isOk());
+        for (String limites : new String[] {"tamanho=101", "tamanho=0", "pagina=-1"}) {
+            ver("/api/fichas/revisoes-vencidas?" + limites).andExpect(status().isBadRequest());
+        }
+        ver("/api/fichas/revisoes-vencidas?tamanho=100").andExpect(status().isOk());
     }
 }

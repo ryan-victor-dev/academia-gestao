@@ -13,8 +13,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import org.hibernate.annotations.Fetch;
-import org.hibernate.annotations.FetchMode;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.OptimisticLock;
 
 import java.time.Instant;
@@ -44,6 +43,8 @@ class Ficha {
     static final int TAMANHO_MAXIMO_CARGA = 30;
     static final int MAXIMO_DESCANSO_SEGUNDOS = 600;
     static final int TAMANHO_MAXIMO_OBSERVACAO = 500;
+    // A maior página do histórico (FichaController): as divisões dela vêm numa consulta só.
+    static final int MAXIMO_FICHAS_NUMA_CONSULTA = 20;
 
     @Id
     private UUID id;
@@ -51,11 +52,13 @@ class Ficha {
     @Column(name = "aluno_id", nullable = false, updatable = false)
     private UUID alunoId;
 
-    // Vêm sempre junto (open-in-view está desligado); SUBSELECT carrega as divisões de várias
-    // fichas (o histórico) numa consulta só. Fora da versão: o Hibernate subiria a versão já ao
-    // gravar a ficha nova (o ETag do cadastro não serviria); quem marca a correção é corrigidaEm.
+    // Vêm sempre junto (open-in-view está desligado). BatchSize carrega as divisões de uma
+    // página do histórico numa consulta só, pelos ids das fichas lidas. (O SUBSELECT, usado
+    // antes, repetia a consulta sem o limite da página e trazia as divisões do histórico
+    // inteiro.) Fora da versão: o Hibernate subiria a versão já ao gravar a ficha nova (o ETag
+    // do cadastro não serviria); quem marca a correção é corrigidaEm.
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    @Fetch(FetchMode.SUBSELECT)
+    @BatchSize(size = MAXIMO_FICHAS_NUMA_CONSULTA)
     @OptimisticLock(excluded = true)
     @JoinColumn(name = "ficha_id", nullable = false, updatable = false)
     @OrderBy("posicao")
@@ -77,6 +80,11 @@ class Ficha {
 
     @Column(name = "encerrada_em")
     private Instant encerradaEm;
+
+    // Cópia de "o aluno está ativo", só para a lista de revisões vencidas (V33). Quem grava é o
+    // banco (padrão true; o aluno está ativo ao montar) e o FichaRepository.marcarAlunoAtivo.
+    @Column(name = "aluno_ativo", insertable = false, updatable = false)
+    private boolean alunoAtivo;
 
     @Version
     @Column(nullable = false)

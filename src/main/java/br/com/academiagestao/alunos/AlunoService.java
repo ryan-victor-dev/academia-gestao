@@ -31,14 +31,17 @@ class AlunoService {
     private final AlunoRepository repository;
     private final LoginsDeAlunos loginsDeAlunos;
     private final List<ImpedimentoParaInativar> impedimentos;
+    private final List<AoMudarASituacaoDoAluno> interessados;
     private final Auditoria auditoria;
     private final Clock relogio;
 
     AlunoService(AlunoRepository repository, LoginsDeAlunos loginsDeAlunos,
-                 List<ImpedimentoParaInativar> impedimentos, Auditoria auditoria, Clock relogio) {
+                 List<ImpedimentoParaInativar> impedimentos, List<AoMudarASituacaoDoAluno> interessados,
+                 Auditoria auditoria, Clock relogio) {
         this.repository = repository;
         this.loginsDeAlunos = loginsDeAlunos;
         this.impedimentos = impedimentos;
+        this.interessados = interessados;
         this.auditoria = auditoria;
         this.relogio = relogio;
     }
@@ -107,6 +110,7 @@ class AlunoService {
         Map<String, Object> antes = retrato(aluno);
         aluno.inativar();
         loginsDeAlunos.desativar(id);
+        interessados.forEach(i -> i.inativado(id));
         auditoria.registrar(ALUNO, id, "INATIVADO", antes, retrato(aluno));
         return aluno;
     }
@@ -117,6 +121,7 @@ class AlunoService {
         Map<String, Object> antes = retrato(aluno);
         aluno.reativar();
         loginsDeAlunos.reativar(id);
+        interessados.forEach(i -> i.reativado(id));
         auditoria.registrar(ALUNO, id, "REATIVADO", antes, retrato(aluno));
         return aluno;
     }

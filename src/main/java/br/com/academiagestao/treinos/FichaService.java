@@ -4,8 +4,11 @@ import br.com.academiagestao.alunos.AlunosParaMatricula;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import br.com.academiagestao.compartilhado.Pagina;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,25 +112,30 @@ class FichaService {
         return repository.buscarAtual(alunoId).orElseThrow(() -> FichaNaoEncontradaException.semAtual(alunoId));
     }
 
-    /** A atual e as encerradas, da mais nova para a mais antiga. */
+    /** A atual e as encerradas, da mais nova para a mais antiga, uma página por vez. */
     @Transactional(readOnly = true)
-    List<Ficha> historico(UUID alunoId) {
-        return repository.findByAlunoIdOrderByMontadaEmDesc(alunoId);
+    Page<Ficha> historico(UUID alunoId, int pagina, int tamanho) {
+        return repository.historico(alunoId, PageRequest.of(pagina, tamanho));
     }
 
     /**
-     * As fichas atuais com a revisão vencida (até hoje), com o nome do aluno. Aluno inativo
-     * fica de fora: não está treinando, e a ficha dele não precisa de revisão agora.
+     * As fichas atuais com a revisão vencida (até hoje), com o nome do aluno, uma página por
+     * vez. Aluno inativo fica de fora: não está treinando, e a ficha dele não precisa de
+     * revisão agora. Quem foi inativado entre as duas consultas sai também (a página fica
+     * com um a menos, uma vez).
      */
     @Transactional(readOnly = true)
-    List<RevisaoPendente> revisoesVencidas() {
-        List<FichaRepository.RevisaoVencida> vencidas = repository.revisoesVencidas(hoje());
+    Pagina<RevisaoPendente> revisoesVencidas(int pagina, int tamanho) {
+        Page<FichaRepository.RevisaoVencida> vencidas = repository.revisoesVencidas(hoje(),
+                PageRequest.of(pagina, tamanho));
         Map<UUID, String> nomes = alunos.nomesDosAtivos(
                 vencidas.stream().map(FichaRepository.RevisaoVencida::alunoId).collect(Collectors.toSet()));
-        return vencidas.stream()
+        List<RevisaoPendente> conteudo = vencidas.stream()
                 .filter(v -> nomes.containsKey(v.alunoId()))
                 .map(v -> new RevisaoPendente(v, nomes.get(v.alunoId())))
                 .toList();
+        return new Pagina<>(conteudo, vencidas.getNumber(), vencidas.getSize(), vencidas.getTotalElements(),
+                vencidas.getTotalPages());
     }
 
     record RevisaoPendente(FichaRepository.RevisaoVencida ficha, String alunoNome) {

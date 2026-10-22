@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -24,6 +25,14 @@ public interface AlunoRepository extends JpaRepository<Aluno, UUID>, JpaSpecific
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Aluno a WHERE a.id = :id")
     Optional<Aluno> travarPorId(UUID id);
+
+    @Query("""
+            SELECT new br.com.academiagestao.alunos.AlunoRepository$NomeDoAluno(a.id, a.nome)
+            FROM Aluno a WHERE a.id IN :ids AND a.ativo = true""")
+    List<NomeDoAluno> nomesDosAtivos(Collection<UUID> ids);
+
+    record NomeDoAluno(UUID id, String nome) {
+    }
 
     /**
      * Filtro da listagem. Se a busca só tem dígitos, pontos e traço (e a busca por CPF é

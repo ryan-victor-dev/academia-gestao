@@ -37,12 +37,12 @@ public class AlunosParaMatricula {
 
     /**
      * Nome de cada aluno ativo entre {@code ids}; inativos e inexistentes ficam de fora. Para
-     * listas da equipe (as revisões vencidas dos treinos), que mostram quem é o aluno.
+     * listas da equipe (as revisões vencidas dos treinos), que mostram quem é o aluno. Só o id
+     * e o nome, sem carregar o cadastro (CPF, telefone) de cada um.
      */
     @Transactional(readOnly = true)
     public Map<UUID, String> nomesDosAtivos(Collection<UUID> ids) {
-        return repository.findAllById(ids).stream()
-                .filter(Aluno::isAtivo)
-                .collect(Collectors.toMap(Aluno::getId, Aluno::getNome));
+        return repository.nomesDosAtivos(ids).stream()
+                .collect(Collectors.toMap(AlunoRepository.NomeDoAluno::id, AlunoRepository.NomeDoAluno::nome));
     }
 }
