@@ -75,10 +75,28 @@ class FichaControllerTest {
     }
 
     private UUID novoAluno(boolean ativo) {
+        return novoAluno("Aluno", ativo);
+    }
+
+    private UUID novoAluno(String nome, boolean ativo) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO alunos (id, nome, cpf, ativo) VALUES (?, 'Aluno', ?, ?)", id,
+        jdbc.update("INSERT INTO alunos (id, nome, cpf, ativo) VALUES (?, ?, ?, ?)", id, nome,
                 CpfsParaTeste.aleatorio(), ativo);
         return id;
+    }
+
+    private static RequestPostProcessor tokenDeAluno(UUID alunoId) {
+        return jwt().jwt(j -> {
+                    j.subject(UUID.randomUUID().toString()).claim("perfil", "ALUNO");
+                    if (alunoId != null) {
+                        j.claim("alunoId", alunoId.toString());
+                    }
+                })
+                .authorities(new SimpleGrantedAuthority("ROLE_ALUNO"));
+    }
+
+    private void revisaoEm(String fichaId, LocalDate data) {
+        jdbc.update("UPDATE fichas SET revisao_em = ? WHERE id = ?::uuid", data, fichaId);
     }
 
     private String novoExercicio(String nome, boolean ativo) {
@@ -329,5 +347,78 @@ class FichaControllerTest {
         String correcao = (String) trilha.get(1).get("alteracoes");
         assertThat(correcao).contains("\"divisoes\"").contains("20 kg").contains("25 kg");
         assertThat((String) trilha.get(2).get("alteracoes")).contains("\"encerradaEm\"").doesNotContain("\"divisoes\"");
+    }
+
+    @Test
+    void alunoVeSoAsProprias() throws Exception {
+        String antiga = montarFicha(aluno, divisoes(item(supino, 3, "10", "20 kg")));
+        String atual = montarFicha(aluno, divisoes(item(remada, 4, "8 a 12", null)));
+        montarFicha(novoAluno(true), divisoes(item(supino, 5, "5", null)));
+
+        mvc.perform(get("/api/fichas/me").with(tokenDeAluno(aluno)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(atual))
+                .andExpect(jsonPath("$[0].atual").value(true))
+                .andExpect(jsonPath("$[0].divisoes[0].exercicios[0].nome").value("Remada curvada"))
+                .andExpect(jsonPath("$[0].divisoes[0].exercicios[0].repeticoes").value("8 a 12"))
+                .andExpect(jsonPath("$[1].id").value(antiga))
+                .andExpect(jsonPath("$[1].atual").value(false))
+                .andExpect(jsonPath("$[1].encerradaEm").exists())
+                .andExpect(jsonPath("$[1].divisoes[0].exercicios[0].carga").value("20 kg"))
+                // Quem da equipe montou é dado interno; a revisão vencida é tarefa do instrutor.
+                .andExpect(jsonPath("$[0].montadaPor").doesNotExist())
+                .andExpect(jsonPath("$[0].revisaoVencida").doesNotExist());
+    }
+
+    @Test
+    void alunoInativoContinuaVendoAsPropriasESemFichaVeListaVazia() throws Exception {
+        String ficha = montarFicha(aluno, divisoes(item(supino, 3, "10", null)));
+        jdbc.update("UPDATE alunos SET ativo = false WHERE id = ?", aluno);
+
+        mvc.perform(get("/api/fichas/me").with(tokenDeAluno(aluno)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(ficha));
+        mvc.perform(get("/api/fichas/me").with(tokenDeAluno(novoAluno(true))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void tokenDeAlunoSemAlunoIdEhRecusado() throws Exception {
+        mvc.perform(get("/api/fichas/me").with(tokenDeAluno(null))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void revisoesVencidasSoAsAtuaisDeAlunosAtivosDaMaisAntiga() throws Exception {
+        LocalDate hoje = Calendario.hoje(relogio.instant());
+        // Montadas fora da ordem da revisão, para a ordem da lista não vir da montagem.
+        UUID bia = novoAluno("Bia", true);
+        String vencidaHoje = montarFicha(bia, divisoes(item(supino, 3, "10", null)));
+        revisaoEm(vencidaHoje, hoje);
+        UUID ana = novoAluno("Ana", true);
+        String vencidaOntem = montarFicha(ana, divisoes(item(supino, 3, "10", null)));
+        revisaoEm(vencidaOntem, hoje.minusDays(1));
+
+        revisaoEm(montarFicha(novoAluno("Futura", true), divisoes(item(supino, 3, "10", null))), hoje.plusDays(1));
+        montarFicha(novoAluno("Sem revisão", true), divisoes(item(supino, 3, "10", null)));
+        // Encerrada com a revisão vencida; a atual, que a substituiu, não tem revisão.
+        UUID trocou = novoAluno("Trocou", true);
+        revisaoEm(montarFicha(trocou, divisoes(item(supino, 3, "10", null))), hoje.minusDays(10));
+        montarFicha(trocou, divisoes(item(remada, 3, "10", null)));
+        UUID inativo = novoAluno("Inativo", true);
+        revisaoEm(montarFicha(inativo, divisoes(item(supino, 3, "10", null))), hoje.minusDays(20));
+        jdbc.update("UPDATE alunos SET ativo = false WHERE id = ?", inativo);
+
+        ver("/api/fichas/revisoes-vencidas")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].fichaId", contains(vencidaOntem, vencidaHoje)))
+                .andExpect(jsonPath("$[0].alunoId").value(ana.toString()))
+                .andExpect(jsonPath("$[0].alunoNome").value("Ana"))
+                .andExpect(jsonPath("$[0].revisaoEm").value(hoje.minusDays(1).toString()))
+                .andExpect(jsonPath("$[0].montadaPor").value(instrutorId.toString()))
+                .andExpect(jsonPath("$[0].montadaEm").exists())
+                .andExpect(jsonPath("$[1].alunoNome").value("Bia"));
     }
 }

@@ -4,7 +4,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * O que os módulos de matrículas e de treinos podem pedir ao de alunos. Devolve dados, não
@@ -30,5 +33,16 @@ public class AlunosParaMatricula {
         return repository.travarPorId(alunoId)
                 .map(aluno -> aluno.isAtivo() ? EstadoDoAluno.ATIVO : EstadoDoAluno.INATIVO)
                 .orElse(EstadoDoAluno.INEXISTENTE);
+    }
+
+    /**
+     * Nome de cada aluno ativo entre {@code ids}; inativos e inexistentes ficam de fora. Para
+     * listas da equipe (as revisões vencidas dos treinos), que mostram quem é o aluno.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, String> nomesDosAtivos(Collection<UUID> ids) {
+        return repository.findAllById(ids).stream()
+                .filter(Aluno::isAtivo)
+                .collect(Collectors.toMap(Aluno::getId, Aluno::getNome));
     }
 }

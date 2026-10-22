@@ -115,6 +115,24 @@ class FichaService {
         return repository.findByAlunoIdOrderByMontadaEmDesc(alunoId);
     }
 
+    /**
+     * As fichas atuais com a revisão vencida (até hoje), com o nome do aluno. Aluno inativo
+     * fica de fora: não está treinando, e a ficha dele não precisa de revisão agora.
+     */
+    @Transactional(readOnly = true)
+    List<RevisaoPendente> revisoesVencidas() {
+        List<FichaRepository.RevisaoVencida> vencidas = repository.revisoesVencidas(hoje());
+        Map<UUID, String> nomes = alunos.nomesDosAtivos(
+                vencidas.stream().map(FichaRepository.RevisaoVencida::alunoId).collect(Collectors.toSet()));
+        return vencidas.stream()
+                .filter(v -> nomes.containsKey(v.alunoId()))
+                .map(v -> new RevisaoPendente(v, nomes.get(v.alunoId())))
+                .toList();
+    }
+
+    record RevisaoPendente(FichaRepository.RevisaoVencida ficha, String alunoNome) {
+    }
+
     LocalDate hoje() {
         return Calendario.hoje(relogio.instant());
     }

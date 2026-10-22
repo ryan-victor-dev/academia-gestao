@@ -126,6 +126,8 @@ class PermissoesDeFichasTest {
             case "consultar" -> get("/api/fichas/" + alvo.getId());
             case "atual" -> get("/api/fichas/atual?alunoId=" + alvo.getAlunoId());
             case "historico" -> get("/api/fichas?alunoId=" + alvo.getAlunoId());
+            case "minhas" -> get("/api/fichas/me");
+            case "vencidas" -> get("/api/fichas/revisoes-vencidas");
             default -> throw new IllegalArgumentException(operacao);
         };
     }
@@ -157,6 +159,16 @@ class PermissoesDeFichasTest {
             "historico, INSTRUTOR, 200",
             "historico, RECEPCAO,  200",
             "historico, ALUNO,     403",
+
+            "minhas,    ADMIN,     403",
+            "minhas,    INSTRUTOR, 403",
+            "minhas,    RECEPCAO,  403",
+            "minhas,    ALUNO,     200",
+
+            "vencidas,  ADMIN,     200",
+            "vencidas,  INSTRUTOR, 200",
+            "vencidas,  RECEPCAO,  403",
+            "vencidas,  ALUNO,     403",
     })
     void matrizDePermissoes(String operacao, Perfil perfil, int statusEsperado) throws Exception {
         mvc.perform(requisicao(operacao).header("Authorization", "Bearer " + tokens.get(perfil)))
@@ -164,7 +176,7 @@ class PermissoesDeFichasTest {
     }
 
     @ParameterizedTest(name = "{0} sem token -> 401")
-    @CsvSource({"montar", "corrigir", "consultar", "atual", "historico"})
+    @CsvSource({"montar", "corrigir", "consultar", "atual", "historico", "minhas", "vencidas"})
     void semTokenNadaFunciona(String operacao) throws Exception {
         mvc.perform(requisicao(operacao)).andExpect(status().isUnauthorized());
     }

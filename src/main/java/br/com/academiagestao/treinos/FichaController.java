@@ -1,5 +1,6 @@
 package br.com.academiagestao.treinos;
 
+import br.com.academiagestao.auth.ClaimsDoToken;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -10,6 +11,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -31,7 +33,7 @@ import java.util.UUID;
 
 /**
  * Fichas de treino (ADR 0027): o instrutor (e o ADMIN) monta e corrige; a recepção só vê,
- * para tirar dúvida do aluno no balcão.
+ * para tirar dúvida do aluno no balcão; o aluno vê as dele (/me).
  */
 @RestController
 @RequestMapping("/api/fichas")
@@ -82,6 +84,27 @@ class FichaController {
     List<FichaResponse> historico(@RequestParam UUID alunoId) {
         LocalDate hoje = service.hoje();
         return service.historico(alunoId).stream().map(f -> FichaResponse.de(f, hoje)).toList();
+    }
+
+    /**
+     * As fichas do próprio aluno, a atual primeiro, mesmo inativo (continua vendo as antigas).
+     * O id vem do token, nunca da URL: não há como pedir as fichas de outra pessoa.
+     */
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('ALUNO')")
+    List<FichaParaAluno> minhas(@AuthenticationPrincipal Jwt jwt) {
+        String alunoId = jwt.getClaimAsString(ClaimsDoToken.ALUNO_ID);
+        if (alunoId == null) {
+            throw new AccessDeniedException("Token de aluno sem alunoId");
+        }
+        return service.historico(UUID.fromString(alunoId)).stream().map(FichaParaAluno::de).toList();
+    }
+
+    /** Fichas atuais com a revisão vencida (até hoje), da mais antiga; só alunos ativos. */
+    @GetMapping("/revisoes-vencidas")
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUTOR')")
+    List<RevisaoVencidaResponse> revisoesVencidas() {
+        return service.revisoesVencidas().stream().map(RevisaoVencidaResponse::de).toList();
     }
 
     private ResponseEntity<FichaResponse> comEtag(Ficha ficha) {
@@ -173,6 +196,29 @@ class FichaController {
             return new FichaResponse(f.getId(), f.getAlunoId(), f.isAtual(), f.getMontadaEm(), f.getMontadaPor(),
                     f.getRevisaoEm(), f.revisaoVencida(hoje), f.getCorrigidaEm(), f.getEncerradaEm(),
                     f.getDivisoes().stream().map(DivisaoResponse::de).toList());
+        }
+    }
+
+    /**
+     * O que o aluno vê da ficha: sem quem da equipe montou (dado interno) e sem o aviso de
+     * revisão vencida, que é tarefa do instrutor.
+     */
+    record FichaParaAluno(UUID id, boolean atual, Instant montadaEm, LocalDate revisaoEm, Instant corrigidaEm,
+                          Instant encerradaEm, List<DivisaoResponse> divisoes) {
+
+        static FichaParaAluno de(Ficha f) {
+            return new FichaParaAluno(f.getId(), f.isAtual(), f.getMontadaEm(), f.getRevisaoEm(), f.getCorrigidaEm(),
+                    f.getEncerradaEm(), f.getDivisoes().stream().map(DivisaoResponse::de).toList());
+        }
+    }
+
+    record RevisaoVencidaResponse(UUID fichaId, UUID alunoId, String alunoNome, LocalDate revisaoEm,
+                                  Instant montadaEm, UUID montadaPor) {
+
+        static RevisaoVencidaResponse de(FichaService.RevisaoPendente r) {
+            var f = r.ficha();
+            return new RevisaoVencidaResponse(f.fichaId(), f.alunoId(), r.alunoNome(), f.revisaoEm(), f.montadaEm(),
+                    f.montadaPor());
         }
     }
 
