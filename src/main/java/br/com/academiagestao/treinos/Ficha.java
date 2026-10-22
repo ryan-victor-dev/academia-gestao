@@ -43,6 +43,8 @@ class Ficha {
     static final int TAMANHO_MAXIMO_CARGA = 30;
     static final int MAXIMO_DESCANSO_SEGUNDOS = 600;
     static final int TAMANHO_MAXIMO_OBSERVACAO = 500;
+    // Teto da data de revisão, contado do dia em que ela é definida (decisão do dono, D2).
+    static final int REVISAO_MAXIMA_ANOS = 1;
     // A maior página do histórico (FichaController): as divisões dela vêm numa consulta só.
     static final int MAXIMO_FICHAS_NUMA_CONSULTA = 20;
 
@@ -104,14 +106,14 @@ class Ficha {
         ficha.alunoId = alunoId;
         ficha.montadaPor = montadaPor;
         ficha.montadaEm = agora.truncatedTo(ChronoUnit.MICROS);
-        ficha.aplicar(dados, nomes);
+        ficha.aplicar(dados, nomes, agora);
         return ficha;
     }
 
     /** Troca as divisões inteiras e a data de revisão. Só a ficha atual. */
     void corrigir(DadosFicha dados, Map<UUID, String> nomes, Instant agora) {
         garantirAtual();
-        aplicar(dados, nomes);
+        aplicar(dados, nomes, agora);
         this.corrigidaEm = agora.truncatedTo(ChronoUnit.MICROS);
     }
 
@@ -138,7 +140,7 @@ class Ficha {
     }
 
     // Valida tudo antes de alterar qualquer campo: ou a ficha inteira muda, ou nada muda.
-    private void aplicar(DadosFicha dados, Map<UUID, String> nomes) {
+    private void aplicar(DadosFicha dados, Map<UUID, String> nomes, Instant agora) {
         if (dados == null) {
             throw new DadosInvalidosException("dados da ficha são obrigatórios");
         }
@@ -146,6 +148,14 @@ class Ficha {
         if (dados.revisaoEm() != null && !dados.revisaoEm().isAfter(diaDaMontagem)) {
             throw new DadosInvalidosException("revisão deve ser depois do dia em que a ficha foi montada ("
                     + diaDaMontagem + ")");
+        }
+        // Sem teto, 9999-12-31 era aceito (e um ano maior dava 500), e um ano digitado errado
+        // (2062 em vez de 2026) tirava a ficha da lista de revisões vencidas para sempre.
+        // Contado de hoje, e não da montagem: uma ficha antiga corrigida também ganha revisão.
+        LocalDate teto = Calendario.hoje(agora).plusYears(REVISAO_MAXIMA_ANOS);
+        if (dados.revisaoEm() != null && dados.revisaoEm().isAfter(teto)) {
+            throw new DadosInvalidosException("revisão pode ser no máximo " + REVISAO_MAXIMA_ANOS
+                    + " ano à frente (até " + teto + ")");
         }
         List<DadosFicha.Divisao> informadas = dados.divisoes();
         if (informadas == null || informadas.isEmpty()) {

@@ -167,6 +167,35 @@ class FichaTest {
     }
 
     @Test
+    void revisaoNoMaximoUmAnoAFrenteNoHorarioDaAcademia() {
+        // Montada no dia 20 às 23h da academia (dia 21 em UTC): o teto é 20/10/2027.
+        var divisoes = umaDivisao(item(SUPINO)).divisoes();
+
+        assertThat(montar(new DadosFicha(LocalDate.of(2027, 10, 20), divisoes)).getRevisaoEm())
+                .isEqualTo(LocalDate.of(2027, 10, 20));
+        for (LocalDate longe : List.of(LocalDate.of(2027, 10, 21), LocalDate.of(2062, 10, 20), LocalDate.MAX)) {
+            assertThatThrownBy(() -> montar(new DadosFicha(longe, divisoes)))
+                    .as(longe.toString())
+                    .isInstanceOf(DadosInvalidosException.class)
+                    .hasMessage("revisão pode ser no máximo 1 ano à frente (até 2027-10-20)");
+        }
+    }
+
+    @Test
+    void naCorrecaoOTetoContaDoDiaDaCorrecao() {
+        Ficha ficha = montar(umaDivisao(item(SUPINO)));
+        // Corrigida 13 meses depois (ainda a atual): a revisão pode ir até 1 ano depois da correção.
+        Instant correcao = Instant.parse("2027-11-21T02:00:00Z");
+
+        ficha.corrigir(new DadosFicha(LocalDate.of(2028, 11, 20), umaDivisao(item(SUPINO)).divisoes()), NOMES, correcao);
+
+        assertThat(ficha.getRevisaoEm()).isEqualTo(LocalDate.of(2028, 11, 20));
+        assertThatThrownBy(() -> ficha.corrigir(new DadosFicha(LocalDate.of(2028, 11, 21),
+                umaDivisao(item(SUPINO)).divisoes()), NOMES, correcao))
+                .hasMessage("revisão pode ser no máximo 1 ano à frente (até 2028-11-20)");
+    }
+
+    @Test
     void revisaoVencidaQuandoADataChega() {
         Ficha ficha = montar(new DadosFicha(LocalDate.of(2026, 11, 20), umaDivisao(item(SUPINO)).divisoes()));
 

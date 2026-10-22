@@ -202,7 +202,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/cobrancas/me` | ALUNO (as próprias) |
 | `GET /api/exercicios?grupoMuscular=&incluirInativos=`, `GET /api/exercicios/{id}` (catálogo⁸) | ADMIN, INSTRUTOR |
 | `POST /api/exercicios`, `PUT /api/exercicios/{id}` (exige `If-Match`²), `POST /api/exercicios/{id}/inativar`, `/reativar` | ADMIN, INSTRUTOR |
-| `POST /api/fichas` (`alunoId`, `divisoes`, `revisaoEm` opcional; encerra a atual⁸) | ADMIN, INSTRUTOR |
+| `POST /api/fichas` (`alunoId`, `divisoes`, `revisaoEm` opcional, até 1 ano à frente; encerra a atual⁸) | ADMIN, INSTRUTOR |
 | `PUT /api/fichas/{id}` (corrige a atual; exige `If-Match`²) | ADMIN, INSTRUTOR |
 | `GET /api/fichas/{id}`, `GET /api/fichas/atual?alunoId=`, `GET /api/fichas?alunoId=&pagina=&tamanho=` (histórico, a mais nova primeiro; 10 por página, até 20) | ADMIN, INSTRUTOR, RECEPCAO |
 | `GET /api/fichas/revisoes-vencidas?pagina=&tamanho=` (atuais com a revisão até hoje, da mais antiga; 20 por página, até 100) | ADMIN, INSTRUTOR |

@@ -257,6 +257,20 @@ class FichaControllerTest {
         ver("/api/fichas?alunoId=" + aluno).andExpect(jsonPath("$.conteudo").isEmpty());
     }
 
+    /** T5 do diagnóstico da etapa 7: sem teto, 9999-12-31 era gravado, e um ano maior dava 500. */
+    @Test
+    void revisaoAlemDeUmAnoDa400() throws Exception {
+        for (String longe : new String[] {"+999999999-12-31", "9999-12-31",
+                Calendario.hoje(relogio.instant()).plusYears(1).plusDays(1).toString()}) {
+            mvc.perform(post("/api/fichas").with(instrutor).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"alunoId\": \"%s\", \"revisaoEm\": \"%s\", \"divisoes\": %s}".formatted(aluno, longe,
+                                    divisoes(item(supino, 3, "10", null)))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail", matchesPattern("revisão pode ser no máximo 1 ano à frente .*")));
+        }
+        ver("/api/fichas?alunoId=" + aluno).andExpect(jsonPath("$.conteudo").isEmpty());
+    }
+
     @Test
     void corrigirComEtagSemEtag428ComEtagAntigo412() throws Exception {
         String id = montarFicha(aluno, divisoes(item(supino, 3, "10", "20 kg")));
