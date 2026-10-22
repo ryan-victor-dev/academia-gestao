@@ -1,7 +1,6 @@
 package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.auth.ClaimsDoToken;
-import br.com.academiagestao.planos.FormaPagamento;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -176,7 +175,7 @@ class MatriculaController {
     /** Visão do aluno: o contrato dele, sem o id de quem da equipe cancelou. */
     record MatriculaParaAluno(UUID id, UUID planoId, String planoNome, BigDecimal valorMensal, int duracaoMeses,
                               BigDecimal valorTotal, boolean fidelidade, BigDecimal percentualMulta,
-                              FormaPagamento formaPagamento, LocalDate inicio, LocalDate primeiroVencimento,
+                              FormaDePagamento formaPagamento, LocalDate inicio, LocalDate primeiroVencimento,
                               LocalDate fim, BigDecimal credito, int diasTrancados,
                               List<TrancamentoResponse> trancamentos,
                               SituacaoMatricula situacao, Instant canceladaEm, String motivoCancelamento,
@@ -193,7 +192,7 @@ class MatriculaController {
 
     record MatriculaResponse(UUID id, UUID alunoId, UUID planoId, String planoNome, BigDecimal valorMensal,
                              int duracaoMeses, BigDecimal valorTotal, boolean fidelidade, BigDecimal percentualMulta,
-                             FormaPagamento formaPagamento, LocalDate inicio, LocalDate primeiroVencimento,
+                             FormaDePagamento formaPagamento, LocalDate inicio, LocalDate primeiroVencimento,
                              LocalDate fim, BigDecimal credito, int diasTrancados,
                              List<TrancamentoResponse> trancamentos, SituacaoMatricula situacao, Instant criadaEm,
                              Instant canceladaEm, UUID canceladaPor, String motivoCancelamento,

@@ -242,7 +242,7 @@ class MatriculaRepositoryTest {
     @Test
     void regrasDoPlanoEMultaSaoGravadas() {
         Matricula anual = Matricula.nova(aluno, new PlanoContratado(plano, "Anual", new BigDecimal("99.90"), 12, true,
-                new BigDecimal("20"), br.com.academiagestao.planos.FormaPagamento.A_VISTA),
+                new BigDecimal("20"), FormaDePagamento.A_VISTA),
                 LocalDate.parse("2027-01-10"), em("2027-01-10"));
         repository.saveAndFlush(anual);
         anual.cancelar(usuario, "Mudou de cidade", em("2027-01-10"));
@@ -251,7 +251,7 @@ class MatriculaRepositoryTest {
         Matricula lida = repository.findById(anual.getId()).orElseThrow();
         assertThat(lida.isFidelidade()).isTrue();
         assertThat(lida.getPercentualMulta()).isEqualByComparingTo("20");
-        assertThat(lida.getFormaPagamento()).isEqualTo(br.com.academiagestao.planos.FormaPagamento.A_VISTA);
+        assertThat(lida.getFormaPagamento()).isEqualTo(FormaDePagamento.A_VISTA);
         assertThat(lida.getMulta()).isEqualByComparingTo("219.78");
     }
 
@@ -411,7 +411,7 @@ class MatriculaRepositoryTest {
         Matricula atual = repository.saveAndFlush(matricula(aluno, "2027-01-10", 3));
         Matricula nova = Matricula.nova(aluno, new PlanoContratado(outroPlano(), "Outro", new BigDecimal("150"), 1),
                 LocalDate.parse("2027-01-20"), em("2027-01-20"));
-        nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-10")));
+        MatriculaNaCobranca.continuar(nova, new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-10")));
         atual.encerrarPorTroca(nova, usuario, em("2027-01-20"));
         repository.saveAndFlush(atual);
         UUID id = repository.saveAndFlush(nova).getId();
@@ -449,7 +449,7 @@ class MatriculaRepositoryTest {
         Matricula atual = repository.saveAndFlush(matricula(aluno, "2027-01-10", 3));
         Matricula nova = Matricula.nova(aluno, new PlanoContratado(outroPlano(), "Outro", new BigDecimal("150"), 2),
                 LocalDate.parse("2027-01-20"), em("2027-01-20"));
-        nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-10"), new BigDecimal("100.50")));
+        MatriculaNaCobranca.continuar(nova, new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-10"), new BigDecimal("100.50")));
         atual.encerrarPorTroca(nova, usuario, em("2027-01-20"));
         repository.saveAndFlush(atual);
         UUID id = repository.saveAndFlush(nova).getId();

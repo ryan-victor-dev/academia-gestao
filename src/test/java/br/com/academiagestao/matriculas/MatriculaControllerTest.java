@@ -602,7 +602,7 @@ class MatriculaControllerTest {
     void visaoDoAlunoMostraOPrimeiroVencimentoEOCredito() {
         Matricula nova = Matricula.nova(UUID.randomUUID(), new PlanoContratado(UUID.randomUUID(), "Novo",
                 new BigDecimal("100"), 3), null, relogio.instant());
-        nova.continuar(new MatriculaParaCobranca.Continuacao(hoje().plusDays(10), new BigDecimal("150.00")));
+        MatriculaNaCobranca.continuar(nova, new MatriculaParaCobranca.Continuacao(hoje().plusDays(10), new BigDecimal("150.00")));
 
         var visao = MatriculaController.MatriculaParaAluno.de(nova, relogio.instant());
         assertThat(visao.primeiroVencimento()).isEqualTo(hoje().plusDays(10));

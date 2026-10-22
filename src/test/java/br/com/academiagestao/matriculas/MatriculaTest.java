@@ -2,7 +2,6 @@ package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.cobranca.dominio.MatriculaParaCobranca;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
-import br.com.academiagestao.planos.FormaPagamento;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -293,7 +292,7 @@ class MatriculaTest {
 
     private static PlanoContratado anualComFidelidade(String percentual) {
         return new PlanoContratado(UUID.randomUUID(), "Anual", new BigDecimal("99.90"), 12, true,
-                new BigDecimal(percentual), FormaPagamento.A_VISTA);
+                new BigDecimal(percentual), FormaDePagamento.A_VISTA);
     }
 
     @Test
@@ -302,12 +301,12 @@ class MatriculaTest {
 
         assertThat(matricula.isFidelidade()).isTrue();
         assertThat(matricula.getPercentualMulta()).hasToString("12.50");
-        assertThat(matricula.getFormaPagamento()).isEqualTo(FormaPagamento.A_VISTA);
+        assertThat(matricula.getFormaPagamento()).isEqualTo(FormaDePagamento.A_VISTA);
         assertThat(matricula.getMulta()).isNull();
         Matricula semFidelidade = mensal("2026-10-17", "2026-10-17T10:00");
         assertThat(semFidelidade.isFidelidade()).isFalse();
         assertThat(semFidelidade.getPercentualMulta()).isNull();
-        assertThat(semFidelidade.getFormaPagamento()).isEqualTo(FormaPagamento.MENSAL);
+        assertThat(semFidelidade.getFormaPagamento()).isEqualTo(FormaDePagamento.MENSAL);
     }
 
     @ParameterizedTest(name = "cancelada em {0}: {1} meses restantes, multa {2}")
@@ -369,7 +368,7 @@ class MatriculaTest {
     })
     void recusaRegrasDeFidelidadeIncoerentes(boolean fidelidade, String percentual, String mensagem) {
         PlanoContratado plano = new PlanoContratado(UUID.randomUUID(), "Anual", new BigDecimal("99.90"), 12,
-                fidelidade, percentual == null ? null : new BigDecimal(percentual), FormaPagamento.MENSAL);
+                fidelidade, percentual == null ? null : new BigDecimal(percentual), FormaDePagamento.MENSAL);
 
         assertThatThrownBy(() -> Matricula.nova(ALUNO, plano, null, em("2026-10-17T10:00")))
                 .isInstanceOf(DadosInvalidosException.class)
@@ -602,13 +601,13 @@ class MatriculaTest {
 
     private static Matricula novaDoPlano(boolean fidelidade, String valor) {
         PlanoContratado plano = new PlanoContratado(UUID.randomUUID(), "Novo", new BigDecimal(valor), 12, fidelidade,
-                fidelidade ? new BigDecimal("10") : null, FormaPagamento.MENSAL);
+                fidelidade ? new BigDecimal("10") : null, FormaDePagamento.MENSAL);
         return Matricula.nova(ALUNO, plano, null, em("2027-01-20T10:00"));
     }
 
     private static Matricula novaDoPlano(boolean fidelidade, String valor, int meses, String percentual) {
         PlanoContratado plano = new PlanoContratado(UUID.randomUUID(), "Novo", new BigDecimal(valor), meses, fidelidade,
-                fidelidade ? new BigDecimal(percentual) : null, FormaPagamento.MENSAL);
+                fidelidade ? new BigDecimal(percentual) : null, FormaDePagamento.MENSAL);
         return Matricula.nova(ALUNO, plano, null, em("2027-01-20T10:00"));
     }
 
@@ -686,12 +685,12 @@ class MatriculaTest {
     void continuacaoEstendeOFimPelosDiasJaPagos() {
         Matricula nova = novaDoPlano(false, "150");  // 12 meses, a partir de 20/01/2027
 
-        nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17")));
+        MatriculaNaCobranca.continuar(nova, new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17")));
 
         assertThat(nova.getInicio()).isEqualTo(LocalDate.parse("2027-01-20"));
         assertThat(nova.getPrimeiroVencimento()).isEqualTo(LocalDate.parse("2027-02-17"));
         assertThat(nova.getFim()).isEqualTo(LocalDate.parse("2028-02-16"));
-        assertThat(nova.paraCobranca().primeiroVencimento()).isEqualTo(LocalDate.parse("2027-02-17"));
+        assertThat(MatriculaNaCobranca.de(nova).primeiroVencimento()).isEqualTo(LocalDate.parse("2027-02-17"));
         assertThat(nova.situacao(em("2027-01-20T10:00"))).isEqualTo(SituacaoMatricula.VIGENTE);
     }
 
@@ -700,7 +699,7 @@ class MatriculaTest {
         Matricula nova = novaDoPlano(false, "150");
         LocalDate fim = nova.getFim();
 
-        nova.continuar(new MatriculaParaCobranca.Continuacao(nova.getInicio()));
+        MatriculaNaCobranca.continuar(nova, new MatriculaParaCobranca.Continuacao(nova.getInicio()));
 
         assertThat(nova.getPrimeiroVencimento()).isEqualTo(nova.getInicio());
         assertThat(nova.getFim()).isEqualTo(fim);
@@ -709,17 +708,17 @@ class MatriculaTest {
     @Test
     void continuacaoForaDoPrimeiroMesOuDeMatriculaJaLigadaEhRecusada() {
         Matricula nova = novaDoPlano(false, "150");
-        assertThatThrownBy(() -> nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-01-19"))))
+        assertThatThrownBy(() -> MatriculaNaCobranca.continuar(nova, new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-01-19"))))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-21"))))
+        assertThatThrownBy(() -> MatriculaNaCobranca.continuar(nova, new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-21"))))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatCode(() -> nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-20"))))
+        assertThatCode(() -> MatriculaNaCobranca.continuar(nova, new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-20"))))
                 .doesNotThrowAnyException();
 
         Matricula ligada = novaDoPlano(false, "150");
         Matricula.nova(ALUNO, plano("100", 3), null, em("2027-01-01T10:00"))
                 .encerrarPorTroca(ligada, USUARIO, em("2027-01-20T10:00"));
-        assertThatThrownBy(() -> ligada.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-01"))))
+        assertThatThrownBy(() -> MatriculaNaCobranca.continuar(ligada, new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-01"))))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -732,21 +731,21 @@ class MatriculaTest {
         Matricula nova = novaDoPlano(false, "150");  // 12 × 150 = 1.800
         LocalDate fim = nova.getFim();
         var demais = new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17"), new BigDecimal("1800.01"));
-        assertThatThrownBy(() -> nova.continuar(demais))
+        assertThatThrownBy(() -> MatriculaNaCobranca.continuar(nova, demais))
                 .isInstanceOf(MatriculaRecusadaException.class)
                 .hasMessageContaining("R$ 1.800,01").hasMessageContaining("R$ 1.800,00");
         assertThat(nova.getCredito()).isZero();
         assertThat(nova.getPrimeiroVencimento()).isEqualTo(nova.getInicio());
         assertThat(nova.getFim()).isEqualTo(fim);
 
-        nova.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17"), new BigDecimal("1800.00")));
+        MatriculaNaCobranca.continuar(nova, new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17"), new BigDecimal("1800.00")));
         assertThat(nova.getCredito()).isEqualByComparingTo("1800");
-        assertThat(nova.paraCobranca().credito()).isEqualByComparingTo("1800");
+        assertThat(MatriculaNaCobranca.de(nova).credito()).isEqualByComparingTo("1800");
 
         Matricula semCredito = novaDoPlano(false, "150");
-        semCredito.continuar(new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17")));
+        MatriculaNaCobranca.continuar(semCredito, new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-17")));
         assertThat(semCredito.getCredito()).isZero();
-        assertThat(semCredito.paraCobranca().credito()).isZero();
+        assertThat(MatriculaNaCobranca.de(semCredito).credito()).isZero();
     }
 
     @Test

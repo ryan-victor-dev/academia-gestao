@@ -1,9 +1,7 @@
 package br.com.academiagestao.matriculas;
 
-import br.com.academiagestao.cobranca.dominio.MatriculaParaCobranca;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
-import br.com.academiagestao.planos.FormaPagamento;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -79,7 +77,7 @@ public class Matricula {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "forma_pagamento", nullable = false, updatable = false, length = 10)
-    private FormaPagamento formaPagamento;
+    private FormaDePagamento formaPagamento;
 
     @Column(nullable = false, updatable = false)
     private LocalDate inicio;
@@ -340,18 +338,17 @@ public class Matricula {
      * novo inteiro recusa a troca (decisão do dono): nada se perde sem ninguém ver.
      * Chamado antes de {@link #encerrarPorTroca}, que compara as multas pelo fim.
      */
-    void continuar(MatriculaParaCobranca.Continuacao continuacao) {
-        LocalDate primeiro = continuacao.primeiroVencimento();
+    void continuar(LocalDate primeiro, BigDecimal creditoDaAnterior) {
         if (trocaDe != null || canceladaEm != null || primeiro.isBefore(inicio)
                 || primeiro.isAfter(inicio.plusMonths(1))) {
             throw new IllegalStateException("continuação inválida para a matrícula " + id + ": " + primeiro);
         }
-        if (continuacao.credito().compareTo(getValorTotal()) > 0) {
+        if (creditoDaAnterior.compareTo(getValorTotal()) > 0) {
             throw new MatriculaRecusadaException("Troca recusada", ("O aluno tem %s de crédito do plano atual, mais"
                     + " que o plano novo inteiro (%s); escolha um plano que o cubra")
-                    .formatted(reais(continuacao.credito()), reais(getValorTotal())));
+                    .formatted(reais(creditoDaAnterior), reais(getValorTotal())));
         }
-        this.credito = continuacao.credito().signum() > 0 ? continuacao.credito() : null;
+        this.credito = creditoDaAnterior.signum() > 0 ? creditoDaAnterior : null;
         this.primeiroVencimento = primeiro.equals(inicio) ? null : primeiro;
         this.fim = fimDoPeriodo(primeiro, duracaoMeses);
     }
@@ -420,28 +417,6 @@ public class Matricula {
                 .divide(CEM, 2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * O que a cobrança precisa saber desta matrícula (ADR 0024): valor, duração, forma de
-     * pagamento, início, os dias realmente parados de cada trancamento e o encerramento.
-     */
-    MatriculaParaCobranca paraCobranca() {
-        // Um trancamento desfeito tem 0 dias e não empurra nada.
-        List<MatriculaParaCobranca.Pausa> pausas = trancamentos.stream()
-                .map(t -> new MatriculaParaCobranca.Pausa(t.getInicio(), t.dias()))
-                .toList();
-        MatriculaParaCobranca.Encerramento encerramento = null;
-        if (canceladaEm != null) {
-            encerramento = new MatriculaParaCobranca.Encerramento(
-                    MatriculaParaCobranca.Encerramento.Tipo.CANCELAMENTO, hoje(canceladaEm), multa);
-        } else if (trocadaEm != null) {
-            encerramento = new MatriculaParaCobranca.Encerramento(
-                    MatriculaParaCobranca.Encerramento.Tipo.TROCA, trocadaEm, multa);
-        }
-        return new MatriculaParaCobranca(id, alunoId, valorMensal, duracaoMeses,
-                formaPagamento == FormaPagamento.A_VISTA, inicio, pausas, encerramento, getPrimeiroVencimento(),
-                getCredito());
-    }
-
     private static String reais(BigDecimal valor) {
         return String.format(Locale.of("pt", "BR"), "R$ %,.2f", valor);
     }
@@ -463,7 +438,7 @@ public class Matricula {
     public int getDuracaoMeses() { return duracaoMeses; }
     public boolean isFidelidade() { return fidelidade; }
     public BigDecimal getPercentualMulta() { return percentualMulta; }
-    public FormaPagamento getFormaPagamento() { return formaPagamento; }
+    public FormaDePagamento getFormaPagamento() { return formaPagamento; }
     public LocalDate getInicio() { return inicio; }
     public LocalDate getFim() { return fim; }
     public int getDiasTrancados() { return diasTrancados; }

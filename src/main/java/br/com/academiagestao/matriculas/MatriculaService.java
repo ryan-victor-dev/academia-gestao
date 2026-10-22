@@ -41,7 +41,7 @@ class MatriculaService {
     /** Grava e acerta as cobranças da matrícula na mesma transação (ADR 0024). */
     private Matricula gravar(Matricula matricula) {
         Matricula gravada = repository.saveAndFlush(matricula);
-        cobrancas.acompanhar(gravada.paraCobranca());
+        cobrancas.acompanhar(MatriculaNaCobranca.de(gravada));
         return gravada;
     }
 
@@ -49,7 +49,7 @@ class MatriculaService {
     @Transactional
     void acompanharCobranca(UUID id) {
         Matricula matricula = repository.travarPorId(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
-        cobrancas.acompanhar(matricula.paraCobranca());
+        cobrancas.acompanhar(MatriculaNaCobranca.de(matricula));
     }
 
     /**
@@ -72,7 +72,7 @@ class MatriculaService {
         }
 
         PlanoContratado contratado = new PlanoContratado(plano.id(), plano.nome(), plano.valorMensal(),
-                plano.duracaoMeses(), plano.fidelidade(), plano.percentualMulta(), plano.formaPagamento());
+                plano.duracaoMeses(), plano.fidelidade(), plano.percentualMulta(), FormaDePagamento.doPlano(plano.formaPagamento()));
         Matricula matricula = Matricula.nova(alunoId, contratado, inicio, relogio.instant());
         List<Matricula> sobrepostas = repository.sobrepostas(alunoId, matricula.getInicio(), matricula.getFim());
         if (!sobrepostas.isEmpty()) {
@@ -179,10 +179,10 @@ class MatriculaService {
 
         Instant agora = relogio.instant();
         PlanoContratado contratado = new PlanoContratado(plano.id(), plano.nome(), plano.valorMensal(),
-                plano.duracaoMeses(), plano.fidelidade(), plano.percentualMulta(), plano.formaPagamento());
+                plano.duracaoMeses(), plano.fidelidade(), plano.percentualMulta(), FormaDePagamento.doPlano(plano.formaPagamento()));
         Matricula nova = Matricula.nova(alunoId, contratado, null, agora);
         // Antes de encerrar a atual: a conta usa o cronograma inteiro dela (ADR 0026).
-        nova.continuar(cobrancas.continuacao(atual.paraCobranca(), Calendario.hoje(agora)));
+        MatriculaNaCobranca.continuar(nova, cobrancas.continuacao(MatriculaNaCobranca.de(atual), Calendario.hoje(agora)));
         atual.encerrarPorTroca(nova, usuarioId, agora);
         // A atual é gravada primeiro: encurtada, ela libera o período para a nova, que começa hoje.
         gravar(atual);

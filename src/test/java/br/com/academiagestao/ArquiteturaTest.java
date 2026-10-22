@@ -5,6 +5,9 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 import com.tngtech.archunit.lang.ArchRule;
 import jakarta.persistence.Entity;
 
@@ -86,6 +89,33 @@ class ArquiteturaTest {
             .orShould().dependOnClassesThat().haveSimpleNameEndingWith("Service")
             .orShould().dependOnClassesThat().haveSimpleNameEndingWith("Repository")
             .because("as regras de negócio ficam na entidade, sem depender de web, transação ou banco");
+
+    /**
+     * R2 (revisão de 2026-10-17): a entidade guarda as regras do próprio módulo. O que ela
+     * copia de outro (a forma de pagamento do plano, na matrícula) vira um tipo dela, e quem
+     * converte é o service, pela porta pública.
+     */
+    @ArchTest
+    static final ArchRule entidadesSoDependemDoProprioModulo = classes()
+            .that().areAnnotatedWith(Entity.class)
+            .should(new ArchCondition<JavaClass>("depender só do próprio módulo e do compartilhado") {
+                @Override
+                public void check(JavaClass entidade, ConditionEvents eventos) {
+                    String modulo = modulo(entidade);
+                    entidade.getDirectDependenciesFromSelf().stream()
+                            .filter(d -> d.getTargetClass().getPackageName().startsWith(BASE))
+                            .filter(d -> {
+                                String outro = modulo(d.getTargetClass());
+                                return !outro.equals(modulo) && !outro.equals("compartilhado");
+                            })
+                            .forEach(d -> eventos.add(SimpleConditionEvent.violated(d, d.getDescription())));
+                }
+            })
+            .because("a entidade guarda as regras do próprio módulo; o que vem de outro é copiado (ADR 0002)");
+
+    private static String modulo(JavaClass classe) {
+        return classe.getPackageName().substring(BASE.length()).split("\\.")[0];
+    }
 
     // Os carimbos de criação de usuário e plano só são exibidos; nenhuma regra depende deles.
     private static final Set<String> CARIMBOS_COM_A_HORA_DO_SISTEMA = Set.of("Usuario", "Plano");
