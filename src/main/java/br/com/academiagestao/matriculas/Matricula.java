@@ -1,6 +1,7 @@
 package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.compartilhado.Calendario;
+import br.com.academiagestao.compartilhado.CondicoesDoPlano;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -39,11 +40,8 @@ public class Matricula {
 
     static final ZoneId FUSO = Calendario.FUSO;
 
-    static final int DURACAO_MAXIMA_MESES = 60;
     static final int TAMANHO_MAXIMO_MOTIVO = 500;
-    static final int TAMANHO_MAXIMO_NOME_DO_PLANO = 80;
     // O mesmo teto do plano (V23): o à vista de 60 meses (6 milhões) cabe na cobrança.
-    static final BigDecimal VALOR_MAXIMO = new BigDecimal("100000.00");
     static final BigDecimal CEM = new BigDecimal("100");
     static final int DIAS_MINIMOS_TRANCAMENTO = 7;
     static final int DIAS_MAXIMOS_TRANCADOS = 90;
@@ -59,7 +57,7 @@ public class Matricula {
     @Column(name = "plano_id", nullable = false, updatable = false)
     private UUID planoId;
 
-    @Column(name = "plano_nome", nullable = false, updatable = false, length = TAMANHO_MAXIMO_NOME_DO_PLANO)
+    @Column(name = "plano_nome", nullable = false, updatable = false, length = CondicoesDoPlano.TAMANHO_MAXIMO_NOME)
     private String planoNome;
 
     @Column(name = "valor_mensal", nullable = false, updatable = false, precision = 10, scale = 2)
@@ -153,34 +151,9 @@ public class Matricula {
         if (plano == null || plano.planoId() == null) {
             throw new DadosInvalidosException("plano é obrigatório");
         }
-        String nome = plano.nome() == null ? "" : plano.nome().trim();
-        if (nome.isEmpty() || nome.length() > TAMANHO_MAXIMO_NOME_DO_PLANO) {
-            throw new DadosInvalidosException("nome do plano é obrigatório, com até "
-                    + TAMANHO_MAXIMO_NOME_DO_PLANO + " caracteres");
-        }
-        BigDecimal valor = plano.valorMensal();
-        if (valor == null || valor.signum() <= 0) {
-            throw new DadosInvalidosException("valor mensal precisa ser maior que zero");
-        }
-        if (valor.stripTrailingZeros().scale() > 2) {
-            throw new DadosInvalidosException("valor mensal pode ter no máximo 2 casas decimais");
-        }
-        if (valor.compareTo(VALOR_MAXIMO) > 0) {
-            throw new DadosInvalidosException("valor mensal pode ser no máximo " + VALOR_MAXIMO);
-        }
-        int duracao = plano.duracaoMeses();
-        if (duracao < 1 || duracao > DURACAO_MAXIMA_MESES) {
-            throw new DadosInvalidosException("duração precisa ser de 1 a " + DURACAO_MAXIMA_MESES + " meses");
-        }
-        BigDecimal percentual = plano.percentualMulta();
-        if (plano.fidelidade()) {
-            if (percentual == null || percentual.signum() <= 0 || percentual.compareTo(CEM) > 0
-                    || percentual.stripTrailingZeros().scale() > 2) {
-                throw new DadosInvalidosException("plano com fidelidade precisa de percentual de multa de 0,01 a 100");
-            }
-        } else if (percentual != null) {
-            throw new DadosInvalidosException("percentual de multa só existe em plano com fidelidade");
-        }
+        // As mesmas regras do plano (R3): a matrícula confere o que copia.
+        CondicoesDoPlano condicoes = CondicoesDoPlano.conferir(plano.nome(), plano.valorMensal(), plano.duracaoMeses(),
+                plano.fidelidade(), plano.percentualMulta());
         if (plano.formaPagamento() == null) {
             throw new DadosInvalidosException("forma de pagamento é obrigatória");
         }
@@ -198,14 +171,14 @@ public class Matricula {
         matricula.id = UUID.randomUUID();
         matricula.alunoId = alunoId;
         matricula.planoId = plano.planoId();
-        matricula.planoNome = nome;
-        matricula.valorMensal = valor.setScale(2);
-        matricula.duracaoMeses = duracao;
-        matricula.fidelidade = plano.fidelidade();
-        matricula.percentualMulta = plano.fidelidade() ? percentual.setScale(2) : null;
+        matricula.planoNome = condicoes.nome();
+        matricula.valorMensal = condicoes.valorMensal();
+        matricula.duracaoMeses = condicoes.duracaoMeses();
+        matricula.fidelidade = condicoes.fidelidade();
+        matricula.percentualMulta = condicoes.percentualMulta();
         matricula.formaPagamento = plano.formaPagamento();
         matricula.inicio = comeco;
-        matricula.fim = fimDoPeriodo(comeco, duracao);
+        matricula.fim = fimDoPeriodo(comeco, condicoes.duracaoMeses());
         // O Postgres guarda microssegundos; sem truncar, a resposta e a consulta divergiriam.
         matricula.criadaEm = agora.truncatedTo(ChronoUnit.MICROS);
         return matricula;

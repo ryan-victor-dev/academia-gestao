@@ -147,7 +147,15 @@ class MatriculaTest {
 
         assertThatThrownBy(() -> Matricula.nova(ALUNO, semNome, null, em("2026-10-17T10:00")))
                 .isInstanceOf(DadosInvalidosException.class)
-                .hasMessageContaining("nome do plano");
+                .hasMessage("nome é obrigatório");
+    }
+
+    /** R3: a matrícula limpa o nome como o plano (antes, só tirava os espaços das pontas). */
+    @Test
+    void nomeDoPlanoLimpoComoNoPlano() {
+        PlanoContratado plano = new PlanoContratado(UUID.randomUUID(), "  Plano   Anual ", BigDecimal.TEN, 1);
+
+        assertThat(Matricula.nova(ALUNO, plano, null, em("2026-10-17T10:00")).getPlanoNome()).isEqualTo("Plano Anual");
     }
 
     @Test
@@ -363,7 +371,7 @@ class MatriculaTest {
             "true,  null,   0,01 a 100",
             "true,  0,      0,01 a 100",
             "true,  100.01, 0,01 a 100",
-            "true,  12.345, 0,01 a 100",
+            "true,  12.345, 2 casas decimais",
             "false, 20,     só existe em plano com fidelidade",
     })
     void recusaRegrasDeFidelidadeIncoerentes(boolean fidelidade, String percentual, String mensagem) {

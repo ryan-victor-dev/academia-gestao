@@ -1,5 +1,6 @@
 package br.com.academiagestao.planos;
 
+import br.com.academiagestao.compartilhado.CondicoesDoPlano;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
@@ -114,25 +115,25 @@ class PlanoController {
 
     record PlanoRequest(
             @NotBlank(message = "é obrigatório")
-            @Size(max = Plano.TAMANHO_MAXIMO_NOME, message = "pode ter no máximo {max} caracteres")
+            @Size(max = CondicoesDoPlano.TAMANHO_MAXIMO_NOME, message = "pode ter no máximo {max} caracteres")
             String nome,
 
             @NotNull(message = "é obrigatório")
             @Positive(message = "precisa ser maior que zero")
-            @DecimalMax(value = "100000", message = "pode ser no máximo {value}")
+            @DecimalMax(value = CondicoesDoPlano.VALOR_MAXIMO_TEXTO, message = "pode ser no máximo {value}")
             @Digits(integer = 6, fraction = 2, message = "até 6 dígitos e 2 casas decimais")
             BigDecimal valorMensal,
 
             @NotNull(message = "é obrigatório")
             @Min(value = 1, message = "precisa ser de pelo menos {value} mês")
-            @Max(value = Plano.DURACAO_MAXIMA_MESES, message = "pode ser no máximo {value} meses")
+            @Max(value = CondicoesDoPlano.DURACAO_MAXIMA_MESES, message = "pode ser no máximo {value} meses")
             Integer duracaoMeses,
 
             // Ausente: sem fidelidade. Com fidelidade, o percentual é obrigatório (ADR 0018).
             Boolean fidelidade,
 
             @DecimalMin(value = "0.01", message = "precisa ser de pelo menos {value}%")
-            @DecimalMax(value = "100", message = "pode ser no máximo {value}%")
+            @DecimalMax(value = CondicoesDoPlano.PERCENTUAL_MAXIMO_MULTA_TEXTO, message = "pode ser no máximo {value}%")
             @Digits(integer = 3, fraction = 2, message = "até 2 casas decimais")
             BigDecimal percentualMulta,
 
