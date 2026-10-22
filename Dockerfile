@@ -25,4 +25,6 @@ COPY --from=build /app/target/academia-gestao-*.jar app.jar
 USER app
 EXPOSE 8090
 # A JVM usa até 75% da memória do container (o padrão, 25%, desperdiça o teto do Compose).
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
+# Se a memória acabar (OutOfMemoryError), a JVM sai em vez de seguir viva e travada: sem
+# isso, o processo não morre, e o restart do Compose nunca traz a aplicação de volta.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-XX:+ExitOnOutOfMemoryError", "-jar", "app.jar"]

@@ -59,7 +59,8 @@ services:
     tmpfs:
       - /tmp
     # Teto de memória: um ataque pode derrubar a aplicação (que volta sozinha pelo
-    # restart), mas nunca esgotar a memória do servidor inteiro.
+    # restart: a JVM sai quando a memória acaba, veja o Dockerfile), mas nunca esgotar a
+    # memória do servidor inteiro.
     mem_limit: ${APP_MEMORIA:-1g}
     # 2 núcleos: ~30 logins por segundo (o BCrypt é o que mais gasta CPU), de sobra para uma
     # academia, e uma enxurrada de logins não tira CPU dos outros serviços do servidor.
