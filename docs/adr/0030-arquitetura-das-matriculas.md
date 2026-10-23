@@ -60,7 +60,7 @@ foram resolvidos no ADR 0023. Os outros quatro:
   nas tabelas, nas travas e na cobrança, por um ganho que as duas classes de regras já dão.
 
 ## Consequências
-- A `Matricula` foi de 482 para 403 linhas; o resto são campos, getters e as
+- A `Matricula` foi de 482 para 402 linhas; o resto são campos, getters e as
   transições de estado, que dependem umas das outras.
 - Regra nova de "o que é comum" entre planos e matrículas vai para `CondicoesDoPlano`.
 
