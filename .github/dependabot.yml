@@ -16,7 +16,7 @@ updates:
     schedule:
       interval: weekly
 
-  # Imagens declaradas no docker-compose.yml (Postgres e Caddy).
+  # Imagens declaradas no docker-compose.yml (Postgres e o Caddy das permissões).
   - package-ecosystem: docker-compose
     directory: /
     schedule:
@@ -24,5 +24,24 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    schedule:
+      interval: weekly
+
+  # Telas (ADR 0033): só versões publicadas há pelo menos 14 dias, como na escolha inicial.
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      testes:
+        patterns: ["vitest", "@testing-library/*", "jsdom"]
+
+  # Imagens do web/Dockerfile (Node da construção e Caddy).
+  - package-ecosystem: docker
+    directory: /web
     schedule:
       interval: weekly

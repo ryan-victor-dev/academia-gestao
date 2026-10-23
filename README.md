@@ -21,7 +21,8 @@ build reproduzível e integração contínua.
 | Banco de dados | PostgreSQL 17, migrations com Flyway |
 | Testes | JUnit 5, AssertJ, Testcontainers, ArchUnit (fronteiras entre módulos), PIT (mutação) |
 | Build / execução | Maven Wrapper, Docker (multi-stage), Docker Compose |
-| Entrada / HTTPS | Caddy (certificado automático do Let's Encrypt) |
+| Telas | React 19 + TypeScript + Vite (PWA), testes com Vitest e Testing Library (ADR 0033) |
+| Entrada / HTTPS | Caddy (certificado automático do Let's Encrypt), que também serve as telas |
 | CI | GitHub Actions (testes, build da imagem e envio das dependências ao GitHub) + Dependabot |
 
 ## Arquitetura
@@ -108,7 +109,8 @@ docker compose up --build
 ```
 
 A entrada é o **Caddy**, com HTTPS: `https://localhost` (ou
-`https://localhost:<HTTPS_PORTA>`). O HTTP só redireciona para o HTTPS. Sem
+`https://localhost:<HTTPS_PORTA>`). Ele serve as telas (`web/`, construídas dentro da imagem
+dele) e repassa `/api` à aplicação, no mesmo endereço. O HTTP só redireciona para o HTTPS. Sem
 domínio, o certificado é de desenvolvimento e o navegador avisa que não confia
 nele. Com `DOMINIO` apontando para o servidor e as portas 80 e 443 abertas, o
 Caddy obtém e renova sozinho um certificado do Let's Encrypt.
@@ -374,6 +376,20 @@ set -a; . ./.env; set +a   # carrega JWT_SEGREDO e ADMIN_* no shell
 ./mvnw spring-boot:run
 ```
 
+### Telas (`web/`)
+
+Requer Node 24. Com o Docker no ar (a API é a dele, pelo Caddy):
+
+```bash
+cd web
+npm ci                         # versões exatas do package-lock.json, sem scripts de instalação
+HTTPS_PORTA=<a do .env> npm run dev   # http://localhost:5173, com /api repassado ao Caddy
+npm test                       # testes (Vitest)
+npm run tipos                  # confere os tipos (TypeScript)
+```
+
+As dependências entram com versão exata e publicada há pelo menos duas semanas (ADR 0033).
+
 ### Testes
 
 Requer Docker ligado (o Testcontainers sobe um PostgreSQL descartável):
@@ -418,6 +434,7 @@ um token dele. É só para desenvolvimento: ele se recusa a rodar se o `.env` ti
 - [x] **6. Cobrança** — mensalidades geradas pela matrícula (trancamento empurra, cancelamento cancela as futuras, multa vira cobrança), pagamento no balcão pelo valor exato, acréscimo com teto de 2% e juros editáveis, estorno e cancelamento pelo ADMIN, bloqueio do inadimplente no "pode treinar?"
 - [x] **7. Treinos** — catálogo de exercícios, ficha com divisões e uma atual por aluno (garantido pelo banco), correção com trilha, histórico imutável, revisões vencidas para os instrutores, visão do aluno
 - [x] **8. Caixa e auditoria completa** — caixa do dia com troco, fechamento com contagem às cegas e justificativa, reabertura pelo ADMIN, relatório por forma; trilha das matrículas e do caixa; registro de consultas ao cadastro e de logins por 1 ano
+- [ ] **9. Front-end** — PWA em React para recepção, professores e alunos (ADR 0033): sessão renovável e login prontos; telas de cada perfil a seguir
 
 ## Autor
 

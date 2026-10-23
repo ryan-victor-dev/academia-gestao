@@ -36,8 +36,23 @@ O dono decidiu quanto a sessão dura: **12 horas para a equipe** (um turno; o AD
 - O token de acesso fica **só na memória** da página (nunca em `localStorage`): fechar a aba
   apaga o token; a sessão (cookie) traz um novo.
 
-Os detalhes de cada tela, a política de conteúdo (CSP) do site e os testes do front entram nas
-próximas partes deste ADR conforme forem feitos.
+- **Caddy com as telas dentro** (`web/Dockerfile`): o Node só constrói (`npm ci` + `vite build`);
+  a imagem final é a do Caddy com os arquivos em `/srv`. `/api/*` e `/actuator/*` vão para a
+  aplicação; o resto é arquivo estático, e caminho que não é arquivo devolve o `index.html` (quem
+  escolhe a tela é o React).
+- **CSP das telas** (no Caddyfile): só scripts, estilos e imagens do próprio site, conexões só com
+  a própria API, sem estilo inline e sem ser embutido em outro site. Um script injetado não roda
+  nem manda dados para fora. A API continua com a dela (`default-src 'none'`).
+- **Cache:** os arquivos de `/assets` têm o hash do conteúdo no nome e ficam em cache para sempre;
+  o `index.html` é revalidado a cada acesso, para a versão nova chegar logo.
+- **Dependências:** versão exata (`save-exact`), publicada há pelo menos duas semanas (versão
+  recém-lançada é onde aparecem os pacotes sequestrados), sem scripts de instalação
+  (`ignore-scripts`), e `npm ci` no Docker e no CI.
+- **Testes:** Vitest + Testing Library (jsdom), no CI num job próprio, com a conferência dos tipos,
+  o build e a imagem do Caddy. A validação num navegador de verdade (Chromium do Playwright) fica,
+  por ora, fora do repositório; entra no e2e numa parte seguinte.
+
+Os detalhes de cada tela entram nas próximas partes.
 
 ### Sessão renovável
 

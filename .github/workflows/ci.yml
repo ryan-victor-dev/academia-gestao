@@ -30,6 +30,39 @@ jobs:
       - name: Construir a imagem Docker
         run: docker build -t academia-gestao:ci .
 
+  # As telas (web/, ADR 0033): tipos, testes, build e a imagem do Caddy com elas.
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v7
+
+      - name: Instalar o Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar as dependências (exatamente as do package-lock.json)
+        run: npm ci
+
+      - name: Conferir os tipos
+        run: npm run tipos
+
+      - name: Rodar os testes
+        run: npm test
+
+      - name: Construir
+        run: npm run build
+
+      - name: Construir a imagem do Caddy com as telas
+        run: docker build -t academia-gestao-caddy:ci .
+
   # Manda ao GitHub a lista real de dependências, já resolvida pelo Maven (inclusive as
   # que chegam pelo Spring Boot, como Tomcat e Jackson). Sem isso, o grafo do GitHub só
   # enxerga o pom.xml e o Dependabot não avisa das vulnerabilidades dessas bibliotecas.

@@ -139,7 +139,8 @@ services:
       - caddy_config:/config
 
   caddy:
-    image: caddy:2.11-alpine
+    # Caddy com as telas do front-end dentro (web/Dockerfile, ADR 0033).
+    build: ./web
     container_name: academia-caddy
     restart: unless-stopped
     logging: *logs

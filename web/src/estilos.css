@@ -1,0 +1,87 @@
+/* Base provisória: cores em variáveis, com tema escuro automático. Sem estilo inline (a CSP
+   do site, no Caddyfile, não permite). */
+:root {
+  --fundo: #f5f6f8;
+  --superficie: #ffffff;
+  --texto: #1b1f24;
+  --texto-suave: #5b6470;
+  --borda: #d5d9df;
+  --destaque: #0b6bcb;
+  --destaque-texto: #ffffff;
+  --erro: #b42318;
+  --aviso: #8a5a00;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--texto);
+  background: var(--fundo);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #111418;
+    --superficie: #1b2027;
+    --texto: #e7eaee;
+    --texto-suave: #9aa4b0;
+    --borda: #343c47;
+    --destaque: #5aa7f0;
+    --destaque-texto: #0b1420;
+    --erro: #ff8a7a;
+    --aviso: #f0c060;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; background: var(--fundo); }
+
+.pagina { max-width: 960px; margin: 0 auto; padding: 16px; }
+
+.login { min-height: 100dvh; display: grid; place-items: center; }
+
+.cartao {
+  width: 100%;
+  max-width: 360px;
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+}
+
+h1 { margin: 0; font-size: 1.5rem; }
+
+label { display: grid; gap: 6px; font-weight: 600; }
+
+input {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 16px;
+  border: 1px solid var(--destaque);
+  border-radius: 8px;
+  background: var(--destaque);
+  color: var(--destaque-texto);
+  cursor: pointer;
+}
+
+button:disabled { opacity: 0.6; cursor: default; }
+
+button.secundario { background: transparent; color: var(--destaque); }
+
+.topo { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+
+.perfil { margin: 4px 0 0; color: var(--texto-suave); }
+
+.erro { margin: 0; color: var(--erro); }
+
+.aviso { color: var(--aviso); }
+
+.carregando { text-align: center; margin-top: 30vh; color: var(--texto-suave); }

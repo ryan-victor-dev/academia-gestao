@@ -9,7 +9,8 @@
 #       PERFIL: ADMIN, RECEPCAO, INSTRUTOR ou ALUNO (ALUNO exige o id de um aluno)
 # Variáveis opcionais: PG_CONTAINER (padrão academia-postgres),
 #                      BASE_URL (padrão https://localhost:<HTTPS_PORTA do .env>),
-#                      COOKIE_JAR (arquivo onde guardar o cookie da sessão renovável, ADR 0033)
+#                      COOKIE_JAR (arquivo onde guardar o cookie da sessão renovável, ADR 0033),
+#                      VALIDACAO_SENHA (senha a usar, para testar as telas; padrão: aleatória)
 # Se o usuário já existe, ganha senha nova e o token anterior deixa de valer. Ele não é
 # apagado e recriado: quem já registrou algo (matrícula, pagamento) é referenciado por
 # chave estrangeira, e o DELETE falharia.
@@ -30,7 +31,7 @@ URL=${BASE_URL:-https://localhost:${PORTA:-443}}
 PERFIL=${1:?informe o perfil: ADMIN, RECEPCAO, INSTRUTOR ou ALUNO}
 ALUNO=${2:-}
 EMAIL="validacao-$(echo "$PERFIL" | tr 'A-Z' 'a-z')@academia.local"
-SENHA="senha-validacao-$(openssl rand -hex 6)"
+SENHA=${VALIDACAO_SENHA:-senha-validacao-$(openssl rand -hex 6)}
 
 # BCrypt com a mesma biblioteca da aplicação.
 CP=$RAIZ/target/validacao/cp.txt
