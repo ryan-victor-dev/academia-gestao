@@ -18,7 +18,6 @@ import jakarta.persistence.Version;
 import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -43,9 +42,6 @@ public class Matricula {
 
     static final int TAMANHO_MAXIMO_MOTIVO = 500;
     // O mesmo teto do plano (V23): o à vista de 60 meses (6 milhões) cabe na cobrança.
-    static final BigDecimal CEM = new BigDecimal("100");
-    static final int DIAS_MINIMOS_TRANCAMENTO = 7;
-    static final int DIAS_MAXIMOS_TRANCADOS = 90;
     /** Até quando a matrícula pode ser agendada (decisão do dono, revisão de 2026-10-17). */
     static final int ANTECEDENCIA_MAXIMA_ANOS = 1;
 
@@ -237,26 +233,11 @@ public class Matricula {
             throw new DadosInvalidosException("quem trancou é obrigatório");
         }
         String motivoLimpo = limparMotivo(motivo);
-        LocalDate comeco = inicio == null ? hoje : inicio;
-        if (comeco.isBefore(hoje) || comeco.isAfter(fim)) {
-            throw new DadosInvalidosException("o trancamento começa entre hoje e o fim da matrícula");
-        }
-        if (voltaPrevista == null) {
-            throw new DadosInvalidosException("a volta prevista é obrigatória");
-        }
-        long dias = ChronoUnit.DAYS.between(comeco, voltaPrevista);
-        if (dias < DIAS_MINIMOS_TRANCAMENTO || dias > DIAS_MAXIMOS_TRANCADOS) {
-            throw new DadosInvalidosException("o trancamento precisa ter de " + DIAS_MINIMOS_TRANCAMENTO
-                    + " a " + DIAS_MAXIMOS_TRANCADOS + " dias");
-        }
-        if (diasTrancados + dias > DIAS_MAXIMOS_TRANCADOS) {
-            throw new MatriculaRecusadaException("Trancamento recusado", "A matrícula já tem %d dias trancados;"
-                    .formatted(diasTrancados) + " restam %d dos %d permitidos".formatted(
-                    DIAS_MAXIMOS_TRANCADOS - diasTrancados, DIAS_MAXIMOS_TRANCADOS));
-        }
+        RegrasDoTrancamento.Periodo periodo = RegrasDoTrancamento.conferir(hoje, inicio, voltaPrevista, fim,
+                diasTrancados);
 
-        trancamentos.add(new Trancamento(comeco, voltaPrevista, motivoLimpo, usuarioId, agora));
-        ajustarDiasTrancados((int) dias);
+        trancamentos.add(new Trancamento(periodo.inicio(), voltaPrevista, motivoLimpo, usuarioId, agora));
+        ajustarDiasTrancados(periodo.dias());
     }
 
     /**
@@ -359,9 +340,7 @@ public class Matricula {
         BigDecimal multaDestaHoje = multaSeEncerrarEm(hoje);
         // Sem fidelidade, a nova não cobraria nada para sair.
         BigDecimal multaDaNova = nova.fidelidade ? nova.multaSeEncerrarEm(hoje) : BigDecimal.ZERO;
-        boolean mantemOCompromisso = multaDestaHoje == null || multaDaNova.compareTo(multaDestaHoje) >= 0;
-
-        this.multa = mantemOCompromisso ? null : multaDestaHoje;
+        this.multa = MultaDeFidelidade.trocaMantemOCompromisso(multaDestaHoje, multaDaNova) ? null : multaDestaHoje;
         this.trocadaEm = hoje;
         this.trocadaPor = usuarioId;
         nova.trocaDe = this.id;
@@ -378,20 +357,9 @@ public class Matricula {
         return motivoLimpo;
     }
 
-    /**
-     * Multa por encerrar antes do fim (ADR 0018): percentual × meses inteiros que faltam ×
-     * valor mensal. O mês em curso conta como usado: um anual de 17/10 a 16/10 encerrado em
-     * 20/01 tem 8 meses restantes (de 17/02 em diante). Sem fidelidade, não há multa (null).
-     */
+    /** Multa por encerrar no dia (ver {@link MultaDeFidelidade}); sem fidelidade, não há (null). */
     BigDecimal multaSeEncerrarEm(LocalDate dia) {
-        if (!fidelidade) {
-            return null;
-        }
-        // Conta a partir do dia seguinte: um mês que começa no próprio dia já está em curso.
-        long mesesRestantes = ChronoUnit.MONTHS.between(dia.plusDays(1), fim.plusDays(1));
-        return valorMensal.multiply(BigDecimal.valueOf(mesesRestantes))
-                .multiply(percentualMulta)
-                .divide(CEM, 2, RoundingMode.HALF_UP);
+        return fidelidade ? MultaDeFidelidade.seEncerrarEm(dia, fim, valorMensal, percentualMulta) : null;
     }
 
     private static String reais(BigDecimal valor) {
