@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cpf, data, dataHora, dinheiro, telefone } from './formato';
+import { cpf, data, dataHora, diaDe, diaSeguinte, dinheiro, telefone } from './formato';
 
 describe('formatos', () => {
   it('data pura não muda de dia por causa do fuso', () => {
@@ -25,5 +25,14 @@ describe('formatos', () => {
     expect(telefone('11999990000')).toBe('(11) 99999-0000');
     expect(telefone('1133334444')).toBe('(11) 3333-4444');
     expect(telefone(null)).toBe('—');
+  });
+
+  it('dia seguinte vira o mês e o ano', () => {
+    expect(diaSeguinte('2026-10-31')).toBe('2026-11-01');
+    expect(diaSeguinte('2026-12-31')).toBe('2027-01-01');
+  });
+
+  it('dia de um instante no fuso da academia', () => {
+    expect(diaDe('2026-10-24T02:30:00Z')).toBe('2026-10-23');
   });
 });

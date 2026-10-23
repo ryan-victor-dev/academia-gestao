@@ -7,6 +7,7 @@ import { AcessoDoAluno } from './AcessoDoAluno';
 import { FormularioDoAluno } from './FormularioDoAluno';
 import { MatriculasDoAluno } from './MatriculasDoAluno';
 import { CobrancasDoAluno } from '../cobrancas/CobrancasDoAluno';
+import { TreinoDoAluno } from '../treinos/TreinoDoAluno';
 import { NaoEncontrada } from '../NaoEncontrada';
 import { paraEnviar, type Aluno, type AlunoParaInstrutor } from './tipos';
 
@@ -127,6 +128,8 @@ function Cadastro({ id }: { id: string }) {
             : <button type="button" className="secundario" onClick={() => mudarSituacao('reativar')}>Reativar</button>}
         </div>
       )}
+
+      <TreinoDoAluno alunoId={aluno.id} alunoAtivo={aluno.ativo} />
 
       {completo && (
         <>

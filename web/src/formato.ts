@@ -43,3 +43,15 @@ export function telefone(valor: string | null | undefined): string {
 export function hoje(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: FUSO }).format(new Date());
 }
+
+/** O dia seguinte a uma data ("2026-10-31" → "2026-11-01"), sem passar por fuso. */
+export function diaSeguinte(iso: string): string {
+  const [a, m, d] = iso.split('-').map(Number);
+  const seguinte = new Date(Date.UTC(a, m - 1, d + 1));
+  return seguinte.toISOString().slice(0, 10);
+}
+
+/** O dia (no fuso da academia) de um instante: "2026-10-24T02:30:00Z" → "2026-10-23". */
+export function diaDe(instante: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: FUSO }).format(new Date(instante));
+}

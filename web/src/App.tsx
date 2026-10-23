@@ -9,6 +9,8 @@ import { NovoAluno } from './paginas/alunos/NovoAluno';
 import { CaixaDoDia } from './paginas/caixa/CaixaDoDia';
 import { CobrancasAtrasadas } from './paginas/cobrancas/CobrancasAtrasadas';
 import { Inicio } from './paginas/Inicio';
+import { CatalogoDeExercicios } from './paginas/treinos/CatalogoDeExercicios';
+import { RevisoesVencidas } from './paginas/treinos/RevisoesVencidas';
 import { NaoEncontrada } from './paginas/NaoEncontrada';
 import { chamar, renovar, sair, type Perfil, type Usuario } from './sessao/api';
 import { ContextoDoUsuario, useUsuario } from './sessao/contexto';
@@ -85,6 +87,8 @@ function AreaLogada({ aoSair, aoTrocarSenha }: { aoSair: () => void; aoTrocarSen
     '/alunos': <ListaDeAlunos />,
     '/cobrancas': <CobrancasAtrasadas />,
     '/caixa': <CaixaDoDia />,
+    '/exercicios': <CatalogoDeExercicios />,
+    '/revisoes': <RevisoesVencidas />,
     '/senha': <TrocarSenha obrigatoria={false} aoTrocar={aoTrocarSenha} />,
   };
   const rotas = [

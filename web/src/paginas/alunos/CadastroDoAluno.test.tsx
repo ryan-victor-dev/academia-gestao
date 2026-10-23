@@ -122,4 +122,14 @@ describe('cadastro do aluno', () => {
 
     await vi.waitFor(() => expect(api.de('GET /api/cobrancas')).toHaveLength(2));
   });
+
+  it('o professor vê o treino do aluno na página dele', async () => {
+    const { cpf: _c, email: _e, telefone: _t, criadoEm: _d, ...paraInstrutor } = ana;
+    apiFalsa({ ...base, 'GET /api/alunos/00000000-0000-0000-0000-0000000000a1': json(200, paraInstrutor),
+      'GET /api/fichas/atual': json(404, {}) });
+    abrir('INSTRUTOR');
+
+    expect(await screen.findByRole('heading', { name: 'Treino' })).toBeInTheDocument();
+    expect(await screen.findByText('Nenhuma ficha montada.')).toBeInTheDocument();
+  });
 });
