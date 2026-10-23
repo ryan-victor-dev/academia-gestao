@@ -121,6 +121,10 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   banco, insira a ficha aberta, os filhos, e só então encerre.
 - A lista de revisões vencidas usa `fichas.aluno_ativo`, mantida pelo aviso da inativação
   (V33): teste que inativa aluno direto no banco não passa pelo aviso; use a API.
+- Pagar e estornar exigem o caixa de hoje aberto (ADR 0031), e todo lançamento novo precisa
+  de um caixa aberto do dia do `registrado_em` (gatilho da V35). O caixa é **um por dia** e os
+  testes dividem o banco: use `CaixaDeTeste.abrir(...)` no dia do teste e apague o caixa no fim
+  (`limpeza.apagar("caixas", id)`); dia anterior esquecido aberto impede abrir o seguinte.
 - A API da cobrança mostra a `situacao` (calculada: `ATRASADA` é a pendente vencida), não o
   `status` do banco: em scripts de validação, compare com a situação certa.
 

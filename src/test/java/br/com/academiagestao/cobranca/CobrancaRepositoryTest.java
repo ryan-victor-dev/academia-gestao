@@ -9,6 +9,7 @@ import br.com.academiagestao.cobranca.dominio.MatriculaParaCobranca;
 import br.com.academiagestao.cobranca.dominio.MeioDePagamento;
 import br.com.academiagestao.cobranca.dominio.RegrasDeAtraso;
 import br.com.academiagestao.cobranca.dominio.StatusCobranca;
+import br.com.academiagestao.compartilhado.Calendario;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,7 @@ class CobrancaRepositoryTest {
     private final UUID matricula = UUID.randomUUID();
     private final UUID usuario = UUID.randomUUID();
     private final LocalDate inicio = LocalDate.of(2026, 10, 17);
+    private UUID caixa;
 
     @BeforeEach
     void preparar() {
@@ -57,12 +59,15 @@ class CobrancaRepositoryTest {
         jdbc.update("""
                 INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim, criada_em)
                 VALUES (?, ?, ?, 'P', 100, 2, ?, ?, now())""", matricula, aluno, plano, inicio, inicio.plusMonths(2).minusDays(1));
+        // Os lançamentos gravados aqui são de agora: entram no caixa de hoje (gatilho da V35).
+        caixa = CaixaDeTeste.abrir(jdbc, Calendario.hoje(Instant.now()), usuario);
     }
 
     @AfterEach
     void limpar() {
         limpeza.apagar("alunos", aluno);
         limpeza.apagar("planos", plano);
+        limpeza.apagar("caixas", caixa);
         limpeza.apagar("usuarios", usuario);
     }
 
@@ -176,8 +181,8 @@ class CobrancaRepositoryTest {
 
     private static final String LANCAMENTO = """
             INSERT INTO lancamentos (id, cobranca_id, tipo, estorna, valor, acrescimo, juros, total, meio_de_pagamento,
-                                     registrado_em, registrado_por, motivo)
-            VALUES (?, ?, ?, ?, 100, 2, 1, ?, 'PIX', now(), ?, ?)""";
+                                     registrado_em, registrado_por, motivo, caixa_id)
+            VALUES (?, ?, ?, ?, 100, 2, 1, ?, 'PIX', now(), ?, ?, ?)""";
 
     /** As travas do registro (V24), também para quem grava sem passar pelo Java. */
     @Test
@@ -186,7 +191,7 @@ class CobrancaRepositoryTest {
         UUID primeira = cobrancas.get(0).getId();
         UUID segunda = cobrancas.get(1).getId();
         UUID pagamento = UUID.randomUUID();
-        jdbc.update(LANCAMENTO, pagamento, primeira, "PAGAMENTO", null, new BigDecimal("103"), usuario, null);
+        jdbc.update(LANCAMENTO, pagamento, primeira, "PAGAMENTO", null, new BigDecimal("103"), usuario, null, caixa);
 
         // Total que não fecha; pagamento com motivo ou apontando para outro; estorno sem motivo.
         recusa("ck_lancamentos_total", primeira, "PAGAMENTO", null, "102", null);
@@ -198,13 +203,13 @@ class CobrancaRepositoryTest {
         // O estorno é do pagamento da mesma cobrança, e uma vez só.
         recusa("fk_lancamentos_estorno_da_mesma_cobranca", segunda, "ESTORNO", pagamento, "103", "Engano");
         jdbc.update(LANCAMENTO, UUID.randomUUID(), primeira, "ESTORNO", pagamento, new BigDecimal("103"), usuario,
-                "Engano");
+                "Engano", caixa);
         recusa("lancamentos_estorna_key", primeira, "ESTORNO", pagamento, "103", "De novo");
     }
 
     private void recusa(String restricao, UUID cobranca, String tipo, UUID estorna, String total, String motivo) {
         assertThatThrownBy(() -> jdbc.update(LANCAMENTO, UUID.randomUUID(), cobranca, tipo, estorna,
-                new BigDecimal(total), usuario, motivo)).as(restricao)
+                new BigDecimal(total), usuario, motivo, caixa)).as(restricao)
                 .isInstanceOf(DataIntegrityViolationException.class).hasMessageContaining(restricao);
     }
 

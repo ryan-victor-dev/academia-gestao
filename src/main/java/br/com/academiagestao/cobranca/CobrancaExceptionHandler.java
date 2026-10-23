@@ -1,6 +1,7 @@
 package br.com.academiagestao.cobranca;
 
 import br.com.academiagestao.cobranca.dominio.CobrancaInvalidaException;
+import br.com.academiagestao.cobranca.dominio.OperacaoDeCaixaRecusadaException;
 import br.com.academiagestao.cobranca.dominio.PagamentoRecusadoException;
 import br.com.academiagestao.cobranca.dominio.TransicaoInvalidaException;
 import br.com.academiagestao.cobranca.dominio.ValorDevido;
@@ -27,6 +28,21 @@ class CobrancaExceptionHandler {
     ProblemDetail naoEncontrada(CobrancaNaoEncontradaException e) {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
         problema.setTitle("Cobrança não encontrada");
+        return problema;
+    }
+
+    @ExceptionHandler(CaixaNaoEncontradoException.class)
+    ProblemDetail caixaNaoEncontrado(CaixaNaoEncontradoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+        problema.setTitle("Caixa não encontrado");
+        return problema;
+    }
+
+    /** Sem caixa aberto, dia fechado, já aberto ou um dia anterior esquecido aberto (ADR 0031). */
+    @ExceptionHandler(OperacaoDeCaixaRecusadaException.class)
+    ProblemDetail caixaRecusou(OperacaoDeCaixaRecusadaException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle("Caixa não permite a operação");
         return problema;
     }
 

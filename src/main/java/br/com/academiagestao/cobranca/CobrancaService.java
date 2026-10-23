@@ -1,8 +1,10 @@
 package br.com.academiagestao.cobranca;
 
+import br.com.academiagestao.cobranca.dominio.Caixa;
 import br.com.academiagestao.cobranca.dominio.Cobranca;
 import br.com.academiagestao.cobranca.dominio.Lancamento;
 import br.com.academiagestao.cobranca.dominio.MeioDePagamento;
+import br.com.academiagestao.cobranca.dominio.OperacaoDeCaixaRecusadaException;
 import br.com.academiagestao.cobranca.dominio.Pagamento;
 import br.com.academiagestao.cobranca.dominio.RegrasDeAtraso;
 import br.com.academiagestao.cobranca.dominio.StatusCobranca;
@@ -27,21 +29,23 @@ import static br.com.academiagestao.compartilhado.Auditoria.Entidade.COBRANCA;
 /**
  * Consultar, pagar, estornar e cancelar cobranças (ADR 0024). Cada operação trava a cobrança
  * e vai para a trilha na mesma transação; pagamentos e estornos também vão para o registro de
- * lançamentos (ADR 0025).
+ * lançamentos (ADR 0025), no caixa aberto do dia (ADR 0031).
  */
 @Service
 class CobrancaService {
 
     private final CobrancaRepository repository;
     private final LancamentoRepository lancamentos;
+    private final CaixaRepository caixas;
     private final ConfiguracaoDaCobrancaRepository configuracao;
     private final Auditoria auditoria;
     private final Clock relogio;
 
-    CobrancaService(CobrancaRepository repository, LancamentoRepository lancamentos,
+    CobrancaService(CobrancaRepository repository, LancamentoRepository lancamentos, CaixaRepository caixas,
                     ConfiguracaoDaCobrancaRepository configuracao, Auditoria auditoria, Clock relogio) {
         this.repository = repository;
         this.lancamentos = lancamentos;
+        this.caixas = caixas;
         this.configuracao = configuracao;
         this.auditoria = auditoria;
         this.relogio = relogio;
@@ -82,33 +86,41 @@ class CobrancaService {
         return new Pagina<>(conteudo, pagina, tamanho, total, (int) ((total + tamanho - 1) / tamanho));
     }
 
-    /** Só o valor exato devido hoje; outro valor é recusado com o devido (ADR 0024). */
+    /**
+     * Só o valor exato devido hoje; outro valor é recusado com o devido (ADR 0024). Só com o
+     * caixa de hoje aberto (ADR 0031).
+     */
     @Transactional
     Consulta pagar(UUID id, BigDecimal valor, MeioDePagamento meio, UUID usuarioId) {
+        Instant agora = relogio.instant();
+        LocalDate hoje = Calendario.hoje(agora);
+        Caixa caixa = caixaQueRecebe(hoje);
         Cobranca cobranca = travar(id);
         Map<String, Object> antes = retrato(cobranca);
         RegrasDeAtraso regras = configuracao.ler().regras();
-        LocalDate hoje = hoje();
-        cobranca.pagar(regras, hoje, valor, meio, usuarioId, relogio.instant());
+        cobranca.pagar(regras, hoje, valor, meio, usuarioId, agora);
         Consulta paga = gravar(cobranca, "PAGA", antes, null, regras, hoje);
-        lancamentos.inserir(Lancamento.doPagamento(cobranca));
+        lancamentos.inserir(Lancamento.doPagamento(cobranca, caixa.getId()));
         return paga;
     }
 
     /**
      * Só o ADMIN: a cobrança volta a ficar em aberto (ou cancelada, se já saiu do cronograma,
      * ADR 0026), e o pagamento continua no registro, com um lançamento de estorno ao lado (ADR 0025).
+     * O dinheiro sai do caixa de hoje, que precisa estar aberto (ADR 0031).
      */
     @Transactional
     Consulta estornar(UUID id, String motivo, UUID usuarioId) {
         String motivoLimpo = Cobranca.motivoValido(motivo);
+        Instant agora = relogio.instant();
+        LocalDate hoje = Calendario.hoje(agora);
+        Caixa caixa = caixaQueRecebe(hoje);
         Cobranca cobranca = travar(id);
         Map<String, Object> antes = retrato(cobranca);
-        LocalDate hoje = hoje();
-        cobranca.estornar(hoje, usuarioId, relogio.instant());
+        cobranca.estornar(hoje, usuarioId, agora);
         Lancamento estorno = lancamentos.pagamentoEmVigor(id)
                 .orElseThrow(() -> new IllegalStateException("cobrança paga sem o lançamento do pagamento: " + id))
-                .estornar(motivoLimpo, usuarioId, relogio.instant());
+                .estornar(motivoLimpo, usuarioId, agora, caixa.getId());
         Consulta estornada = gravar(cobranca, "ESTORNADA", antes, motivoLimpo, configuracao.ler().regras(), hoje);
         lancamentos.inserir(estorno);
         return estornada;
@@ -122,6 +134,18 @@ class CobrancaService {
         cobranca.cancelar(motivo, usuarioId, relogio.instant());
         return gravar(cobranca, "CANCELADA", antes, cobranca.getCancelamento().motivo(),
                 configuracao.ler().regras(), hoje());
+    }
+
+    /**
+     * O caixa de hoje, aberto, travado para leitura até o fim da transação: um fechamento ao
+     * mesmo tempo espera este pagamento (ou estorno) terminar e o inclui na conta. Vem antes da
+     * trava da cobrança, sempre na mesma ordem.
+     */
+    private Caixa caixaQueRecebe(LocalDate hoje) {
+        Caixa caixa = caixas.travarParaReceber(hoje).orElseThrow(() -> new OperacaoDeCaixaRecusadaException(
+                "O caixa de hoje não foi aberto: abra-o, com o troco, antes de receber ou estornar"));
+        caixa.conferirQueRecebe();
+        return caixa;
     }
 
     private Cobranca travar(UUID id) {

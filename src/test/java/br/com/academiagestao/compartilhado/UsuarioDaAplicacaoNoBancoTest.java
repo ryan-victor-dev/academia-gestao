@@ -119,6 +119,28 @@ class UsuarioDaAplicacaoNoBancoTest {
     }
 
     /**
+     * O caixa do dia não se apaga (só muda a situação), e fechamentos e reaberturas só
+     * crescem (ADR 0031). "WHERE false": a permissão é conferida mesmo sem linhas.
+     */
+    @Test
+    void caixaEHistoricoDoCaixaNaoSaoApagadosNemReescritos() {
+        assertThatCode(() -> {
+            executar("UPDATE caixas SET situacao = situacao WHERE false");
+            executar("INSERT INTO caixas SELECT * FROM caixas WHERE false");
+            executar("INSERT INTO fechamentos_de_caixa SELECT * FROM fechamentos_de_caixa WHERE false");
+            executar("INSERT INTO reaberturas_de_caixa SELECT * FROM reaberturas_de_caixa WHERE false");
+            executar("SELECT count(*) FROM fechamentos_de_caixa, reaberturas_de_caixa");
+        }).doesNotThrowAnyException();
+        for (String ataque : List.of("DELETE FROM caixas", "TRUNCATE caixas",
+                "UPDATE fechamentos_de_caixa SET contado = contado WHERE false", "DELETE FROM fechamentos_de_caixa",
+                "TRUNCATE fechamentos_de_caixa", "UPDATE reaberturas_de_caixa SET motivo = motivo WHERE false",
+                "DELETE FROM reaberturas_de_caixa", "TRUNCATE reaberturas_de_caixa")) {
+            assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
+                    .hasMessageContaining("permission denied");
+        }
+    }
+
+    /**
      * O histórico de treinos não se apaga, e divisões e exercícios da ficha não se alteram
      * (ADR 0027, V32). "WHERE false": a permissão é conferida mesmo sem linhas.
      */

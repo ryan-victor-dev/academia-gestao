@@ -73,6 +73,7 @@ class CobrancaControllerTest {
     private final UUID recepcao = UUID.randomUUID();
     private final UUID outraRecepcao = UUID.randomUUID();
     private LocalDate hoje;
+    private UUID caixa;
 
     @BeforeEach
     void preparar() {
@@ -89,6 +90,8 @@ class CobrancaControllerTest {
         jdbc.update("""
                 INSERT INTO matriculas (id, aluno_id, plano_id, plano_nome, valor_mensal, duracao_meses, inicio, fim, criada_em)
                 VALUES (?, ?, ?, 'P', 100, 3, ?, ?, now())""", matricula, aluno, plano, inicio, inicio.plusMonths(3).minusDays(1));
+        // Sem caixa aberto, nada se paga nem se estorna (ADR 0031); o caixa em si é testado no CaixaControllerTest.
+        caixa = CaixaDeTeste.abrir(jdbc, hoje, recepcao);
     }
 
     @AfterEach
@@ -98,6 +101,7 @@ class CobrancaControllerTest {
                 + "(SELECT id FROM cobrancas WHERE aluno_id = ?)", aluno);
         limpeza.apagar("alunos", aluno);
         limpeza.apagar("planos", plano);
+        limpeza.apagar("caixas", caixa);
         for (UUID usuario : List.of(admin, recepcao, outraRecepcao)) {
             limpeza.apagar("usuarios", usuario);
         }
@@ -313,9 +317,10 @@ class CobrancaControllerTest {
         assertThat(trilha(id, "ESTORNADA")).startsWith(admin.toString())
                 .contains("\"status\": {\"antes\": \"PAGA\", \"depois\": \"CANCELADA\"}")
                 .contains("Devolvido ao aluno");
+        acao(id, "estornar", "De novo", admin()).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("A cobrança está cancelada"));
         relogio.fixar(hoje.plusDays(60).atTime(12, 0).atZone(Calendario.FUSO).toInstant());
         assertThat(cobrancas.inadimplente(aluno)).isFalse();
-        acao(id, "estornar", "De novo", admin()).andExpect(status().isConflict());
     }
 
     private List<Map<String, Object>> lancamentosNoBanco(UUID id) {

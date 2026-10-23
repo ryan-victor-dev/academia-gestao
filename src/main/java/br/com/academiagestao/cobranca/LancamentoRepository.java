@@ -5,6 +5,7 @@ import br.com.academiagestao.cobranca.dominio.MeioDePagamento;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -18,7 +19,7 @@ class LancamentoRepository {
 
     private static final String COLUNAS = """
             id, cobranca_id, tipo, estorna, valor, acrescimo, juros, total, meio_de_pagamento, registrado_em,
-            registrado_por, motivo""";
+            registrado_por, motivo, caixa_id""";
 
     private final JdbcTemplate jdbc;
 
@@ -27,9 +28,9 @@ class LancamentoRepository {
     }
 
     void inserir(Lancamento l) {
-        jdbc.update("INSERT INTO lancamentos (" + COLUNAS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        jdbc.update("INSERT INTO lancamentos (" + COLUNAS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 l.id(), l.cobrancaId(), l.tipo().name(), l.estorna(), l.valor(), l.acrescimo(), l.juros(), l.total(),
-                l.meio().name(), Timestamp.from(l.em()), l.por(), l.motivo());
+                l.meio().name(), Timestamp.from(l.em()), l.por(), l.motivo(), l.caixaId());
     }
 
     /** Os da cobrança, na ordem em que aconteceram. */
@@ -45,12 +46,24 @@ class LancamentoRepository {
                 .stream().findFirst();
     }
 
+    /** O dinheiro (só a forma DINHEIRO) que entrou e saiu no caixa: pagamentos e estornos. */
+    DinheiroDoCaixa dinheiroDoCaixa(UUID caixaId) {
+        return jdbc.queryForObject("""
+                SELECT coalesce(sum(total) FILTER (WHERE tipo = 'PAGAMENTO'), 0) AS recebido,
+                       coalesce(sum(total) FILTER (WHERE tipo = 'ESTORNO'), 0) AS estornado
+                FROM lancamentos WHERE caixa_id = ? AND meio_de_pagamento = 'DINHEIRO'""",
+                (rs, linha) -> new DinheiroDoCaixa(rs.getBigDecimal("recebido"), rs.getBigDecimal("estornado")), caixaId);
+    }
+
+    record DinheiroDoCaixa(BigDecimal recebido, BigDecimal estornado) {
+    }
+
     private Lancamento mapear(ResultSet rs, int linha) throws SQLException {
         return new Lancamento(rs.getObject("id", UUID.class), rs.getObject("cobranca_id", UUID.class),
                 Lancamento.Tipo.valueOf(rs.getString("tipo")), rs.getObject("estorna", UUID.class),
                 rs.getBigDecimal("valor"), rs.getBigDecimal("acrescimo"), rs.getBigDecimal("juros"),
                 rs.getBigDecimal("total"), MeioDePagamento.valueOf(rs.getString("meio_de_pagamento")),
                 rs.getTimestamp("registrado_em").toInstant(), rs.getObject("registrado_por", UUID.class),
-                rs.getString("motivo"));
+                rs.getString("motivo"), rs.getObject("caixa_id", UUID.class));
     }
 }

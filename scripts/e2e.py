@@ -200,6 +200,10 @@ confere("à vista trocada no dia do vencimento: cancelada pelo sistema", ("A_VIS
 confere("mensal cancelada no 1º dia: fica a 1ª, as outras não existem", [c["parcela"] for c in cs
         if c["tipo"] == "MENSALIDADE" and c["situacao"] == "PENDENTE"] == [1], cs)
 multa = por_tipo.get(("MULTA", "PENDENTE"), {}).get("id")
+s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDePagamento": "PIX"}, REC)
+confere("sem caixa aberto, nada se recebe (409)", s == 409 and "não foi aberto" in b.get("detail", ""), (s, b))
+s, b, _ = req("POST", "/api/caixas", {"troco": 50}, REC)
+confere("recepção abre o caixa do dia com o troco", s == 201 and b["situacao"] == "ABERTO", (s, b))
 s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 200, "meioDePagamento": "PIX"}, REC)
 confere("pagar valor diferente = 409 com o devido", s == 409 and b["devidoHoje"]["total"] == 219.78, (s, b))
 s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDePagamento": "PIX"}, REC)

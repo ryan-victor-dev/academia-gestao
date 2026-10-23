@@ -82,6 +82,11 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             // O registro de pagamentos só cresce: o estorno é um lançamento novo (ADR 0025).
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE lancamentos FROM " + usuario);
             sql.execute("REVOKE INSERT, DELETE, TRUNCATE ON TABLE configuracao_cobranca FROM " + usuario);
+            // O caixa do dia não se apaga (só muda a situação, V35), e cada fechamento e cada
+            // reabertura ficam no histórico (ADR 0031).
+            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE caixas FROM " + usuario);
+            sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE fechamentos_de_caixa, reaberturas_de_caixa FROM "
+                    + usuario);
             // O histórico de treinos não se apaga (ADR 0027): a ficha encerrada fica, e o
             // exercício inativo continua nas fichas antigas. Divisões e exercícios da ficha
             // nunca se alteram: a correção apaga os da atual e grava novos (o gatilho da V32

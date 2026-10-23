@@ -1,0 +1,107 @@
+package br.com.academiagestao.cobranca;
+
+import br.com.academiagestao.cobranca.dominio.Caixa;
+import br.com.academiagestao.cobranca.dominio.Caixa.Fechamento;
+import br.com.academiagestao.cobranca.dominio.Caixa.Reabertura;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * O caixa do dia, os fechamentos e as reaberturas (V35, ADR 0031). Fechamentos e reaberturas
+ * só se acrescentam; do caixa só muda a situação.
+ *
+ * As travas contra a corrida entre fechar e receber ficam na linha do caixa: quem recebe a lê
+ * com {@code FOR SHARE} (vários pagamentos ao mesmo tempo não se esperam) e quem fecha ou
+ * reabre, com {@code FOR UPDATE}. O fechamento espera os pagamentos em andamento e só então
+ * soma o dinheiro; um pagamento que chega depois espera o fechamento e o encontra fechado.
+ */
+@Repository
+class CaixaRepository {
+
+    private static final String COLUNAS = "id, dia, troco, situacao, aberto_em, aberto_por";
+
+    private final JdbcTemplate jdbc;
+
+    CaixaRepository(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    Optional<Caixa> doDia(LocalDate dia) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM caixas WHERE dia = ?", this::mapear, dia).stream().findFirst();
+    }
+
+    /** Para receber ou estornar: espera um fechamento em andamento, sem bloquear outros pagamentos. */
+    Optional<Caixa> travarParaReceber(LocalDate dia) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM caixas WHERE dia = ? FOR SHARE", this::mapear, dia)
+                .stream().findFirst();
+    }
+
+    /** Para fechar ou reabrir: espera os pagamentos em andamento terminarem. */
+    Optional<Caixa> travar(LocalDate dia) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM caixas WHERE dia = ? FOR UPDATE", this::mapear, dia)
+                .stream().findFirst();
+    }
+
+    /** O dia mais antigo antes de {@code dia} que ficou aberto (esquecido ou reaberto). */
+    Optional<LocalDate> anteriorAberto(LocalDate dia) {
+        return jdbc.query("SELECT dia FROM caixas WHERE situacao = 'ABERTO' AND dia < ? ORDER BY dia LIMIT 1",
+                (rs, linha) -> rs.getObject("dia", LocalDate.class), dia).stream().findFirst();
+    }
+
+    void inserir(Caixa c) {
+        jdbc.update("INSERT INTO caixas (" + COLUNAS + ") VALUES (?, ?, ?, ?, ?, ?)", c.getId(), c.getDia(),
+                c.getTroco(), c.getSituacao().name(), Timestamp.from(c.getAbertoEm()), c.getAbertoPor());
+    }
+
+    void atualizarSituacao(Caixa c) {
+        jdbc.update("UPDATE caixas SET situacao = ? WHERE id = ?", c.getSituacao().name(), c.getId());
+    }
+
+    void inserir(Fechamento f) {
+        jdbc.update("""
+                INSERT INTO fechamentos_de_caixa (id, caixa_id, contado, esperado, diferenca, justificativa, fechado_em,
+                                                  fechado_por)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", f.id(), f.caixaId(), f.contado(), f.esperado(), f.diferenca(),
+                f.justificativa(), Timestamp.from(f.em()), f.por());
+    }
+
+    void inserir(Reabertura r) {
+        jdbc.update("INSERT INTO reaberturas_de_caixa (id, caixa_id, motivo, reaberto_em, reaberto_por) "
+                + "VALUES (?, ?, ?, ?, ?)", r.id(), r.caixaId(), r.motivo(), Timestamp.from(r.em()), r.por());
+    }
+
+    /** Os fechamentos do caixa, do primeiro ao último. */
+    List<Fechamento> fechamentos(UUID caixaId) {
+        return jdbc.query("""
+                SELECT id, caixa_id, contado, esperado, diferenca, justificativa, fechado_em, fechado_por
+                FROM fechamentos_de_caixa WHERE caixa_id = ? ORDER BY fechado_em""",
+                (rs, linha) -> new Fechamento(rs.getObject("id", UUID.class), rs.getObject("caixa_id", UUID.class),
+                        rs.getBigDecimal("contado"), rs.getBigDecimal("esperado"), rs.getBigDecimal("diferenca"),
+                        rs.getString("justificativa"), rs.getTimestamp("fechado_em").toInstant(),
+                        rs.getObject("fechado_por", UUID.class)), caixaId);
+    }
+
+    /** As reaberturas do caixa, da primeira à última. */
+    List<Reabertura> reaberturas(UUID caixaId) {
+        return jdbc.query("""
+                SELECT id, caixa_id, motivo, reaberto_em, reaberto_por
+                FROM reaberturas_de_caixa WHERE caixa_id = ? ORDER BY reaberto_em""",
+                (rs, linha) -> new Reabertura(rs.getObject("id", UUID.class), rs.getObject("caixa_id", UUID.class),
+                        rs.getString("motivo"), rs.getTimestamp("reaberto_em").toInstant(),
+                        rs.getObject("reaberto_por", UUID.class)), caixaId);
+    }
+
+    private Caixa mapear(ResultSet rs, int linha) throws SQLException {
+        return Caixa.restaurar(rs.getObject("id", UUID.class), rs.getObject("dia", LocalDate.class),
+                rs.getBigDecimal("troco"), Caixa.Situacao.valueOf(rs.getString("situacao")),
+                rs.getTimestamp("aberto_em").toInstant(), rs.getObject("aberto_por", UUID.class));
+    }
+}
