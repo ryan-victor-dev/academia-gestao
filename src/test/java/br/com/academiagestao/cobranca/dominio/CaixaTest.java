@@ -160,4 +160,23 @@ class CaixaTest {
         assertThatThrownBy(() -> aberto("0").reabrir("Engano", ADMIN, AGORA))
                 .isInstanceOf(OperacaoDeCaixaRecusadaException.class).hasMessageContaining("já está aberto");
     }
+
+    /** A recepção vê hoje e os dias abertos; com o caixa aberto, a contagem é às cegas (decisão do dono). */
+    @Test
+    void oQueARecepcaoVe() {
+        Caixa caixa = aberto("0");
+        assertThat(caixa.recepcaoVe(DIA)).isTrue();
+        assertThat(caixa.recepcaoVe(DIA.plusDays(1))).as("dia anterior ainda aberto").isTrue();
+        assertThat(caixa.contagemAsCegas()).isTrue();
+
+        fechar(caixa, "0", "0", "0", null);
+        assertThat(caixa.recepcaoVe(DIA)).as("hoje, já fechado").isTrue();
+        assertThat(caixa.recepcaoVe(DIA.plusDays(1))).as("dia passado fechado: só o ADMIN").isFalse();
+        assertThat(caixa.recepcaoVe(DIA.minusDays(1))).isFalse();
+        assertThat(caixa.contagemAsCegas()).isFalse();
+
+        caixa.reabrir("Recontar", ADMIN, AGORA);
+        assertThat(caixa.recepcaoVe(DIA.plusDays(1))).isTrue();
+        assertThat(caixa.contagemAsCegas()).isTrue();
+    }
 }

@@ -21,6 +21,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -35,6 +37,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -65,6 +68,9 @@ class CaixaControllerTest {
 
     @Autowired
     RelogioDeTeste relogio;
+
+    @Autowired
+    PlatformTransactionManager transacoes;
 
     private final UUID aluno = UUID.randomUUID();
     private final UUID plano = UUID.randomUUID();
@@ -433,6 +439,184 @@ class CaixaControllerTest {
             }
         }
         assertThat(vencedores).containsExactlyInAnyOrder("pagamento", "fechamento");
+    }
+
+    /**
+     * A recepção vê hoje e os dias ainda abertos; com o caixa aberto, a contagem é às cegas:
+     * sem a forma DINHEIRO nem os fechamentos anteriores (decisões do dono). O ADMIN vê tudo.
+     */
+    @Test
+    void recepcaoVeSoHojeEOsDiasAbertosComAContagemAsCegas() throws Exception {
+        abrir("50", recepcao())
+                .andExpect(jsonPath("$.dinheiroOculto").value(true))
+                .andExpect(jsonPath("$.movimento.formas[*].forma").value(contains("PIX", "CARTAO_DEBITO", "CARTAO_CREDITO")));
+        pagar(cobranca(), "DINHEIRO").andExpect(status().isOk());
+        pagar(cobranca(), "PIX").andExpect(status().isOk());
+
+        mvc.perform(get("/api/caixas/" + dia).with(recepcao()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dinheiroOculto").value(true))
+                .andExpect(jsonPath("$.movimento.formas[*].forma").value(contains("PIX", "CARTAO_DEBITO", "CARTAO_CREDITO")))
+                .andExpect(jsonPath("$.movimento.formas[0].recebido").value(100.00))
+                .andExpect(jsonPath("$.movimento.total.recebido").value(100.00))
+                .andExpect(jsonPath("$.movimento.total.pagamentos").value(1));
+        mvc.perform(get("/api/caixas/" + dia).with(admin()))
+                .andExpect(jsonPath("$.dinheiroOculto").value(false))
+                .andExpect(jsonPath("$.movimento.formas[*].forma")
+                        .value(contains("DINHEIRO", "PIX", "CARTAO_DEBITO", "CARTAO_CREDITO")))
+                .andExpect(jsonPath("$.movimento.formas[0].recebido").value(100.00))
+                .andExpect(jsonPath("$.movimento.total.recebido").value(200.00))
+                .andExpect(jsonPath("$.movimento.total.liquido").value(200.00));
+
+        // Quem fecha vê o resultado; depois de fechado, hoje continua visível e completo.
+        fechar(dia, "140", "Faltou troco", recepcao())
+                .andExpect(jsonPath("$.dinheiroOculto").value(false))
+                .andExpect(jsonPath("$.fechamentos[0].diferenca").value(-10.00));
+        mvc.perform(get("/api/caixas/" + dia).with(recepcao()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.movimento.formas[0].forma").value("DINHEIRO"))
+                .andExpect(jsonPath("$.fechamentos[0].justificativa").value("Faltou troco"));
+
+        // No dia seguinte, o fechado de ontem é só do ADMIN.
+        irPara(dia.plusDays(1));
+        mvc.perform(get("/api/caixas/" + dia).with(recepcao())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/caixas/" + dia).with(admin())).andExpect(status().isOk());
+        mvc.perform(get("/api/caixas/abertos").with(recepcao()))
+                .andExpect(jsonPath("$[?(@.dia == '" + dia + "')]", hasSize(0)));
+
+        // Reaberto, volta a ser da recepção, às cegas: sem o fechamento anterior (com o esperado).
+        reabrir(dia, "Recontar", admin()).andExpect(status().isOk())
+                .andExpect(jsonPath("$.dinheiroOculto").value(false))
+                .andExpect(jsonPath("$.fechamentos", hasSize(1)));
+        mvc.perform(get("/api/caixas/" + dia).with(recepcao()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dinheiroOculto").value(true))
+                .andExpect(jsonPath("$.fechamentos", hasSize(0)))
+                .andExpect(jsonPath("$.reaberturas[0].motivo").value("Recontar"));
+        mvc.perform(get("/api/caixas/abertos").with(recepcao()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.dia == '" + dia + "')]", hasSize(1)));
+        mvc.perform(get("/api/caixas/abertos").with(como("INSTRUTOR", UUID.randomUUID())))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * O relatório do período (só o ADMIN): cada dia por forma, menos os estornos (no dia em que
+     * foram feitos), com os fechamentos, o total do período e a soma das diferenças.
+     */
+    @Test
+    void relatorioDoPeriodo() throws Exception {
+        abrir("50", recepcao()).andExpect(status().isCreated());
+        UUID emDinheiro = cobranca();
+        pagar(emDinheiro, "DINHEIRO").andExpect(status().isOk());
+        pagar(cobranca(), "PIX").andExpect(status().isOk());
+        UUID noDebito = cobranca();
+        pagar(noDebito, "CARTAO_DEBITO").andExpect(status().isOk());
+        estornar(noDebito).andExpect(status().isOk());
+        fechar(dia, "145", "Faltaram 5", recepcao()).andExpect(status().isOk());
+
+        LocalDate segundo = dia.plusDays(1);
+        irPara(segundo);
+        abrir("20", recepcao()).andExpect(status().isCreated());
+        estornar(emDinheiro).andExpect(status().isOk());
+        pagar(cobranca(), "CARTAO_CREDITO").andExpect(status().isOk());
+        fechar(segundo, "0", "Estorno de ontem saiu da gaveta", recepcao()).andExpect(status().isOk());
+        reabrir(segundo, "Recontar", admin()).andExpect(status().isOk());
+        fechar(segundo, "1", "Recontado: achei R$ 1", recepcao()).andExpect(status().isOk());
+
+        // Um dia de antes do caixa (V35): lançamento sem caixa, pelo dia do registro.
+        LocalDate antigo = dia.plusDays(3);
+        lancamentoSemCaixa(cobranca(), antigo.atTime(23, 30).atZone(Calendario.FUSO).toInstant());
+
+        // Um dia fechado com diferença e reaberto: ainda sem a contagem final, fica fora da soma.
+        LocalDate quarto = dia.plusDays(4);
+        irPara(quarto);
+        abrir("0", recepcao()).andExpect(status().isCreated());
+        fechar(quarto, "7", "Sobrou", recepcao()).andExpect(status().isOk());
+        reabrir(quarto, "Recontar", admin()).andExpect(status().isOk());
+
+        LocalDate terceiro = dia.plusDays(2);
+        irPara(dia.plusDays(5));
+        mvc.perform(get("/api/caixas/relatorio").param("de", quarto.toString()).param("ate", quarto.toString())
+                        .with(admin()))
+                .andExpect(jsonPath("$.dias[0].situacao").value("ABERTO"))
+                .andExpect(jsonPath("$.dias[0].fechamentos[0].diferenca").value(7.00))
+                .andExpect(jsonPath("$.diferencaDosFechados").value(0.00));
+        mvc.perform(get("/api/caixas/relatorio").param("de", dia.toString()).param("ate", antigo.toString())
+                        .with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dias[*].dia").value(contains(dia.toString(), segundo.toString(), antigo.toString())))
+                .andExpect(jsonPath("$.dias[0].situacao").value("FECHADO"))
+                .andExpect(jsonPath("$.dias[0].troco").value(50.00))
+                .andExpect(jsonPath("$.dias[0].movimento.formas[0].recebido").value(100.00))
+                .andExpect(jsonPath("$.dias[0].movimento.formas[1].recebido").value(100.00))
+                .andExpect(jsonPath("$.dias[0].movimento.formas[2].recebido").value(100.00))
+                .andExpect(jsonPath("$.dias[0].movimento.formas[2].estornado").value(100.00))
+                .andExpect(jsonPath("$.dias[0].movimento.formas[2].liquido").value(0.00))
+                .andExpect(jsonPath("$.dias[0].movimento.total.liquido").value(200.00))
+                .andExpect(jsonPath("$.dias[0].fechamentos[0].esperado").value(150.00))
+                .andExpect(jsonPath("$.dias[0].fechamentos[0].diferenca").value(-5.00))
+                .andExpect(jsonPath("$.dias[1].movimento.formas[0].estornado").value(100.00))
+                .andExpect(jsonPath("$.dias[1].movimento.formas[0].liquido").value(-100.00))
+                .andExpect(jsonPath("$.dias[1].movimento.formas[3].recebido").value(100.00))
+                .andExpect(jsonPath("$.dias[1].movimento.total.liquido").value(0.00))
+                .andExpect(jsonPath("$.dias[1].fechamentos", hasSize(2)))
+                .andExpect(jsonPath("$.dias[1].reaberturas[0].motivo").value("Recontar"))
+                .andExpect(jsonPath("$.dias[2].situacao").value(nullValue()))
+                .andExpect(jsonPath("$.dias[2].fechamentos", hasSize(0)))
+                .andExpect(jsonPath("$.dias[2].movimento.formas[1].recebido").value(100.00))
+                .andExpect(jsonPath("$.total.formas[0].liquido").value(0.00))
+                .andExpect(jsonPath("$.total.formas[1].liquido").value(200.00))
+                .andExpect(jsonPath("$.total.total.recebido").value(500.00))
+                .andExpect(jsonPath("$.total.total.estornado").value(200.00))
+                .andExpect(jsonPath("$.total.total.pagamentos").value(5))
+                .andExpect(jsonPath("$.total.total.estornos").value(2))
+                .andExpect(jsonPath("$.total.total.liquido").value(300.00))
+                // −5 do primeiro dia + a do último fechamento do segundo (contado 1, esperado 20 − 100 = −80):
+                // +81. O primeiro fechamento do segundo dia (+80) não conta: foi refeito.
+                .andExpect(jsonPath("$.diferencaDosFechados").value(76.00));
+
+        // Um dia só, e um período sem nada.
+        mvc.perform(get("/api/caixas/relatorio").param("de", terceiro.toString()).param("ate", terceiro.toString())
+                .with(admin())).andExpect(status().isOk()).andExpect(jsonPath("$.dias", hasSize(0)))
+                .andExpect(jsonPath("$.total.total.liquido").value(0.00))
+                .andExpect(jsonPath("$.diferencaDosFechados").value(0.00));
+        mvc.perform(get("/api/caixas/relatorio").param("de", segundo.toString()).param("ate", segundo.toString())
+                .with(admin())).andExpect(jsonPath("$.dias[*].dia").value(contains(segundo.toString())));
+    }
+
+    @Test
+    void relatorioSoDoAdminEComPeriodoValido() throws Exception {
+        mvc.perform(get("/api/caixas/relatorio").param("de", dia.toString()).param("ate", dia.toString())
+                .with(recepcao())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/caixas/relatorio").param("de", dia.toString()).param("ate", dia.plusDays(365).toString())
+                .with(admin())).andExpect(status().isOk());
+        mvc.perform(get("/api/caixas/relatorio").param("de", dia.toString()).param("ate", dia.plusDays(366).toString())
+                .with(admin())).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("366")));
+        mvc.perform(get("/api/caixas/relatorio").param("de", dia.toString()).param("ate", dia.minusDays(1).toString())
+                .with(admin())).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/caixas/relatorio").param("de", dia.toString()).with(admin()))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/caixas/relatorio").param("de", "ontem").param("ate", dia.toString()).with(admin()))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * Grava um lançamento sem caixa, como os de antes da V35. A trava da V35 vale só para as
+     * linhas novas; aqui ela sai e volta na mesma transação.
+     */
+    private void lancamentoSemCaixa(UUID cobranca, java.time.Instant registradoEm) {
+        new TransactionTemplate(transacoes).executeWithoutResult(t -> {
+            jdbc.execute("ALTER TABLE lancamentos DROP CONSTRAINT ck_lancamentos_no_caixa");
+            jdbc.update("""
+                    INSERT INTO lancamentos (id, cobranca_id, tipo, valor, acrescimo, juros, total, meio_de_pagamento,
+                                             registrado_em, registrado_por)
+                    VALUES (?, ?, 'PAGAMENTO', 100, 0, 0, 100, 'PIX', ?, ?)""", UUID.randomUUID(), cobranca,
+                    java.sql.Timestamp.from(registradoEm), recepcao);
+            jdbc.execute("ALTER TABLE lancamentos ADD CONSTRAINT ck_lancamentos_no_caixa "
+                    + "CHECK (caixa_id IS NOT NULL) NOT VALID");
+        });
     }
 
     /** As travas da V35 também para quem grava sem passar pelo Java. */

@@ -78,25 +78,57 @@ class CaixaRepository {
                 + "VALUES (?, ?, ?, ?, ?)", r.id(), r.caixaId(), r.motivo(), Timestamp.from(r.em()), r.por());
     }
 
+    /** Os caixas do período, por dia. */
+    List<Caixa> doPeriodo(LocalDate de, LocalDate ate) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM caixas WHERE dia BETWEEN ? AND ? ORDER BY dia", this::mapear,
+                de, ate);
+    }
+
+    /** Os dias ainda abertos (o de hoje, um esquecido ou um reaberto), do mais antigo ao mais novo. */
+    List<Caixa> abertos() {
+        return jdbc.query("SELECT " + COLUNAS + " FROM caixas WHERE situacao = 'ABERTO' ORDER BY dia", this::mapear);
+    }
+
     /** Os fechamentos do caixa, do primeiro ao último. */
     List<Fechamento> fechamentos(UUID caixaId) {
-        return jdbc.query("""
-                SELECT id, caixa_id, contado, esperado, diferenca, justificativa, fechado_em, fechado_por
-                FROM fechamentos_de_caixa WHERE caixa_id = ? ORDER BY fechado_em""",
-                (rs, linha) -> new Fechamento(rs.getObject("id", UUID.class), rs.getObject("caixa_id", UUID.class),
-                        rs.getBigDecimal("contado"), rs.getBigDecimal("esperado"), rs.getBigDecimal("diferenca"),
-                        rs.getString("justificativa"), rs.getTimestamp("fechado_em").toInstant(),
-                        rs.getObject("fechado_por", UUID.class)), caixaId);
+        return jdbc.query(FECHAMENTOS + "WHERE f.caixa_id = ? ORDER BY f.fechado_em", this::fechamento, caixaId);
+    }
+
+    /** Os fechamentos dos caixas do período, do primeiro ao último. */
+    List<Fechamento> fechamentosDoPeriodo(LocalDate de, LocalDate ate) {
+        return jdbc.query(FECHAMENTOS + "JOIN caixas c ON c.id = f.caixa_id WHERE c.dia BETWEEN ? AND ? "
+                + "ORDER BY f.fechado_em", this::fechamento, de, ate);
     }
 
     /** As reaberturas do caixa, da primeira à última. */
     List<Reabertura> reaberturas(UUID caixaId) {
-        return jdbc.query("""
-                SELECT id, caixa_id, motivo, reaberto_em, reaberto_por
-                FROM reaberturas_de_caixa WHERE caixa_id = ? ORDER BY reaberto_em""",
-                (rs, linha) -> new Reabertura(rs.getObject("id", UUID.class), rs.getObject("caixa_id", UUID.class),
-                        rs.getString("motivo"), rs.getTimestamp("reaberto_em").toInstant(),
-                        rs.getObject("reaberto_por", UUID.class)), caixaId);
+        return jdbc.query(REABERTURAS + "WHERE r.caixa_id = ? ORDER BY r.reaberto_em", this::reabertura, caixaId);
+    }
+
+    /** As reaberturas dos caixas do período, da primeira à última. */
+    List<Reabertura> reaberturasDoPeriodo(LocalDate de, LocalDate ate) {
+        return jdbc.query(REABERTURAS + "JOIN caixas c ON c.id = r.caixa_id WHERE c.dia BETWEEN ? AND ? "
+                + "ORDER BY r.reaberto_em", this::reabertura, de, ate);
+    }
+
+    private static final String FECHAMENTOS = """
+            SELECT f.id, f.caixa_id, f.contado, f.esperado, f.diferenca, f.justificativa, f.fechado_em, f.fechado_por
+            FROM fechamentos_de_caixa f\s""";
+
+    private static final String REABERTURAS = """
+            SELECT r.id, r.caixa_id, r.motivo, r.reaberto_em, r.reaberto_por FROM reaberturas_de_caixa r\s""";
+
+    private Fechamento fechamento(ResultSet rs, int linha) throws SQLException {
+        return new Fechamento(rs.getObject("id", UUID.class), rs.getObject("caixa_id", UUID.class),
+                rs.getBigDecimal("contado"), rs.getBigDecimal("esperado"), rs.getBigDecimal("diferenca"),
+                rs.getString("justificativa"), rs.getTimestamp("fechado_em").toInstant(),
+                rs.getObject("fechado_por", UUID.class));
+    }
+
+    private Reabertura reabertura(ResultSet rs, int linha) throws SQLException {
+        return new Reabertura(rs.getObject("id", UUID.class), rs.getObject("caixa_id", UUID.class),
+                rs.getString("motivo"), rs.getTimestamp("reaberto_em").toInstant(),
+                rs.getObject("reaberto_por", UUID.class));
     }
 
     private Caixa mapear(ResultSet rs, int linha) throws SQLException {

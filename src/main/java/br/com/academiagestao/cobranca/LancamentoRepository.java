@@ -2,15 +2,19 @@ package br.com.academiagestao.cobranca;
 
 import br.com.academiagestao.cobranca.dominio.Lancamento;
 import br.com.academiagestao.cobranca.dominio.MeioDePagamento;
+import br.com.academiagestao.cobranca.dominio.MovimentoDoDia;
+import br.com.academiagestao.compartilhado.Calendario;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 
 /** O registro de pagamentos e estornos (V24, ADR 0025): só INSERT e SELECT, como a trilha. */
@@ -46,16 +50,44 @@ class LancamentoRepository {
                 .stream().findFirst();
     }
 
-    /** O dinheiro (só a forma DINHEIRO) que entrou e saiu no caixa: pagamentos e estornos. */
-    DinheiroDoCaixa dinheiroDoCaixa(UUID caixaId) {
-        return jdbc.queryForObject("""
-                SELECT coalesce(sum(total) FILTER (WHERE tipo = 'PAGAMENTO'), 0) AS recebido,
-                       coalesce(sum(total) FILTER (WHERE tipo = 'ESTORNO'), 0) AS estornado
-                FROM lancamentos WHERE caixa_id = ? AND meio_de_pagamento = 'DINHEIRO'""",
-                (rs, linha) -> new DinheiroDoCaixa(rs.getBigDecimal("recebido"), rs.getBigDecimal("estornado")), caixaId);
+    /** O que entrou e saiu no caixa, por forma: pagamentos e estornos registrados nele. */
+    MovimentoDoDia movimentoDoCaixa(UUID caixaId) {
+        MovimentoDoDia[] movimento = {MovimentoDoDia.VAZIO};
+        jdbc.query("""
+                SELECT meio_de_pagamento, tipo, sum(total) AS soma, count(*) AS quantos
+                FROM lancamentos WHERE caixa_id = ? GROUP BY meio_de_pagamento, tipo""",
+                rs -> {
+                    movimento[0] = movimento[0].com(MeioDePagamento.valueOf(rs.getString("meio_de_pagamento")),
+                            Lancamento.Tipo.valueOf(rs.getString("tipo")), rs.getBigDecimal("soma"), rs.getInt("quantos"));
+                }, caixaId);
+        return movimento[0];
     }
 
-    record DinheiroDoCaixa(BigDecimal recebido, BigDecimal estornado) {
+    /**
+     * O movimento de cada dia do período (só os dias com algum lançamento). Com caixa, o dia
+     * é o do caixa; os lançamentos de antes do caixa (V35), sem ele, entram pelo dia do
+     * registro no fuso da academia.
+     */
+    Map<LocalDate, MovimentoDoDia> movimentoPorDia(LocalDate de, LocalDate ate) {
+        Map<LocalDate, MovimentoDoDia> dias = new TreeMap<>();
+        jdbc.query("""
+                SELECT c.dia, l.meio_de_pagamento, l.tipo, sum(l.total) AS soma, count(*) AS quantos
+                FROM caixas c JOIN lancamentos l ON l.caixa_id = c.id
+                WHERE c.dia BETWEEN ? AND ?
+                GROUP BY c.dia, l.meio_de_pagamento, l.tipo
+                UNION ALL
+                SELECT (registrado_em AT TIME ZONE ?)::date, meio_de_pagamento, tipo, sum(total), count(*)
+                FROM lancamentos
+                WHERE caixa_id IS NULL AND registrado_em >= ? AND registrado_em < ?
+                GROUP BY 1, meio_de_pagamento, tipo""",
+                rs -> {
+                    dias.merge(rs.getObject("dia", LocalDate.class), MovimentoDoDia.VAZIO.com(
+                            MeioDePagamento.valueOf(rs.getString("meio_de_pagamento")),
+                            Lancamento.Tipo.valueOf(rs.getString("tipo")), rs.getBigDecimal("soma"), rs.getInt("quantos")),
+                            MovimentoDoDia::mais);
+                }, de, ate, Calendario.FUSO.getId(), Timestamp.from(de.atStartOfDay(Calendario.FUSO).toInstant()),
+                Timestamp.from(ate.plusDays(1).atStartOfDay(Calendario.FUSO).toInstant()));
+        return dias;
     }
 
     private Lancamento mapear(ResultSet rs, int linha) throws SQLException {

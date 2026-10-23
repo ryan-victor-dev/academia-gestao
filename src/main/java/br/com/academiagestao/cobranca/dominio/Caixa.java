@@ -56,6 +56,23 @@ public class Caixa {
         return new Caixa(id, dia, troco, situacao, abertoEm, abertoPor);
     }
 
+    /**
+     * A recepção vê o caixa de hoje e o dos dias ainda abertos (para fechá-los); os dias
+     * fechados, com as diferenças e justificativas, só o ADMIN (decisão do dono).
+     */
+    public boolean recepcaoVe(LocalDate hoje) {
+        return dia.equals(hoje) || situacao == Situacao.ABERTO;
+    }
+
+    /**
+     * Contagem às cegas: com o caixa aberto, a recepção não vê o dinheiro recebido nem o
+     * esperado (nem o de um fechamento anterior a uma reabertura); só depois de fechar vê a
+     * diferença. Assim a contagem não é ajustada para bater (decisão do dono).
+     */
+    public boolean contagemAsCegas() {
+        return situacao == Situacao.ABERTO;
+    }
+
     /** Pagamento e estorno só entram no caixa aberto (decisão do dono). */
     public void conferirQueRecebe() {
         if (situacao != Situacao.ABERTO) {
