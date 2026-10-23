@@ -129,6 +129,12 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   (`Propagation.NEVER`): chamá-lo de dentro de uma dá `IllegalTransactionStateException`. A
   consulta ao cadastro grava o `subject` do token como UUID: token simulado (`jwt()`) que
   abre `GET /api/alunos/{id}` precisa de `.jwt(j -> j.subject(UUID...))`.
+- O usuário da aplicação só tem DELETE em `tentativas_login`, `ficha_divisoes` e
+  `ficha_exercicios` (o `UsuarioDaAplicacaoNoBancoTest` confere a lista): tabela nova nasce com
+  DELETE e o teste falha até você decidir. Os testes conectam como dono do banco, então um
+  DELETE que a aplicação precise e não tenha só aparece no Docker ou no e2e.
+- `@PreAuthorize` só com perfil (`hasRole`, `hasAnyRole`): o `PerfilAntesDoCorpo` avalia a regra
+  antes de ler o corpo, quando os argumentos do método ainda não existem.
 - A API da cobrança mostra a `situacao` (calculada: `ATRASADA` é a pendente vencida), não o
   `status` do banco: em scripts de validação, compare com a situação certa.
 
