@@ -2,6 +2,7 @@ package br.com.academiagestao.matriculas;
 
 import br.com.academiagestao.alunos.AlunosParaMatricula;
 import br.com.academiagestao.cobranca.CobrancasDasMatriculas;
+import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.planos.PlanoOfertado;
@@ -15,8 +16,15 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import static br.com.academiagestao.compartilhado.Auditoria.Entidade.MATRICULA;
+
+/**
+ * Matricular, trancar, registrar a volta, cancelar e trocar de plano. Cada alteração vai para
+ * a trilha de auditoria na mesma transação, com o retrato de antes e de depois (ADR 0031).
+ */
 @Service
 class MatriculaService {
 
@@ -27,14 +35,16 @@ class MatriculaService {
     private final AlunosParaMatricula alunos;
     private final PlanosParaMatricula planos;
     private final CobrancasDasMatriculas cobrancas;
+    private final Auditoria auditoria;
     private final Clock relogio;
 
     MatriculaService(MatriculaRepository repository, AlunosParaMatricula alunos, PlanosParaMatricula planos,
-                     CobrancasDasMatriculas cobrancas, Clock relogio) {
+                     CobrancasDasMatriculas cobrancas, Auditoria auditoria, Clock relogio) {
         this.repository = repository;
         this.alunos = alunos;
         this.planos = planos;
         this.cobrancas = cobrancas;
+        this.auditoria = auditoria;
         this.relogio = relogio;
     }
 
@@ -43,6 +53,38 @@ class MatriculaService {
         Matricula gravada = repository.saveAndFlush(matricula);
         cobrancas.acompanhar(MatriculaNaCobranca.de(gravada));
         return gravada;
+    }
+
+    /** Grava e registra na trilha o que mudou desde o retrato {@code antes} (vazio numa criação). */
+    private Matricula gravar(Matricula matricula, String acao, Map<String, Object> antes) {
+        Matricula gravada = gravar(matricula);
+        auditoria.registrar(MATRICULA, gravada.getId(), acao, antes, retrato(gravada));
+        return gravada;
+    }
+
+    /**
+     * O que a trilha guarda da matrícula. Sem dados pessoais além do id do aluno; o motivo do
+     * trancamento e o do cancelamento entram (são a justificativa da alteração).
+     */
+    private static Map<String, Object> retrato(Matricula m) {
+        Trancamento ultimo = m.getTrancamentos().isEmpty() ? null : m.getTrancamentos().getLast();
+        return Auditoria.campos("alunoId", m.getAlunoId().toString(), "planoId", m.getPlanoId().toString(),
+                "plano", m.getPlanoNome(), "valorMensal", m.getValorMensal(), "duracaoMeses", m.getDuracaoMeses(),
+                "formaPagamento", m.getFormaPagamento().name(), "inicio", texto(m.getInicio()),
+                "primeiroVencimento", texto(m.getPrimeiroVencimento()), "fim", texto(m.getFim()),
+                "credito", m.getCredito().signum() == 0 ? null : m.getCredito(),
+                "diasTrancados", m.getDiasTrancados(), "trancamentos", m.getTrancamentos().size(),
+                "ultimoTrancamento", ultimo == null ? null : Auditoria.campos("inicio", texto(ultimo.getInicio()),
+                        "voltaPrevista", texto(ultimo.getVoltaPrevista()), "volta", texto(ultimo.getVolta()),
+                        "motivo", ultimo.getMotivo()),
+                "canceladaEm", m.getCanceladaEm() == null ? null : m.getCanceladaEm().toString(),
+                "motivoCancelamento", m.getMotivoCancelamento(), "multa", m.getMulta(),
+                "trocadaEm", texto(m.getTrocadaEm()),
+                "trocaDe", m.getTrocaDe() == null ? null : m.getTrocaDe().toString());
+    }
+
+    private static String texto(LocalDate data) {
+        return data == null ? null : data.toString();
     }
 
     /** Gera as cobranças de uma matrícula que já existia antes da cobrança (ver CobrancasDasMatriculasAntigas). */
@@ -79,7 +121,7 @@ class MatriculaService {
             throw periodoOcupado(sobrepostas.getLast());
         }
         try {
-            return gravar(matricula);
+            return gravar(matricula, "CRIADA", Map.of());
         } catch (DataIntegrityViolationException e) {
             // A trava do aluno já evita a corrida; a restrição do banco é a última garantia
             // (e vale para INSERT feito fora da aplicação). Outra violação é bug: 500.
@@ -136,6 +178,7 @@ class MatriculaService {
         var renovacao = repository.findFirstByAlunoIdAndCanceladaEmIsNullAndInicioAfterOrderByInicio(
                 alunoId, matricula.getFim());
 
+        Map<String, Object> antes = retrato(matricula);
         matricula.trancar(inicio, voltaPrevista, motivo, usuarioId, relogio.instant());
         if (renovacao.isPresent() && !renovacao.get().getInicio().isAfter(matricula.getFim())) {
             throw new MatriculaRecusadaException("Trancamento recusado",
@@ -143,7 +186,7 @@ class MatriculaService {
                             .formatted(renovacao.get().getInicio().format(DATA)));
         }
         try {
-            return gravar(matricula);
+            return gravar(matricula, "TRANCADA", antes);
         } catch (DataIntegrityViolationException e) {
             if (String.valueOf(e.getMessage()).contains(RESTRICAO_DE_PERIODO)) {
                 throw new MatriculaRecusadaException("Trancamento recusado",
@@ -183,26 +226,29 @@ class MatriculaService {
         Matricula nova = Matricula.nova(alunoId, contratado, null, agora);
         // Antes de encerrar a atual: a conta usa o cronograma inteiro dela (ADR 0026).
         MatriculaNaCobranca.continuar(nova, cobrancas.continuacao(MatriculaNaCobranca.de(atual), Calendario.hoje(agora)));
+        Map<String, Object> antes = retrato(atual);
         atual.encerrarPorTroca(nova, usuarioId, agora);
         // A atual é gravada primeiro: encurtada, ela libera o período para a nova, que começa hoje.
-        gravar(atual);
-        return gravar(nova);
+        gravar(atual, "TROCADA", antes);
+        return gravar(nova, "CRIADA", Map.of());
     }
 
     /** O aluno voltou antes do previsto (ou desistiu do trancamento agendado). */
     @Transactional
     Matricula registrarVolta(UUID id, UUID usuarioId) {
         Matricula matricula = repository.travarPorId(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
+        Map<String, Object> antes = retrato(matricula);
         matricula.registrarVolta(usuarioId, relogio.instant());
-        return gravar(matricula);
+        return gravar(matricula, "VOLTA_REGISTRADA", antes);
     }
 
     /** Trava a matrícula: um segundo cancelamento simultâneo espera e recebe 409 (já cancelada). */
     @Transactional
     Matricula cancelar(UUID id, String motivo, UUID usuarioId) {
         Matricula matricula = repository.travarPorId(id).orElseThrow(() -> new MatriculaNaoEncontradaException(id));
+        Map<String, Object> antes = retrato(matricula);
         matricula.cancelar(usuarioId, motivo, relogio.instant());
-        return gravar(matricula);
+        return gravar(matricula, "CANCELADA", antes);
     }
 
     /** O mesmo relógio do service, para a resposta calcular a situação de cada matrícula. */
