@@ -91,6 +91,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0027](docs/adr/0027-treinos.md) | Treinos: catálogo de exercícios, ficha atual com histórico e quem vê o quê |
 | [0028](docs/adr/0028-pendencias-medias-dos-treinos.md) | Pendências médias dos treinos: OOM, histórico imutável no banco, caractere de controle, listas em páginas, teto da revisão |
 | [0029](docs/adr/0029-login-do-aluno-inativo-so-de-leitura.md) | Login do aluno inativo, só de leitura: vê os próprios dados, não altera nada |
+| [0030](docs/adr/0030-arquitetura-das-matriculas.md) | Arquitetura das matrículas: entidade só do próprio módulo, condições do plano num lugar só, trancamentos em lote |
 
 ## Como rodar
 
