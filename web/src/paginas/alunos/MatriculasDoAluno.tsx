@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { FormularioDeAcao as Formulario } from '../../componentes/FormularioDeAcao';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { data, dinheiro, hoje } from '../../formato';
 import { chamar } from '../../sessao/api';
@@ -169,32 +170,5 @@ function SeletorDePlano({ planos, rotulo }: { planos: Plano[]; rotulo: string })
         </option>
       ))}
     </select>
-  );
-}
-
-/** Formulário curto de uma ação; os campos vêm pelo nome (FormData). */
-function Formulario({ titulo, rotulo = 'Salvar', children, aoEnviar, aoCancelar }: {
-  titulo: string; rotulo?: string; children: ReactNode;
-  aoEnviar: (f: FormData) => Promise<void>; aoCancelar: () => void;
-}) {
-  const [enviando, setEnviando] = useState(false);
-  async function enviar(evento: FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    setEnviando(true);
-    try {
-      await aoEnviar(new FormData(evento.currentTarget));
-    } finally {
-      setEnviando(false);
-    }
-  }
-  return (
-    <form className="formulario acao" onSubmit={enviar} aria-label={titulo}>
-      <h3>{titulo}</h3>
-      {children}
-      <div className="acoes">
-        <button type="submit" disabled={enviando}>{enviando ? 'Enviando…' : rotulo}</button>
-        <button type="button" className="secundario" onClick={aoCancelar}>Voltar</button>
-      </div>
-    </form>
   );
 }

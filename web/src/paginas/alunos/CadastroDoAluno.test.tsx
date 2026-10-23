@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { apiFalsa, json, renderizar } from '../../testes/ajudantes';
 import { CadastroDoAluno } from './CadastroDoAluno';
 
@@ -12,6 +12,7 @@ const base = {
   'GET /api/matriculas/vigente': json(200, { alunoId: 'a1', podeTreinar: true }),
   'GET /api/matriculas': json(200, []),
   'GET /api/planos': json(200, []),
+  'GET /api/cobrancas': json(200, []),
 };
 const abrir = (perfil: 'RECEPCAO' | 'INSTRUTOR' | 'ADMIN' = 'RECEPCAO') =>
   renderizar(<CadastroDoAluno />, { perfil, rota: '/alunos/:id', endereco: '/alunos/00000000-0000-0000-0000-0000000000a1' });
@@ -107,5 +108,18 @@ describe('cadastro do aluno', () => {
 
     expect(await screen.findByRole('heading', { name: 'Página não encontrada' })).toBeInTheDocument();
     expect(api.pedidos).toHaveLength(0);
+  });
+
+  it('nova matrícula recarrega as cobranças (a matrícula as gera)', async () => {
+    const api = apiFalsa({ ...base,
+      'GET /api/planos': json(200, [{ id: 'p1', nome: 'Mensal', valorMensal: 100, duracaoMeses: 1, ativo: true }]),
+      'POST /api/matriculas': json(201, {}) });
+    abrir();
+    await userEvent.click(await screen.findByRole('button', { name: 'Nova matrícula' }));
+    await userEvent.selectOptions(screen.getByLabelText('Plano'), 'p1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await vi.waitFor(() => expect(api.de('GET /api/cobrancas')).toHaveLength(2));
   });
 });

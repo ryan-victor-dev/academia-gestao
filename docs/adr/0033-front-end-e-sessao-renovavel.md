@@ -57,6 +57,11 @@ O dono decidiu quanto a sessão dura: **12 horas para a equipe** (um turno; o AD
 - **Senha temporária:** a tela só oferece a troca (a API só libera ela e `/api/me`); trocada, a
   pessoa entra com a sessão nova que a troca abre.
 
+- **Cobranças atrasadas com o nome do aluno:** a lista trazia só o `alunoId`; para mostrar quem
+  deve, a tela teria de abrir o cadastro de cada um, e cada abertura vai para o registro de acessos
+  (ADR 0031). A API passa a mandar o `alunoNome` (só o nome, também de aluno inativo: a dívida
+  continua), pela porta pública do módulo de alunos.
+
 Os detalhes de cada tela entram nas próximas partes.
 
 ### Sessão renovável

@@ -204,7 +204,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/matriculas/vigente?alunoId=` (`podeTreinar`: matrícula vigente e nenhuma cobrança atrasada além do tolerado⁷) | ADMIN, RECEPCAO, INSTRUTOR |
 | `GET /api/matriculas/me` | ALUNO (as próprias) |
 | `GET /api/cobrancas?alunoId=`, `GET /api/cobrancas/{id}` (situação e o devido hoje⁷) | ADMIN, RECEPCAO |
-| `GET /api/cobrancas/atrasadas?pagina=&tamanho=` (as em aberto já vencidas, da mais antiga) | ADMIN, RECEPCAO |
+| `GET /api/cobrancas/atrasadas?pagina=&tamanho=` (as em aberto já vencidas, da mais antiga, com o `alunoNome`) | ADMIN, RECEPCAO |
 | `POST /api/cobrancas/{id}/pagar` (`valor` igual ao devido hoje e `meioDePagamento`: `DINHEIRO`, `PIX`, `CARTAO_DEBITO` ou `CARTAO_CREDITO`; só com o caixa de hoje aberto¹⁰) | ADMIN, RECEPCAO |
 | `POST /api/cobrancas/{id}/estornar` (volta a dever; só com o caixa de hoje aberto¹⁰) e `/cancelar` (só em aberto), com `motivo` | ADMIN |
 | `GET /api/cobrancas/{id}/lancamentos` (pagamentos e estornos, na ordem; nada se apaga⁷) | ADMIN, RECEPCAO |

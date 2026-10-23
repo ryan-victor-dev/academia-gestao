@@ -31,6 +31,11 @@ public interface AlunoRepository extends JpaRepository<Aluno, UUID>, JpaSpecific
             FROM Aluno a WHERE a.id IN :ids AND a.ativo = true""")
     List<NomeDoAluno> nomesDosAtivos(Collection<UUID> ids);
 
+    @Query("""
+            SELECT new br.com.academiagestao.alunos.AlunoRepository$NomeDoAluno(a.id, a.nome)
+            FROM Aluno a WHERE a.id IN :ids""")
+    List<NomeDoAluno> nomes(Collection<UUID> ids);
+
     record NomeDoAluno(UUID id, String nome) {
     }
 

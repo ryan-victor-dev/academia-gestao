@@ -1,5 +1,6 @@
 package br.com.academiagestao.cobranca;
 
+import br.com.academiagestao.alunos.AlunosParaMatricula;
 import br.com.academiagestao.auth.ClaimsDoToken;
 import br.com.academiagestao.cobranca.CobrancaService.Consulta;
 import br.com.academiagestao.cobranca.dominio.Cancelamento;
@@ -11,6 +12,7 @@ import br.com.academiagestao.cobranca.dominio.StatusCobranca;
 import br.com.academiagestao.cobranca.dominio.TipoCobranca;
 import br.com.academiagestao.cobranca.dominio.ValorDevido;
 import br.com.academiagestao.compartilhado.Pagina;
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -31,7 +33,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Cobranças (ADR 0024). A recepção consulta e registra pagamentos; só o ADMIN estorna e
@@ -42,9 +46,11 @@ import java.util.UUID;
 class CobrancaController {
 
     private final CobrancaService service;
+    private final AlunosParaMatricula alunos;
 
-    CobrancaController(CobrancaService service) {
+    CobrancaController(CobrancaService service, AlunosParaMatricula alunos) {
         this.service = service;
+        this.alunos = alunos;
     }
 
     /** Todas as do aluno, da que vence primeiro para a última. */
@@ -68,16 +74,22 @@ class CobrancaController {
         return service.doAluno(UUID.fromString(alunoId)).stream().map(CobrancaParaAluno::de).toList();
     }
 
-    /** Para a recepção cobrar: as em aberto já vencidas, da mais antiga para a mais nova. */
+    /**
+     * Para a recepção cobrar: as em aberto já vencidas, da mais antiga para a mais nova, com o
+     * nome do aluno (só o nome: abrir o cadastro de cada um iria para o registro de acessos).
+     */
     @GetMapping("/atrasadas")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
-    Pagina<CobrancaResponse> atrasadas(
+    Pagina<AtrasadaResponse> atrasadas(
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
             @RequestParam(defaultValue = "20") @Min(value = 1, message = "deve ser pelo menos {value}")
             @Max(value = 100, message = "pode ser no máximo {value}") int tamanho) {
         Pagina<Consulta> consultas = service.atrasadas(pagina, tamanho);
-        return new Pagina<>(consultas.conteudo().stream().map(CobrancaResponse::de).toList(), consultas.pagina(),
-                consultas.tamanho(), consultas.totalElementos(), consultas.totalPaginas());
+        Map<UUID, String> nomes = alunos.nomes(consultas.conteudo().stream()
+                .map(c -> c.cobranca().getAlunoId()).collect(Collectors.toSet()));
+        return new Pagina<>(consultas.conteudo().stream()
+                .map(c -> new AtrasadaResponse(CobrancaResponse.de(c), nomes.get(c.cobranca().getAlunoId())))
+                .toList(), consultas.pagina(), consultas.tamanho(), consultas.totalElementos(), consultas.totalPaginas());
     }
 
     @GetMapping("/{id}")
@@ -146,6 +158,10 @@ class CobrancaController {
                     c.getPagamento() == null ? null : PagamentoResponse.de(c.getPagamento()),
                     c.getCancelamento() == null ? null : CancelamentoResponse.de(c.getCancelamento()));
         }
+    }
+
+    /** A cobrança atrasada com o nome do aluno, no mesmo nível dos outros campos. */
+    record AtrasadaResponse(@JsonUnwrapped CobrancaResponse cobranca, String alunoNome) {
     }
 
     /** O que o aluno vê: sem os ids de quem registrou ou cancelou (dados da equipe). */

@@ -10,7 +10,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * O que os módulos de matrículas e de treinos podem pedir ao de alunos. Devolve dados, não
+ * O que os módulos de matrículas, de treinos e de cobrança podem pedir ao de alunos. Devolve dados, não
  * lança as exceções daqui: quem decide a resposta HTTP é o módulo que chamou.
  */
 @Service
@@ -43,6 +43,16 @@ public class AlunosParaMatricula {
     @Transactional(readOnly = true)
     public Map<UUID, String> nomesDosAtivos(Collection<UUID> ids) {
         return repository.nomesDosAtivos(ids).stream()
+                .collect(Collectors.toMap(AlunoRepository.NomeDoAluno::id, AlunoRepository.NomeDoAluno::nome));
+    }
+
+    /**
+     * Nome de cada aluno entre {@code ids}, ativo ou não (inexistentes ficam de fora). Para a lista
+     * de cobranças atrasadas da recepção: a dívida continua depois de o aluno ser inativado.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, String> nomes(Collection<UUID> ids) {
+        return repository.nomes(ids).stream()
                 .collect(Collectors.toMap(AlunoRepository.NomeDoAluno::id, AlunoRepository.NomeDoAluno::nome));
     }
 }

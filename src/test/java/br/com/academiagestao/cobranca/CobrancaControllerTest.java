@@ -487,6 +487,24 @@ class CobrancaControllerTest {
         assertThat((Integer) JsonPath.read(corpo, "$.totalElementos")).isEqualTo(ids.size());
     }
 
+    /** A lista traz o nome do aluno (só o nome), também do inativo: a dívida continua. */
+    @Test
+    void listaDeAtrasadasTrazONomeDoAluno() throws Exception {
+        UUID atrasada = cobranca(1, 5);
+        jdbc.update("UPDATE alunos SET nome = 'Bia Cobrada', ativo = false WHERE id = ?", aluno);
+
+        String corpo = mvc.perform(get("/api/cobrancas/atrasadas").param("tamanho", "100").with(recepcao()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> nomes = JsonPath.read(corpo, "$.conteudo[?(@.id == '" + atrasada + "')].alunoNome");
+        assertThat(nomes).containsExactly("Bia Cobrada");
+        // No mesmo nível dos outros campos, e sem os dados pessoais do cadastro.
+        assertThat((List<String>) JsonPath.read(corpo, "$.conteudo[?(@.id == '" + atrasada + "')].alunoId"))
+                .containsExactly(aluno.toString());
+        assertThat(corpo).doesNotContain("\"cpf\"").doesNotContain("\"cobranca\"");
+    }
+
     @Test
     void listaDeAtrasadasPaginada() throws Exception {
         for (int i = 0; i < 3; i++) {

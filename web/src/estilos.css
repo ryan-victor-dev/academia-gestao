@@ -228,3 +228,21 @@ code { font-family: ui-monospace, 'Cascadia Mono', Menlo, monospace; font-size: 
 .cartoes { list-style: none; padding: 0; display: grid; gap: 12px; }
 .cartao-item { padding: 16px; border: 1px solid var(--borda); border-radius: 12px; background: var(--superficie); }
 .cartao-item p { margin: 8px 0 0; }
+
+/* Cobranças e caixa. */
+.etiqueta.cobranca-paga { color: var(--sucesso); border-color: var(--sucesso); }
+.etiqueta.cobranca-atrasada { color: var(--erro); border-color: var(--erro); }
+.etiqueta.cobranca-pendente { color: var(--aviso); border-color: var(--aviso); }
+
+.historico { margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--fundo); }
+.historico ul { margin: 0 0 8px; padding-left: 20px; }
+
+label.em-linha { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+
+.tabela { width: 100%; border-collapse: collapse; margin: 8px 0 16px; background: var(--superficie);
+  border: 1px solid var(--borda); border-radius: 12px; overflow: hidden; }
+.tabela th, .tabela td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--borda); }
+.tabela tfoot th, .tabela tfoot td { font-weight: 700; border-bottom: 0; }
+@media (max-width: 480px) {
+  .tabela th, .tabela td { padding: 6px; font-size: 0.9rem; }
+}

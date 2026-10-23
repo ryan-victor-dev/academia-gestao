@@ -6,6 +6,8 @@ import { EmBreve } from './paginas/EmBreve';
 import { CadastroDoAluno } from './paginas/alunos/CadastroDoAluno';
 import { ListaDeAlunos } from './paginas/alunos/ListaDeAlunos';
 import { NovoAluno } from './paginas/alunos/NovoAluno';
+import { CaixaDoDia } from './paginas/caixa/CaixaDoDia';
+import { CobrancasAtrasadas } from './paginas/cobrancas/CobrancasAtrasadas';
 import { Inicio } from './paginas/Inicio';
 import { NaoEncontrada } from './paginas/NaoEncontrada';
 import { chamar, renovar, sair, type Perfil, type Usuario } from './sessao/api';
@@ -81,6 +83,8 @@ function AreaLogada({ aoSair, aoTrocarSenha }: { aoSair: () => void; aoTrocarSen
   const usuario = useUsuario();
   const prontas: Record<string, ReactNode> = {
     '/alunos': <ListaDeAlunos />,
+    '/cobrancas': <CobrancasAtrasadas />,
+    '/caixa': <CaixaDoDia />,
     '/senha': <TrocarSenha obrigatoria={false} aoTrocar={aoTrocarSenha} />,
   };
   const rotas = [

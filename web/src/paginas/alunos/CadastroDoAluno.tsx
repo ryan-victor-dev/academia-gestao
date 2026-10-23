@@ -6,6 +6,7 @@ import { chamar, chamarComVersao, ErroDaApi } from '../../sessao/api';
 import { AcessoDoAluno } from './AcessoDoAluno';
 import { FormularioDoAluno } from './FormularioDoAluno';
 import { MatriculasDoAluno } from './MatriculasDoAluno';
+import { CobrancasDoAluno } from '../cobrancas/CobrancasDoAluno';
 import { NaoEncontrada } from '../NaoEncontrada';
 import { paraEnviar, type Aluno, type AlunoParaInstrutor } from './tipos';
 
@@ -25,6 +26,8 @@ function Cadastro({ id }: { id: string }) {
   const [versao, setVersao] = useState<string | null>(null);
   const [podeTreinar, setPodeTreinar] = useState<boolean | null>(null);
   const [editando, setEditando] = useState(false);
+  // Muda a cada ação na matrícula: as cobranças são recarregadas (a matrícula as gera e cancela).
+  const [mudancas, setMudancas] = useState(0);
   const [erro, setErro] = useState<unknown>(null);
 
   const carregar = useCallback(async () => {
@@ -127,7 +130,8 @@ function Cadastro({ id }: { id: string }) {
 
       {completo && (
         <>
-          <MatriculasDoAluno alunoId={completo.id} aoMudar={conferirSePodeTreinar} />
+          <MatriculasDoAluno alunoId={completo.id} aoMudar={() => { void conferirSePodeTreinar(); setMudancas((n) => n + 1); }} />
+          <CobrancasDoAluno alunoId={completo.id} atualizar={mudancas} />
           <AcessoDoAluno alunoId={completo.id} temEmail={!!completo.email} ativo={completo.ativo} />
         </>
       )}
