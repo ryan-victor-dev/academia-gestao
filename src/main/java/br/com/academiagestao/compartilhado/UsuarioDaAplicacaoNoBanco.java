@@ -93,8 +93,12 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             // recusa apagar os de uma encerrada).
             sql.execute("REVOKE DELETE, TRUNCATE ON TABLE fichas, exercicios FROM " + usuario);
             sql.execute("REVOKE UPDATE, TRUNCATE ON TABLE ficha_divisoes, ficha_exercicios FROM " + usuario);
-            // A única saída da trilha: a função do dono que só apaga o que passou do prazo (V21).
+            // O registro de acessos também só cresce (V38, ADR 0031).
+            sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE acessos FROM " + usuario);
+            // A única saída da trilha e dos acessos: as funções do dono que só apagam o que
+            // passou do prazo (V21, 5 anos; V38, 1 ano).
             sql.execute("GRANT EXECUTE ON FUNCTION apagar_auditoria_vencida(integer) TO " + usuario);
+            sql.execute("GRANT EXECUTE ON FUNCTION apagar_acessos_vencidos(integer) TO " + usuario);
             sql.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + usuario);
         } catch (SQLException e) {
             throw new IllegalStateException("Não foi possível preparar o usuário da aplicação no banco", e);

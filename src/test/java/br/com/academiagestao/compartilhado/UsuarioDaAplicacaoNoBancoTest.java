@@ -118,6 +118,20 @@ class UsuarioDaAplicacaoNoBancoTest {
         }
     }
 
+    /** O registro de acessos só cresce; o vencido sai pela função do dono (V38, ADR 0031). */
+    @Test
+    void acessosSoAceitamInserirELer() {
+        assertThatCode(() -> {
+            executar("SELECT count(*) FROM acessos");
+            executar("INSERT INTO acessos (tipo, conta, ip) SELECT 'LOGIN', 'x', 'y' WHERE false");
+        }).doesNotThrowAnyException();
+        for (String ataque : List.of("UPDATE acessos SET ip = ip WHERE false", "DELETE FROM acessos",
+                "TRUNCATE acessos")) {
+            assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
+                    .hasMessageContaining("permission denied");
+        }
+    }
+
     /**
      * O caixa do dia não se apaga (só muda a situação), e fechamentos e reaberturas só
      * crescem (ADR 0031). "WHERE false": a permissão é conferida mesmo sem linhas.

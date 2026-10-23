@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.RegistroDeAcessos;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -35,7 +36,7 @@ class AutenticacaoServiceTest {
             new GeradorDeToken(new NimbusJwtEncoder(new ImmutableSecret<>(chave)),
                     new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao"), Clock.systemUTC()),
             mock(LimitadorDeTentativas.class), mock(org.springframework.transaction.PlatformTransactionManager.class),
-            mock(TrilhaDeUsuarios.class));
+            mock(TrilhaDeUsuarios.class), mock(RegistroDeAcessos.class));
 
     private Usuario cadastrar(Perfil perfil) {
         Usuario usuario = Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), perfil);

@@ -3,7 +3,9 @@ package br.com.academiagestao.alunos;
 import br.com.academiagestao.auth.ClaimsDoToken;
 import br.com.academiagestao.auth.CredenciaisTemporarias;
 import br.com.academiagestao.compartilhado.Pagina;
+import br.com.academiagestao.compartilhado.RegistroDeAcessos;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
@@ -40,9 +42,11 @@ import java.util.UUID;
 class AlunoController {
 
     private final AlunoService service;
+    private final RegistroDeAcessos acessos;
 
-    AlunoController(AlunoService service) {
+    AlunoController(AlunoService service, RegistroDeAcessos acessos) {
         this.service = service;
+        this.acessos = acessos;
     }
 
     @PostMapping
@@ -92,10 +96,15 @@ class AlunoController {
     }
 
     // O instrutor também consulta: precisa ver o aluno para montar a ficha de treino.
+    // Quem abriu qual cadastro vai para o registro de acessos (ADR 0031), qualquer perfil da
+    // equipe: o instrutor também vê as observações, que podem ter dados de saúde. Gravado antes
+    // de responder: se o registro falhar, o cadastro não sai.
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
-    ResponseEntity<? extends VisaoDoAluno> buscar(Authentication autenticacao, @PathVariable UUID id) {
+    ResponseEntity<? extends VisaoDoAluno> buscar(Authentication autenticacao, @PathVariable UUID id,
+                                                  HttpServletRequest requisicao) {
         Aluno aluno = service.buscar(id);
+        acessos.consultaDeAluno(UUID.fromString(autenticacao.getName()), aluno.getId(), requisicao.getRemoteAddr());
         if (ehInstrutor(autenticacao)) {
             return ResponseEntity.ok(AlunoParaInstrutor.de(aluno));
         }

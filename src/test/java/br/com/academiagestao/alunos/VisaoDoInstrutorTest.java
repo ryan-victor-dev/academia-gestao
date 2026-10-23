@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -28,9 +29,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class VisaoDoInstrutorTest {
 
     private static final RequestPostProcessor INSTRUTOR =
-            jwt().authorities(new SimpleGrantedAuthority("ROLE_INSTRUTOR"));
+            jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))
+                    .authorities(new SimpleGrantedAuthority("ROLE_INSTRUTOR"));
     private static final RequestPostProcessor RECEPCAO =
-            jwt().authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"));
+            jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))
+                    .authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"));
 
     @Autowired
     LimpezaDoBanco limpeza;

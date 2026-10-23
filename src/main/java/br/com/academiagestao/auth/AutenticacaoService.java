@@ -1,6 +1,8 @@
 package br.com.academiagestao.auth;
 
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import br.com.academiagestao.compartilhado.RegistroDeAcessos;
+import br.com.academiagestao.compartilhado.RegistroDeAcessos.Tipo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.DisabledException;
@@ -29,6 +31,7 @@ class AutenticacaoService {
     private final LimitadorDeTentativas limitador;
     private final TransactionTemplate transacao;
     private final TrilhaDeUsuarios trilha;
+    private final RegistroDeAcessos acessos;
 
     // Hash de uma senha que ninguém conhece. Quando o e-mail não existe, comparamos a senha
     // com ele mesmo assim, para a resposta demorar o mesmo tanto que com um e-mail válido.
@@ -40,9 +43,11 @@ class AutenticacaoService {
                         GeradorDeToken geradorDeToken,
                         LimitadorDeTentativas limitador,
                         PlatformTransactionManager transacoes,
-                        TrilhaDeUsuarios trilha) {
+                        TrilhaDeUsuarios trilha,
+                        RegistroDeAcessos acessos) {
         this.repository = repository;
         this.trilha = trilha;
+        this.acessos = acessos;
         this.passwordEncoder = passwordEncoder;
         this.geradorDeToken = geradorDeToken;
         this.limitador = limitador;
@@ -63,6 +68,8 @@ class AutenticacaoService {
             limitador.verificarERegistrar(ip, conta);
         } catch (MuitasTentativasException e) {
             log.warn("Login bloqueado por excesso de tentativas: conta {} / IP {}", conta, ip);
+            // Sem o id: a conta não é consultada antes do limite (bloqueado não gasta o banco).
+            acessos.login(Tipo.LOGIN_BLOQUEADO, null, conta, ip);
             throw e;
         }
 
@@ -75,10 +82,12 @@ class AutenticacaoService {
             limitador.registrarFalha(conta, ip);
             // Nunca a senha digitada: ela pode ser a senha certa de outra conta, com um erro de digitação.
             log.warn("Login recusado: conta {} / IP {}", conta, ip);
+            acessos.login(Tipo.LOGIN_FALHO, usuario.map(Usuario::getId).orElse(null), conta, ip);
             throw new CredenciaisInvalidasException();
         }
         limitador.registrarSucesso(conta, ip);
         log.info("Login: conta {} / IP {}", conta, ip);
+        acessos.login(Tipo.LOGIN, usuario.get().getId(), conta, ip);
         return geradorDeToken.gerar(usuario.get());
     }
 
@@ -99,11 +108,13 @@ class AutenticacaoService {
             limitador.verificarERegistrar(ip, conta);
         } catch (MuitasTentativasException e) {
             log.warn("Troca de senha bloqueada por excesso de tentativas: conta {} / IP {}", conta, ip);
+            acessos.login(Tipo.LOGIN_BLOQUEADO, usuarioId, conta, ip);
             throw e;
         }
         if (!passwordEncoder.matches(senhaAtual, usuario.getSenhaHash())) {
             limitador.registrarFalha(conta, ip);
             log.warn("Troca de senha recusada (senha atual errada): conta {} / IP {}", conta, ip);
+            acessos.login(Tipo.TROCA_SENHA_FALHA, usuarioId, conta, ip);
             throw new DadosInvalidosException("senha atual incorreta");
         }
         limitador.registrarSucesso(conta, ip);

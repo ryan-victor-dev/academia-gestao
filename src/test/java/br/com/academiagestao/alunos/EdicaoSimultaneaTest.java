@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,7 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class EdicaoSimultaneaTest {
 
     private static final RequestPostProcessor RECEPCAO =
-            jwt().authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"));
+            jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))
+                    .authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"));
 
     @Autowired
     LimpezaDoBanco limpeza;

@@ -17,6 +17,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -135,5 +139,26 @@ class LimiteDeLoginTest {
                 .contains("Login recusado: conta ana@academia.com / IP 10.0.3.1")
                 .contains("Login bloqueado por excesso de tentativas: conta ana@academia.com / IP 10.0.3.1")
                 .doesNotContain("senha-digitada-errada");
+    }
+
+    /**
+     * Cada entrada, senha errada e bloqueio vai para o registro de acessos, com a conta e o
+     * IP (ADR 0031). O bloqueado vem sem o id: a conta não é consultada antes do limite.
+     */
+    @Test
+    void falhasBloqueiosEEntradasVaoParaORegistroDeAcessos() throws Exception {
+        UUID ana = repository.findByEmail("ana@academia.com").orElseThrow().getId();
+        for (int i = 0; i < 4; i++) {
+            login("10.0.4.1", "Ana@Academia.com", "chute-" + i + "-xxxxxx");
+        }
+        login("10.0.4.2", "ana@academia.com", SENHA).andExpect(status().isOk());
+
+        List<Map<String, Object>> acessos = jdbc.queryForList(
+                "SELECT tipo, usuario_id, conta, ip FROM acessos WHERE conta = 'ana@academia.com' ORDER BY id");
+        assertThat(acessos).extracting(a -> a.get("tipo"))
+                .containsExactly("LOGIN_FALHO", "LOGIN_FALHO", "LOGIN_FALHO", "LOGIN_BLOQUEADO", "LOGIN");
+        assertThat(acessos).extracting(a -> a.get("ip"))
+                .containsExactly("10.0.4.1", "10.0.4.1", "10.0.4.1", "10.0.4.1", "10.0.4.2");
+        assertThat(acessos).extracting(a -> a.get("usuario_id")).containsExactly(ana, ana, ana, null, ana);
     }
 }
