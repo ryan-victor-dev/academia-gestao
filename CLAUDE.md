@@ -125,11 +125,15 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   de um caixa aberto do dia do `registrado_em` (gatilho da V35). O caixa é **um por dia** e os
   testes dividem o banco: use `CaixaDeTeste.abrir(...)` no dia do teste e apague o caixa no fim
   (`limpeza.apagar("caixas", id)`); dia anterior esquecido aberto impede abrir o seguinte.
+- O registro de acessos (consultas ao cadastro e logins) grava fora de transação
+  (`Propagation.NEVER`): chamá-lo de dentro de uma dá `IllegalTransactionStateException`. A
+  consulta ao cadastro grava o `subject` do token como UUID: token simulado (`jwt()`) que
+  abre `GET /api/alunos/{id}` precisa de `.jwt(j -> j.subject(UUID...))`.
 - A API da cobrança mostra a `situacao` (calculada: `ATRASADA` é a pendente vencida), não o
   `status` do banco: em scripts de validação, compare com a situação certa.
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028 e 0029; dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029 e 0031 (registro de acessos); dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.

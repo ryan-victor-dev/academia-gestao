@@ -204,6 +204,7 @@ s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDe
 confere("sem caixa aberto, nada se recebe (409)", s == 409 and "não foi aberto" in b.get("detail", ""), (s, b))
 s, b, _ = req("POST", "/api/caixas", {"troco": 50}, REC)
 confere("recepção abre o caixa do dia com o troco", s == 201 and b["situacao"] == "ABERTO", (s, b))
+DIA = b.get("dia")
 s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 200, "meioDePagamento": "PIX"}, REC)
 confere("pagar valor diferente = 409 com o devido", s == 409 and b["devidoHoje"]["total"] == 219.78, (s, b))
 s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDePagamento": "PIX"}, REC)
@@ -242,6 +243,39 @@ confere("R$ 7 cortado no teto de 2% (2,60)", c.get("devidoHoje", {}).get("acresc
 s, b, _ = req("POST", f"/api/cobrancas/{atrasada['id']}/pagar", {"valor": 132.98, "meioDePagamento": "DINHEIRO"}, REC)
 confere("recepção recebe 132,98", s == 200 and b["situacao"] == "PAGA", (s, b))
 confere("cobranças só para a equipe", req("GET", f"/api/cobrancas?alunoId={ANA}", token=INS)[0] == 403)
+
+secao("caixa e auditoria")
+s, b, _ = req("GET", f"/api/caixas/{DIA}", token=REC)
+confere("caixa aberto: a recepção não vê o dinheiro (contagem às cegas)", s == 200 and b["dinheiroOculto"] is True
+        and "DINHEIRO" not in [f["forma"] for f in b["movimento"]["formas"]], (s, b))
+s, b, _ = req("POST", f"/api/caixas/{DIA}/fechar", {"contado": 180}, REC)
+confere("diferença sem justificativa: 400", s == 400, (s, b))
+# Troco 50 + 132,98 em dinheiro; o PIX (pago e estornado) não passa pela gaveta.
+s, b, _ = req("POST", f"/api/caixas/{DIA}/fechar", {"contado": 182.98}, REC)
+confere("recepção fecha: esperado 182,98, sem diferença", s == 200 and b["fechamentos"][0]["esperado"] == 182.98
+        and b["fechamentos"][0]["diferenca"] == 0, (s, b))
+s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDePagamento": "PIX"}, REC)
+confere("dia fechado não recebe (409)", s == 409 and "fechado" in b.get("detail", ""), (s, b))
+confere("recepção não reabre", req("POST", f"/api/caixas/{DIA}/reabrir", {"motivo": "x"}, REC)[0] == 403)
+s, b, _ = req("GET", f"/api/caixas/relatorio?de={DIA}&ate={DIA}", token=ADM)
+formas = {f["forma"]: f for f in b["dias"][0]["movimento"]["formas"]} if s == 200 and b["dias"] else {}
+confere("relatório do ADMIN: dinheiro e PIX menos o estorno", formas.get("DINHEIRO", {}).get("liquido") == 132.98
+        and formas.get("PIX", {}).get("recebido") == 219.78 and formas["PIX"]["estornado"] == 219.78
+        and b["dias"][0]["troco"] == 50 and b["diferencaDosFechados"] == 0, (s, b))
+confere("relatório do período só para o ADMIN",
+        req("GET", f"/api/caixas/relatorio?de={DIA}&ate={DIA}", token=REC)[0] == 403)
+s, b, _ = req("GET", f"/api/auditoria?entidade=CAIXA", token=ADM)
+confere("trilha do caixa: aberto e fechado", s == 200 and [r["acao"] for r in b["conteudo"]][:2] == ["FECHADO", "ABERTO"],
+        (s, b))
+s, b, _ = req("GET", f"/api/auditoria?entidade=MATRICULA&entidadeId={m['id']}", token=ADM)
+confere("trilha da matrícula", s == 200 and [r["acao"] for r in b["conteudo"]] == ["CRIADA"], (s, b))
+confere("recepção abre o cadastro", req("GET", f"/api/alunos/{ANA}", token=REC)[0] == 200)
+s, b, _ = req("GET", f"/api/auditoria/acessos?alunoId={ANA}", token=ADM)
+confere("a consulta ao cadastro fica registrada", s == 200 and b["totalElementos"] == 1
+        and b["conteudo"][0]["tipo"] == "CONSULTA_ALUNO", (s, b))
+s, b, _ = req("GET", "/api/auditoria/acessos?conta=admin@academia.local&tipo=LOGIN", token=ADM)
+confere("os logins ficam registrados", s == 200 and b["totalElementos"] >= 1, (s, b))
+confere("registro de acessos só para o ADMIN", req("GET", "/api/auditoria/acessos", token=REC)[0] == 403)
 
 secao("treinos")
 # A Maria foi inativada nas matrículas: a ficha é de uma aluna nova, com login.

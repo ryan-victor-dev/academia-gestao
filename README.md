@@ -34,10 +34,10 @@ br.com.academiagestao
 ├── alunos         cadastro de alunos
 ├── planos         planos e valores
 ├── matriculas     vínculo aluno ↔ plano
-├── cobranca       cobranças, atraso, pagamentos (regras em Java puro em cobranca.dominio)
+├── cobranca       cobranças, atraso, pagamentos, caixa do dia (regras em Java puro em cobranca.dominio)
 ├── treinos        fichas de treino
 ├── auth           autenticação e perfis
-├── auditoria      registro de quem fez o quê
+├── auditoria      registro de quem fez o quê (alterações) e de quem acessou (consultas e logins)
 └── compartilhado  o que é comum a todos os módulos
 ```
 
@@ -199,11 +199,16 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/matriculas/me` | ALUNO (as próprias) |
 | `GET /api/cobrancas?alunoId=`, `GET /api/cobrancas/{id}` (situação e o devido hoje⁷) | ADMIN, RECEPCAO |
 | `GET /api/cobrancas/atrasadas?pagina=&tamanho=` (as em aberto já vencidas, da mais antiga) | ADMIN, RECEPCAO |
-| `POST /api/cobrancas/{id}/pagar` (`valor` igual ao devido hoje e `meioDePagamento`: `DINHEIRO`, `PIX`, `CARTAO_DEBITO` ou `CARTAO_CREDITO`) | ADMIN, RECEPCAO |
-| `POST /api/cobrancas/{id}/estornar` (volta a dever) e `/cancelar` (só em aberto), com `motivo` | ADMIN |
+| `POST /api/cobrancas/{id}/pagar` (`valor` igual ao devido hoje e `meioDePagamento`: `DINHEIRO`, `PIX`, `CARTAO_DEBITO` ou `CARTAO_CREDITO`; só com o caixa de hoje aberto¹⁰) | ADMIN, RECEPCAO |
+| `POST /api/cobrancas/{id}/estornar` (volta a dever; só com o caixa de hoje aberto¹⁰) e `/cancelar` (só em aberto), com `motivo` | ADMIN |
 | `GET /api/cobrancas/{id}/lancamentos` (pagamentos e estornos, na ordem; nada se apaga⁷) | ADMIN, RECEPCAO |
 | `GET /api/cobrancas/configuracao`, `PUT` (exige `If-Match`²; acréscimo, juros e dias para bloquear⁷) | Ler: ADMIN, RECEPCAO; alterar: ADMIN |
 | `GET /api/cobrancas/me` | ALUNO (as próprias) |
+| `POST /api/caixas` (`troco`; abre o caixa de hoje¹⁰) | ADMIN, RECEPCAO |
+| `POST /api/caixas/{dia}/fechar` (`contado`, o dinheiro da gaveta; `justificativa` se houver diferença) | ADMIN, RECEPCAO |
+| `POST /api/caixas/{dia}/reabrir` (`motivo`) | ADMIN |
+| `GET /api/caixas/{dia}` (movimento por forma e fechamentos¹⁰) e `GET /api/caixas/abertos` (o que falta fechar) | ADMIN; RECEPCAO só hoje e os dias abertos |
+| `GET /api/caixas/relatorio?de=&ate=` (cada dia por forma, menos os estornos, com os fechamentos; até 366 dias) | ADMIN |
 | `GET /api/exercicios?grupoMuscular=&incluirInativos=`, `GET /api/exercicios/{id}` (catálogo⁸) | ADMIN, INSTRUTOR |
 | `POST /api/exercicios`, `PUT /api/exercicios/{id}` (exige `If-Match`²), `POST /api/exercicios/{id}/inativar`, `/reativar` | ADMIN, INSTRUTOR |
 | `POST /api/fichas` (`alunoId`, `divisoes`, `revisaoEm` opcional, até 1 ano à frente; encerra a atual⁸) | ADMIN, INSTRUTOR |
@@ -211,7 +216,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/fichas/{id}`, `GET /api/fichas/atual?alunoId=`, `GET /api/fichas?alunoId=&pagina=&tamanho=` (histórico, a mais nova primeiro; 10 por página, até 20) | ADMIN, INSTRUTOR, RECEPCAO |
 | `GET /api/fichas/revisoes-vencidas?pagina=&tamanho=` (atuais com a revisão até hoje, da mais antiga; 20 por página, até 100) | ADMIN, INSTRUTOR |
 | `GET /api/fichas/me?pagina=&tamanho=` | ALUNO (as próprias, a atual primeiro; páginas como o histórico) |
-| `GET /api/auditoria?entidade=&entidadeId=&pagina=&tamanho=` (quem alterou planos, alunos, usuários, cobranças e fichas, e o valor anterior⁶) | ADMIN |
+| `GET /api/auditoria?entidade=&entidadeId=&pagina=&tamanho=` (quem alterou planos, alunos, usuários, matrículas, cobranças, caixa e fichas, e o valor anterior⁶) | ADMIN |
+| `GET /api/auditoria/acessos?tipo=&usuarioId=&alunoId=&conta=&pagina=&tamanho=` (quem abriu o cadastro de qual aluno, e os logins¹¹) | ADMIN |
 
 ¹ O instrutor recebe só nome, data de nascimento, observações e se está ativo,
 e busca apenas por nome.
@@ -231,7 +237,7 @@ a nova começa hoje. O início pode ser agendado para até 1 ano à frente.
 do fim de uma matrícula com fidelidade gera multa = percentual × meses inteiros que
 faltam × valor mensal; a troca não gera multa só se a multa que o plano novo cobraria
 (saindo logo depois da troca) for pelo menos a que a matrícula atual cobraria hoje.
-⁶ `entidade` é `PLANO`, `ALUNO`, `USUARIO`, `COBRANCA`, `CONFIGURACAO`, `EXERCICIO` ou `FICHA`. Cada registro traz quem fez (`autor`, o id
+⁶ `entidade` é `PLANO`, `ALUNO`, `USUARIO`, `MATRICULA`, `COBRANCA`, `CONFIGURACAO`, `CAIXA`, `EXERCICIO` ou `FICHA`. Cada registro traz quem fez (`autor`, o id
 do usuário; vazio quando foi o próprio sistema, como a recuperação de ADMIN pela linha
 de comando), quando, a ação e só os campos que mudaram (`antes` e `depois`), nunca
 senhas. A trilha é gravada na mesma transação da alteração, e o usuário da aplicação no
@@ -273,6 +279,18 @@ próprios dados (cadastro, matrículas, cobranças, fichas) e os planos, e troca
 senha; qualquer outra coisa que não seja consulta dá 403. Os tokens de antes da
 inativação caem na hora. Não ganha senha nova pela recepção nem login novo: para isso,
 reative o aluno. `/api/me` mostra `somenteLeitura`.
+¹⁰ Caixa do dia (ADR 0031): um por dia para a academia, no fuso de São Paulo. A recepção
+abre o de hoje com o troco da gaveta; sem caixa aberto, nenhum pagamento nem estorno entra
+(409), e o estorno sai do caixa do dia em que é feito. No fechamento, conta só o dinheiro: o
+esperado é troco + dinheiro recebido − dinheiro estornado, e uma diferença é aceita com
+justificativa escrita. Dia fechado não recebe até o ADMIN reabrir, com motivo; um dia
+passado reaberto só aceita nova contagem. Hoje só abre depois de fechar os anteriores. A
+recepção vê só o caixa de hoje e o dos dias abertos e, enquanto aberto, não vê o dinheiro
+nem o esperado (`dinheiroOculto`: contagem às cegas); o ADMIN vê tudo, e o relatório.
+¹¹ Registro de acessos (ADR 0031): cada vez que alguém da equipe abre o cadastro de um aluno
+(`CONSULTA_ALUNO`; buscas e listas não entram), cada login (`LOGIN`, `LOGIN_FALHO` com o
+e-mail digitado, `LOGIN_BLOQUEADO` pelo limite) e cada senha atual errada na troca
+(`TROCA_SENHA_FALHA`), com o IP. Fica 1 ano; o usuário da aplicação não apaga nem altera.
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
@@ -385,7 +403,7 @@ um token dele. É só para desenvolvimento: ele se recusa a rodar se o `.env` ti
 - [x] **5. Matrículas** — preço e regras do plano congelados na matrícula, períodos sem sobreposição garantidos pelo banco, fidelidade com multa, trancamento, troca de plano, visões do instrutor e do aluno
 - [x] **6. Cobrança** — mensalidades geradas pela matrícula (trancamento empurra, cancelamento cancela as futuras, multa vira cobrança), pagamento no balcão pelo valor exato, acréscimo com teto de 2% e juros editáveis, estorno e cancelamento pelo ADMIN, bloqueio do inadimplente no "pode treinar?"
 - [x] **7. Treinos** — catálogo de exercícios, ficha com divisões e uma atual por aluno (garantido pelo banco), correção com trilha, histórico imutável, revisões vencidas para os instrutores, visão do aluno
-- [ ] **8.** Fechamento de caixa e auditoria completa (a trilha de planos, alunos, usuários, cobranças e fichas já existe: ADRs 0021, 0024 e 0027)
+- [x] **8. Caixa e auditoria completa** — caixa do dia com troco, fechamento com contagem às cegas e justificativa, reabertura pelo ADMIN, relatório por forma; trilha das matrículas e do caixa; registro de consultas ao cadastro e de logins por 1 ano
 
 ## Autor
 
