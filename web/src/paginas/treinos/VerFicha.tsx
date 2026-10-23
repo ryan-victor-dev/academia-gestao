@@ -2,15 +2,15 @@ import { data, dataHora } from '../../formato';
 import type { Ficha } from './tipos';
 
 /** A ficha para ler: cada divisão com os exercícios. Usada pela equipe e pelo aluno. */
-export function VerFicha({ ficha }: { ficha: Ficha }) {
+export function VerFicha({ ficha, semCabecalho = false }: { ficha: Ficha; semCabecalho?: boolean }) {
   return (
     <div className="ficha">
-      <p className="suave">
+      {!semCabecalho && <p className="suave">
         Montada em {dataHora(ficha.montadaEm)}
         {ficha.corrigidaEm && ` · corrigida em ${dataHora(ficha.corrigidaEm)}`}
         {ficha.revisaoEm && ` · revisão em ${data(ficha.revisaoEm)}`}
         {ficha.encerradaEm && ` · encerrada em ${dataHora(ficha.encerradaEm)}`}
-      </p>
+      </p>}
       {ficha.revisaoVencida && <p className="aviso">A data de revisão chegou: a ficha continua valendo até a nova.</p>}
       {ficha.divisoes.map((divisao) => (
         <section key={divisao.nome} className="divisao">

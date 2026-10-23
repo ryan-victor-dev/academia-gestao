@@ -102,4 +102,12 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Página não encontrada' })).toBeInTheDocument();
     expect(fetch.mock.calls.map((c) => c[0]).filter((u) => u.startsWith('/api/alunos'))).toEqual([]);
   });
+
+  it('aluno abre no início dele (matrícula e pagamentos), e não nos atalhos da equipe', async () => {
+    comSessao(usuario({ perfil: 'ALUNO' }));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Minha matrícula' })).toBeInTheDocument();
+  });
 });

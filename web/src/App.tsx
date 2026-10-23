@@ -8,7 +8,11 @@ import { ListaDeAlunos } from './paginas/alunos/ListaDeAlunos';
 import { NovoAluno } from './paginas/alunos/NovoAluno';
 import { CaixaDoDia } from './paginas/caixa/CaixaDoDia';
 import { CobrancasAtrasadas } from './paginas/cobrancas/CobrancasAtrasadas';
+import { InicioDoAluno } from './paginas/aluno/InicioDoAluno';
+import { MeusPagamentos } from './paginas/aluno/MeusPagamentos';
+import { MeuTreino } from './paginas/aluno/MeuTreino';
 import { Inicio } from './paginas/Inicio';
+import { ListaDePlanos } from './paginas/planos/ListaDePlanos';
 import { CatalogoDeExercicios } from './paginas/treinos/CatalogoDeExercicios';
 import { RevisoesVencidas } from './paginas/treinos/RevisoesVencidas';
 import { NaoEncontrada } from './paginas/NaoEncontrada';
@@ -88,6 +92,9 @@ function AreaLogada({ aoSair, aoTrocarSenha }: { aoSair: () => void; aoTrocarSen
     '/cobrancas': <CobrancasAtrasadas />,
     '/caixa': <CaixaDoDia />,
     '/exercicios': <CatalogoDeExercicios />,
+    '/meu-treino': <MeuTreino />,
+    '/minhas-cobrancas': <MeusPagamentos />,
+    '/planos': <ListaDePlanos />,
     '/revisoes': <RevisoesVencidas />,
     '/senha': <TrocarSenha obrigatoria={false} aoTrocar={aoTrocarSenha} />,
   };
@@ -100,7 +107,7 @@ function AreaLogada({ aoSair, aoTrocarSenha }: { aoSair: () => void; aoTrocarSen
     <BrowserRouter>
       <Routes>
         <Route element={<Estrutura aoSair={aoSair} />}>
-          <Route index element={<Inicio />} />
+          <Route index element={usuario.perfil === 'ALUNO' ? <InicioDoAluno /> : <Inicio />} />
           {rotas.map((r) => <Route key={r.caminho} path={r.caminho.slice(1)} element={r.elemento} />)}
           <Route path="*" element={<NaoEncontrada />} />
         </Route>

@@ -271,3 +271,11 @@ label.curto { max-width: 280px; }
 
 details { margin: 8px 0; }
 summary { cursor: pointer; font-weight: 600; }
+
+/* Aluno no celular. */
+.abas { display: flex; gap: 8px; margin: 12px 0; overflow-x: auto; }
+.aba { min-width: 56px; font-size: 1.1rem; background: transparent; color: var(--destaque); }
+.aba.ativa { background: var(--destaque); color: var(--destaque-texto); }
+.valor { font-size: 1.4rem; font-weight: 700; margin: 8px 0 0; }
+.faixa-cartao { padding: 12px 16px; border: 1px solid var(--aviso); border-radius: 12px; background: var(--superficie); }
+.cartoes.planos { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
