@@ -40,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -288,8 +289,12 @@ class CaixaControllerTest {
         abrir("30", recepcao()).andExpect(status().isCreated());
         pagar(cobranca(), "DINHEIRO").andExpect(status().isOk());
 
+        // Sem o valor: com ele, a recepção descobriria o esperado e a contagem não seria às cegas.
+        fechar(dia, "0", null, recepcao()).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("justificativa")))
+                .andExpect(jsonPath("$.detail").value(not(containsString("130"))));
         fechar(dia, "120", null, recepcao()).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value(containsString("-10.00")));
+                .andExpect(jsonPath("$.detail").value(not(containsString("10"))));
         fechar(dia, "120", "   ", recepcao()).andExpect(status().isBadRequest());
         assertThat(jdbc.queryForObject("SELECT situacao FROM caixas WHERE dia = ?", String.class, dia)).isEqualTo("ABERTO");
 

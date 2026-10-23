@@ -81,10 +81,13 @@ class CaixaTest {
     void diferencaExigeJustificativa() {
         Caixa caixa = aberto("50");
 
+        // A mensagem não diz a diferença nem o esperado: a contagem é às cegas (diagnóstico M2).
         assertThatThrownBy(() -> fechar(caixa, "140", "100", "0", null))
-                .isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("-10.00");
+                .isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("justificativa")
+                .hasMessageNotContaining("10").hasMessageNotContaining("150");
         assertThatThrownBy(() -> fechar(caixa, "160", "100", "0", "  "))
-                .isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("10.00");
+                .isInstanceOf(CobrancaInvalidaException.class).hasMessageNotContaining("10")
+                .hasMessageNotContaining("150");
         // Recusado: continua aberto.
         assertThat(caixa.getSituacao()).isEqualTo(Caixa.Situacao.ABERTO);
 

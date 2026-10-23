@@ -103,9 +103,10 @@ public class Caixa {
         if (texto.length() > TAMANHO_MAXIMO_TEXTO) {
             throw new CobrancaInvalidaException("a justificativa pode ter até " + TAMANHO_MAXIMO_TEXTO + " caracteres");
         }
+        // Sem o valor na mensagem: com ele, quem conta descobriria o esperado (esperado = contado −
+        // diferença) com um fechamento de propósito errado, e a contagem às cegas não valeria.
         if (diferenca.signum() != 0 && texto.isEmpty()) {
-            throw new CobrancaInvalidaException("o contado difere do esperado em " + diferenca
-                    + ": escreva uma justificativa");
+            throw new CobrancaInvalidaException("o contado difere do esperado: escreva uma justificativa");
         }
         this.situacao = Situacao.FECHADO;
         return new Fechamento(UUID.randomUUID(), id, contado.setScale(2), esperado, diferenca,
