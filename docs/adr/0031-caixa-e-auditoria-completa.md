@@ -1,6 +1,6 @@
 # ADR 0031 — Caixa do dia e auditoria completa
 
-- **Status:** Aceito
+- **Status:** Aceito; completado pelo [ADR 0032](0032-pendencias-medias-da-etapa-8.md)
 - **Data:** 2026-10-23
 
 ## Contexto

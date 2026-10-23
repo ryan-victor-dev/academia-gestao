@@ -93,6 +93,7 @@ As decisões de arquitetura e seus motivos estão registradas em
 | [0029](docs/adr/0029-login-do-aluno-inativo-so-de-leitura.md) | Login do aluno inativo, só de leitura: vê os próprios dados, não altera nada |
 | [0030](docs/adr/0030-arquitetura-das-matriculas.md) | Arquitetura das matrículas: entidade só do próprio módulo, condições do plano num lugar só, trancamentos em lote |
 | [0031](docs/adr/0031-caixa-e-auditoria-completa.md) | Caixa do dia (abertura com troco, fechamento com contagem e justificativa) e auditoria completa |
+| [0032](docs/adr/0032-pendencias-medias-da-etapa-8.md) | Pendências médias da etapa 8: lista de alunos resumida, esperado sem vazar, bloqueio uma vez por janela |
 
 ## Como rodar
 
@@ -179,8 +180,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `PUT /api/usuarios/{id}` (nome e perfil; mudar o perfil derruba as sessões da pessoa) | ADMIN |
 | `POST /api/usuarios/{id}/desativar`, `/reativar` | ADMIN |
 | `POST /api/usuarios/{id}/nova-senha` (senha temporária; nunca para um ADMIN) | ADMIN |
-| `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` | ADMIN, RECEPCAO, INSTRUTOR¹ |
-| `GET /api/alunos/{id}` | ADMIN, RECEPCAO, INSTRUTOR¹ |
+| `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` (só o resumo: id, nome, data de nascimento e se está ativo¹¹) | ADMIN, RECEPCAO, INSTRUTOR¹ |
+| `GET /api/alunos/{id}` (o cadastro; cada abertura vai para o registro de acessos¹¹) | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `POST /api/alunos` | ADMIN, RECEPCAO |
 | `PUT /api/alunos/{id}` (exige `If-Match`²) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/inativar`, `/reativar` (inativar deixa o login só de leitura⁹, reativar o libera; inativar com matrícula vigente ou agendada dá 409) | ADMIN, RECEPCAO |
@@ -219,8 +220,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/auditoria?entidade=&entidadeId=&pagina=&tamanho=` (quem alterou planos, alunos, usuários, matrículas, cobranças, caixa e fichas, e o valor anterior⁶) | ADMIN |
 | `GET /api/auditoria/acessos?tipo=&usuarioId=&alunoId=&conta=&pagina=&tamanho=` (quem abriu o cadastro de qual aluno, e os logins¹¹) | ADMIN |
 
-¹ O instrutor recebe só nome, data de nascimento, observações e se está ativo,
-e busca apenas por nome.
+¹ No cadastro aberto, o instrutor recebe só nome, data de nascimento, observações e se está
+ativo, e busca apenas por nome (a recepção e o ADMIN buscam também por CPF).
 ² O `GET` devolve `ETag: "<versão>"`; o `PUT` precisa mandar
 `If-Match: "<versão>"`, para nenhuma edição apagar outra feita no meio tempo.
 ³ O aluno vê só os planos ativos, sem `ativo` e `criadoEm`. Reajustar o valor de
@@ -290,7 +291,9 @@ nem o esperado (`dinheiroOculto`: contagem às cegas); o ADMIN vê tudo, e o rel
 ¹¹ Registro de acessos (ADR 0031): cada vez que alguém da equipe abre o cadastro de um aluno
 (`CONSULTA_ALUNO`; buscas e listas não entram), cada login (`LOGIN`, `LOGIN_FALHO` com o
 e-mail digitado, `LOGIN_BLOQUEADO` pelo limite) e cada senha atual errada na troca
-(`TROCA_SENHA_FALHA`), com o IP. Fica 1 ano; o usuário da aplicação não apaga nem altera.
+(`TROCA_SENHA_FALHA`), com o IP. O bloqueio entra uma vez por conta e IP a cada 15 minutos,
+e não uma vez por tentativa. Fica 1 ano; o usuário da aplicação não apaga nem altera. Por
+isso a lista de alunos traz só o resumo: os dados pessoais saem só pelo cadastro aberto (ADR 0032).
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.

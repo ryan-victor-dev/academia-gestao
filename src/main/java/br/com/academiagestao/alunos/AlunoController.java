@@ -63,22 +63,22 @@ class AlunoController {
     /**
      * Lista paginada, em ordem de nome. Por padrão só alunos ativos.
      * Ex.: GET /api/alunos?busca=ana&pagina=0&tamanho=20
+     * Só o resumo, para todos os perfis: os dados pessoais (CPF, e-mail, telefone, observações)
+     * saem só pelo cadastro aberto, que vai para o registro de acessos. Com eles na lista, quem
+     * quisesse ler cadastros sem deixar rastro usaria a busca (diagnóstico da etapa 8, M1).
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'INSTRUTOR')")
-    Pagina<? extends VisaoDoAluno> listar(
+    Pagina<AlunoNaLista> listar(
             Authentication autenticacao,
             @RequestParam(required = false) String busca,
             @RequestParam(defaultValue = "false") boolean incluirInativos,
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
             @RequestParam(defaultValue = "20") @Min(value = 1, message = "deve ser pelo menos {value}")
             @Max(value = 100, message = "pode ser no máximo {value}") int tamanho) {
-        if (ehInstrutor(autenticacao)) {
-            // Sem busca por CPF: pelo resultado, o instrutor descobriria de quem é cada CPF.
-            return Pagina.de(service.listar(busca, incluirInativos, false, pagina, tamanho),
-                    AlunoParaInstrutor::de);
-        }
-        return Pagina.de(service.listar(busca, incluirInativos, true, pagina, tamanho), AlunoResponse::de);
+        // Sem busca por CPF para o instrutor: pelo resultado, ele descobriria de quem é cada CPF.
+        return Pagina.de(service.listar(busca, incluirInativos, !ehInstrutor(autenticacao), pagina, tamanho),
+                AlunoNaLista::de);
     }
 
     /**
@@ -187,6 +187,14 @@ class AlunoController {
 
         DadosAluno paraDados() {
             return new DadosAluno(nome, cpf, email, telefone, dataNascimento, observacoes);
+        }
+    }
+
+    /** Um aluno na lista ou na busca: o suficiente para achar e abrir o cadastro. */
+    record AlunoNaLista(UUID id, String nome, LocalDate dataNascimento, boolean ativo) {
+
+        static AlunoNaLista de(Aluno a) {
+            return new AlunoNaLista(a.getId(), a.getNome(), a.getDataNascimento(), a.isAtivo());
         }
     }
 
