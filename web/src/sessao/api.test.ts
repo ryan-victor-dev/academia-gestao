@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { chamar, entrar, ErroDaApi, renovar, sair, trocarSenha } from './api';
+import { chamar, chamarComVersao, entrar, ErroDaApi, renovar, sair, trocarSenha } from './api';
 
 type Chamada = { url: string; init: RequestInit };
 
@@ -95,7 +95,7 @@ describe('sessão', () => {
   });
 
   it('erro da API chega com a mensagem e os campos do ProblemDetail', async () => {
-    servidor(token('t1'), json(400, { detail: 'Dados inválidos', erros: { cpf: 'inválido' } }));
+    servidor(token('t1'), json(400, { detail: 'Dados inválidos', erros: [{ campo: 'cpf', mensagem: 'inválido' }] }));
     await entrar('ana@academia.com', 'senha');
 
     await expect(chamar('/api/alunos', { metodo: 'POST', corpo: {} }))
@@ -117,5 +117,17 @@ describe('sessão', () => {
 
     expect(autorizacao(chamadas[1])).toBe('Bearer temporario');
     expect(autorizacao(chamadas[2])).toBe('Bearer definitivo');
+  });
+
+  it('versão: lê o ETag e manda no If-Match', async () => {
+    const chamadas = servidor(token('t1'),
+      new Response('{"nome":"Ana"}', { status: 200, headers: { ETag: '"3"' } }), json(200, {}));
+    await entrar('ana@academia.com', 'senha');
+
+    const { dados, versao } = await chamarComVersao<{ nome: string }>('/api/alunos/1');
+    await chamar('/api/alunos/1', { metodo: 'PUT', corpo: dados, versao: versao! });
+
+    expect(versao).toBe('"3"');
+    expect(new Headers(chamadas[2].init.headers).get('If-Match')).toBe('"3"');
   });
 });

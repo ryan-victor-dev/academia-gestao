@@ -3,9 +3,12 @@ import { BrowserRouter, Route, Routes } from 'react-router';
 import { Estrutura } from './estrutura/Estrutura';
 import { menuDo } from './estrutura/menu';
 import { EmBreve } from './paginas/EmBreve';
+import { CadastroDoAluno } from './paginas/alunos/CadastroDoAluno';
+import { ListaDeAlunos } from './paginas/alunos/ListaDeAlunos';
+import { NovoAluno } from './paginas/alunos/NovoAluno';
 import { Inicio } from './paginas/Inicio';
 import { NaoEncontrada } from './paginas/NaoEncontrada';
-import { chamar, renovar, sair, type Usuario } from './sessao/api';
+import { chamar, renovar, sair, type Perfil, type Usuario } from './sessao/api';
 import { ContextoDoUsuario, useUsuario } from './sessao/contexto';
 import { TelaDeLogin } from './sessao/TelaDeLogin';
 import { TrocarSenha } from './sessao/TrocarSenha';
@@ -67,21 +70,30 @@ export function App() {
   }
 }
 
-/** Só as rotas do menu do perfil existem: endereço de outro perfil cai em "não encontrada". */
+/** Telas além das do menu, cada uma só para os perfis que a API deixa usar. */
+const SUBROTAS: Array<{ caminho: string; perfis: Perfil[]; elemento: ReactNode }> = [
+  { caminho: '/alunos/novo', perfis: ['ADMIN', 'RECEPCAO'], elemento: <NovoAluno /> },
+  { caminho: '/alunos/:id', perfis: ['ADMIN', 'RECEPCAO', 'INSTRUTOR'], elemento: <CadastroDoAluno /> },
+];
+
+/** Só as rotas do perfil existem: endereço de outro perfil cai em "não encontrada". */
 function AreaLogada({ aoSair, aoTrocarSenha }: { aoSair: () => void; aoTrocarSenha: () => void }) {
   const usuario = useUsuario();
   const prontas: Record<string, ReactNode> = {
+    '/alunos': <ListaDeAlunos />,
     '/senha': <TrocarSenha obrigatoria={false} aoTrocar={aoTrocarSenha} />,
   };
+  const rotas = [
+    ...menuDo(usuario.perfil).filter((item) => item.caminho !== '/')
+      .map((item) => ({ caminho: item.caminho, elemento: prontas[item.caminho] ?? <EmBreve titulo={item.rotulo} /> })),
+    ...SUBROTAS.filter((r) => r.perfis.includes(usuario.perfil)),
+  ];
   return (
     <BrowserRouter>
       <Routes>
         <Route element={<Estrutura aoSair={aoSair} />}>
           <Route index element={<Inicio />} />
-          {menuDo(usuario.perfil).filter((item) => item.caminho !== '/').map((item) => (
-            <Route key={item.caminho} path={item.caminho.slice(1)}
-                   element={prontas[item.caminho] ?? <EmBreve titulo={item.rotulo} />} />
-          ))}
+          {rotas.map((r) => <Route key={r.caminho} path={r.caminho.slice(1)} element={r.elemento} />)}
           <Route path="*" element={<NaoEncontrada />} />
         </Route>
       </Routes>

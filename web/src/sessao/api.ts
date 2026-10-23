@@ -43,7 +43,10 @@ let renovacaoEmAndamento: Promise<boolean> | null = null;
 async function erroDe(resposta: Response): Promise<ErroDaApi> {
   try {
     const problema = await resposta.json();
-    return new ErroDaApi(resposta.status, problema.detail ?? problema.title ?? 'Erro inesperado.', problema.erros);
+    // Erros de validação vêm como [{campo, mensagem}]; viram {campo: mensagem}.
+    const erros = Object.fromEntries(
+      ((problema.erros ?? []) as Array<{ campo: string; mensagem: string }>).map((e) => [e.campo, e.mensagem]));
+    return new ErroDaApi(resposta.status, problema.detail ?? problema.title ?? 'Erro inesperado.', erros);
   } catch {
     return new ErroDaApi(resposta.status, 'Erro inesperado.');
   }
@@ -113,11 +116,18 @@ export async function sair(): Promise<void> {
   }
 }
 
+export interface Opcoes {
+  metodo?: string;
+  corpo?: unknown;
+  /** A versão lida (ETag), mandada no If-Match: se outra pessoa alterou antes, a API dá 412. */
+  versao?: string;
+}
+
 /**
  * Chama a API com o token. Se ele venceu (401), renova uma vez e repete: o 401 vem do filtro
  * de segurança, antes de a rota fazer qualquer coisa, então repetir é seguro mesmo num POST.
  */
-export async function chamar<T>(caminho: string, opcoes: { metodo?: string; corpo?: unknown } = {}): Promise<T> {
+async function requisitar(caminho: string, opcoes: Opcoes): Promise<Response> {
   if (token === null && !(await renovar())) {
     throw new ErroDaApi(401, 'Sessão encerrada: entre de novo.');
   }
@@ -127,6 +137,7 @@ export async function chamar<T>(caminho: string, opcoes: { metodo?: string; corp
       headers: {
         Authorization: `Bearer ${token}`,
         ...(opcoes.corpo === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(opcoes.versao === undefined ? {} : { 'If-Match': opcoes.versao }),
       },
       body: opcoes.corpo === undefined ? undefined : JSON.stringify(opcoes.corpo),
     });
@@ -141,7 +152,18 @@ export async function chamar<T>(caminho: string, opcoes: { metodo?: string; corp
   if (!resposta.ok) {
     throw await erroDe(resposta);
   }
+  return resposta;
+}
+
+export async function chamar<T>(caminho: string, opcoes: Opcoes = {}): Promise<T> {
+  const resposta = await requisitar(caminho, opcoes);
   return (resposta.status === 204 ? undefined : await resposta.json()) as T;
+}
+
+/** Como {@link chamar}, devolvendo também a versão (ETag) para uma alteração depois. */
+export async function chamarComVersao<T>(caminho: string, opcoes: Opcoes = {}): Promise<{ dados: T; versao: string | null }> {
+  const resposta = await requisitar(caminho, opcoes);
+  return { dados: (await resposta.json()) as T, versao: resposta.headers.get('ETag') };
 }
 
 /** Só para os testes: volta ao estado de página recém-aberta. */

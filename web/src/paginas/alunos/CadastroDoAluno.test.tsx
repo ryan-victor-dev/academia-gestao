@@ -1,0 +1,111 @@
+import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it } from 'vitest';
+import { apiFalsa, json, renderizar } from '../../testes/ajudantes';
+import { CadastroDoAluno } from './CadastroDoAluno';
+
+const ID = '00000000-0000-0000-0000-0000000000a1';
+const ana = { id: ID, nome: 'Ana Souza', cpf: '12345678909', email: 'ana@x.com', telefone: null,
+  dataNascimento: '1990-05-02', observacoes: 'Lesão no joelho', ativo: true, criadoEm: '2026-10-01T12:00:00Z' };
+const base = {
+  'GET /api/alunos/00000000-0000-0000-0000-0000000000a1': json(200, ana, { ETag: '"4"' }),
+  'GET /api/matriculas/vigente': json(200, { alunoId: 'a1', podeTreinar: true }),
+  'GET /api/matriculas': json(200, []),
+  'GET /api/planos': json(200, []),
+};
+const abrir = (perfil: 'RECEPCAO' | 'INSTRUTOR' | 'ADMIN' = 'RECEPCAO') =>
+  renderizar(<CadastroDoAluno />, { perfil, rota: '/alunos/:id', endereco: '/alunos/00000000-0000-0000-0000-0000000000a1' });
+
+describe('cadastro do aluno', () => {
+  it('recepção vê tudo, com o CPF formatado e se pode treinar', async () => {
+    apiFalsa(base);
+    abrir();
+
+    expect(await screen.findByRole('heading', { name: 'Ana Souza' })).toBeInTheDocument();
+    expect(screen.getByText('123.456.789-09')).toBeInTheDocument();
+    expect(screen.getByText('Pode treinar')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Matrículas' })).toBeInTheDocument();
+  });
+
+  it('não pode treinar: avisa', async () => {
+    apiFalsa({ ...base, 'GET /api/matriculas/vigente': json(200, { alunoId: 'a1', podeTreinar: false }) });
+    abrir();
+
+    expect(await screen.findByText('Não pode treinar')).toBeInTheDocument();
+  });
+
+  it('editar manda a versão lida e campo vazio como null', async () => {
+    const api = apiFalsa({ ...base, 'PUT /api/alunos/00000000-0000-0000-0000-0000000000a1': json(200, { ...ana, email: null }, { ETag: '"5"' }) });
+    abrir();
+    await userEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+
+    await userEvent.clear(screen.getByLabelText('E-mail'));
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    const put = api.de('PUT /api/alunos/00000000-0000-0000-0000-0000000000a1')[0];
+    expect(put.cabecalhos.get('If-Match')).toBe('"4"');
+    expect(put.corpo).toMatchObject({ nome: 'Ana Souza', email: null, telefone: null, observacoes: 'Lesão no joelho' });
+    expect(await screen.findByRole('button', { name: 'Editar' })).toBeInTheDocument();
+  });
+
+  it('outra pessoa alterou antes (412): explica o que fazer', async () => {
+    apiFalsa({ ...base, 'PUT /api/alunos/00000000-0000-0000-0000-0000000000a1': json(412, { detail: 'versão desatualizada' }) });
+    abrir();
+    await userEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Outra pessoa alterou este cadastro');
+  });
+
+  it('erro de campo aparece com o nome do campo', async () => {
+    apiFalsa({ ...base, 'PUT /api/alunos/00000000-0000-0000-0000-0000000000a1': json(400, { detail: 'Um ou mais campos estão inválidos.',
+      erros: [{ campo: 'cpf', mensagem: 'CPF inválido' }] }) });
+    abrir();
+    await userEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(await screen.findByText('CPF: CPF inválido')).toBeInTheDocument();
+  });
+
+  it('inativar recusado (matrícula vigente): mostra o motivo da API', async () => {
+    apiFalsa({ ...base, 'POST /api/alunos/00000000-0000-0000-0000-0000000000a1/inativar': json(409, { detail: 'o aluno tem matrícula vigente' }) });
+    abrir();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Inativar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('o aluno tem matrícula vigente');
+  });
+
+  it('inativar troca para reativar', async () => {
+    apiFalsa({ ...base, 'POST /api/alunos/00000000-0000-0000-0000-0000000000a1/inativar': json(200, { ...ana, ativo: false }, { ETag: '"5"' }) });
+    abrir();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Inativar' }));
+
+    expect(await screen.findByRole('button', { name: 'Reativar' })).toBeInTheDocument();
+    expect(screen.getByText('Inativo')).toBeInTheDocument();
+  });
+
+  it('professor: sem CPF, contato, edição, matrículas nem acesso', async () => {
+    const { cpf: _c, email: _e, telefone: _t, criadoEm: _d, ...paraInstrutor } = ana;
+    apiFalsa({ ...base, 'GET /api/alunos/00000000-0000-0000-0000-0000000000a1': json(200, paraInstrutor) });
+    abrir('INSTRUTOR');
+
+    expect(await screen.findByText('Lesão no joelho')).toBeInTheDocument();
+    expect(screen.queryByText('CPF')).not.toBeInTheDocument();
+    expect(screen.queryByText('E-mail')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Matrículas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Acesso ao app' })).not.toBeInTheDocument();
+  });
+
+  it('id que não é de aluno (ex.: /alunos/novo do professor): não encontrada, sem chamar a API', async () => {
+    const api = apiFalsa({});
+    renderizar(<CadastroDoAluno />, { perfil: 'INSTRUTOR', rota: '/alunos/:id', endereco: '/alunos/novo' });
+
+    expect(await screen.findByRole('heading', { name: 'Página não encontrada' })).toBeInTheDocument();
+    expect(api.pedidos).toHaveLength(0);
+  });
+});

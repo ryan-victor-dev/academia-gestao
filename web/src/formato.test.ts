@@ -1,0 +1,29 @@
+import { describe, expect, it } from 'vitest';
+import { cpf, data, dataHora, dinheiro, telefone } from './formato';
+
+describe('formatos', () => {
+  it('data pura não muda de dia por causa do fuso', () => {
+    expect(data('2026-01-01')).toBe('01/01/2026');
+    expect(data(null)).toBe('—');
+  });
+
+  it('instante aparece no fuso da academia', () => {
+    // 02:30 em UTC é 23:30 do dia anterior em São Paulo.
+    expect(dataHora('2026-10-24T02:30:00Z')).toBe('23/10/2026, 23:30');
+  });
+
+  it('dinheiro em reais', () => {
+    expect(dinheiro(99.9).replace(/\s/g, ' ')).toBe('R$ 99,90');
+    expect(dinheiro('1234.5').replace(/\s/g, ' ')).toBe('R$ 1.234,50');
+  });
+
+  it('CPF com pontuação', () => {
+    expect(cpf('12345678909')).toBe('123.456.789-09');
+  });
+
+  it('telefone com DDD, celular e fixo', () => {
+    expect(telefone('11999990000')).toBe('(11) 99999-0000');
+    expect(telefone('1133334444')).toBe('(11) 3333-4444');
+    expect(telefone(null)).toBe('—');
+  });
+});

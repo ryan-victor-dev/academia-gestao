@@ -92,4 +92,14 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Trocar minha senha' })).toBeInTheDocument();
   });
+
+  it('aluno no endereço do cadastro de um aluno: não encontrada, sem chamar a API dos alunos', async () => {
+    window.history.pushState({}, '', '/alunos/00000000-0000-0000-0000-000000000001');
+    const fetch = comSessao(usuario({ perfil: 'ALUNO' }));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Página não encontrada' })).toBeInTheDocument();
+    expect(fetch.mock.calls.map((c) => c[0]).filter((u) => u.startsWith('/api/alunos'))).toEqual([]);
+  });
 });
