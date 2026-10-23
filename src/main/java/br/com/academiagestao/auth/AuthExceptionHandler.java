@@ -25,6 +25,17 @@ class AuthExceptionHandler {
         return problema;
     }
 
+    // Mesma resposta para qualquer motivo, e o cookie da sessão apagado do navegador.
+    @ExceptionHandler(SessaoInvalidaException.class)
+    ResponseEntity<ProblemDetail> sessaoInvalida() {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, "Sessão encerrada ou vencida: entre de novo.");
+        problema.setTitle("Sessão inválida");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.SET_COOKIE, AuthController.cookieApagado().toString())
+                .body(problema);
+    }
+
     // 429 com Retry-After: o cliente sabe quantos segundos esperar.
     @ExceptionHandler(MuitasTentativasException.class)
     ResponseEntity<ProblemDetail> muitasTentativas(MuitasTentativasException e) {

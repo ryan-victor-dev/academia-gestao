@@ -8,7 +8,8 @@
 # Uso:  scripts/usuario-validacao.sh PERFIL [aluno_id]
 #       PERFIL: ADMIN, RECEPCAO, INSTRUTOR ou ALUNO (ALUNO exige o id de um aluno)
 # Variáveis opcionais: PG_CONTAINER (padrão academia-postgres),
-#                      BASE_URL (padrão https://localhost:<HTTPS_PORTA do .env>)
+#                      BASE_URL (padrão https://localhost:<HTTPS_PORTA do .env>),
+#                      COOKIE_JAR (arquivo onde guardar o cookie da sessão renovável, ADR 0033)
 # Se o usuário já existe, ganha senha nova e o token anterior deixa de valer. Ele não é
 # apagado e recriado: quem já registrou algo (matrícula, pagamento) é referenciado por
 # chave estrangeira, e o DELETE falharia.
@@ -50,7 +51,7 @@ docker exec "$PG" psql -U academia -d academia -v ON_ERROR_STOP=1 -q \
         aluno_id = EXCLUDED.aluno_id, ativo = true, precisa_trocar_senha = false,
         versao_token = usuarios.versao_token + 1" >&2
 
-TOKEN=$(curl -sk -X POST "$URL/api/auth/login" -H 'Content-Type: application/json' \
+TOKEN=$(curl -sk ${COOKIE_JAR:+-c "$COOKIE_JAR"} -X POST "$URL/api/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"senha\":\"$SENHA\"}" | python3 -I -c 'import sys,json; print(json.load(sys.stdin).get("token",""))')
 [ -n "$TOKEN" ] || { echo "Não consegui obter o token de $PERFIL (limite de login? aplicação no ar?)" >&2; exit 1; }
 echo "$TOKEN"

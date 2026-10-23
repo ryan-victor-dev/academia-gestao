@@ -129,7 +129,7 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   (`Propagation.NEVER`): chamá-lo de dentro de uma dá `IllegalTransactionStateException`. A
   consulta ao cadastro grava o `subject` do token como UUID: token simulado (`jwt()`) que
   abre `GET /api/alunos/{id}` precisa de `.jwt(j -> j.subject(UUID...))`.
-- O usuário da aplicação só tem DELETE em `tentativas_login`, `ficha_divisoes` e
+- O usuário da aplicação só tem DELETE em `tentativas_login`, `sessoes`, `ficha_divisoes` e
   `ficha_exercicios` (o `UsuarioDaAplicacaoNoBancoTest` confere a lista): tabela nova nasce com
   DELETE e o teste falha até você decidir. Os testes conectam como dono do banco, então um
   DELETE que a aplicação precise e não tenha só aparece no Docker ou no e2e.
@@ -140,6 +140,6 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029 e 0031 (registro de acessos); dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029, 0031 (registro de acessos) e 0033 (sessão renovável); dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.

@@ -145,8 +145,9 @@ class UsuarioDaAplicacaoNoBancoTest {
 
     /**
      * Toda tabela nasce com DELETE para a aplicação (GRANT ... ON ALL TABLES). Só estas
-     * precisam dele: os contadores do limite de login (limpos a cada minuto) e as divisões e os
-     * exercícios da ficha atual (a correção troca os filhos). Uma tabela nova que apareça aqui
+     * precisam dele: os contadores do limite de login (limpos a cada minuto), as sessões vencidas
+     * (limpas a cada hora, ADR 0033) e as divisões e os exercícios da ficha atual (a correção
+     * troca os filhos). Uma tabela nova que apareça aqui
      * pede a decisão: a aplicação apaga dela? Se não, REVOKE no UsuarioDaAplicacaoNoBanco.
      */
     @Test
@@ -154,7 +155,7 @@ class UsuarioDaAplicacaoNoBancoTest {
         List<String> comDelete = jdbc.queryForList("""
                 SELECT table_name FROM information_schema.role_table_grants
                 WHERE grantee = 'academia_app' AND privilege_type = 'DELETE' ORDER BY 1""", String.class);
-        assertThat(comDelete).containsExactly("ficha_divisoes", "ficha_exercicios", "tentativas_login");
+        assertThat(comDelete).containsExactly("ficha_divisoes", "ficha_exercicios", "sessoes", "tentativas_login");
     }
 
     /** O registro de acessos só cresce; o vencido sai pela função do dono (V38, ADR 0031). */

@@ -1,6 +1,7 @@
 package br.com.academiagestao.auth;
 
 import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -29,6 +30,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
@@ -82,6 +84,8 @@ class SegurancaConfig {
                 .sessionManagement(sessao -> sessao.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(regras -> regras
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // Sessão renovável (ADR 0033): quem chega aqui é quem tem o token vencido.
+                        .requestMatchers(HttpMethod.POST, "/api/auth/renovar", "/api/auth/sair").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         // Deixa o Spring montar a página de erro de uma rota já autorizada.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
@@ -95,6 +99,7 @@ class SegurancaConfig {
                                         AuthorityAuthorizationManager.hasAuthority(SENHA_TEMPORARIA)),
                                 SO_CONSULTA_SE_SOMENTE_LEITURA)))
                 .oauth2ResourceServer(rs -> rs
+                        .bearerTokenResolver(SegurancaConfig::tokenForaDasRotasDeSessao)
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
@@ -115,6 +120,20 @@ class SegurancaConfig {
                 .formLogin(form -> form.disable())
                 .logout(logout -> logout.disable())
                 .build();
+    }
+
+    private static final DefaultBearerTokenResolver TOKEN_DO_CABECALHO = new DefaultBearerTokenResolver();
+
+    /**
+     * Renovar e sair (ADR 0033) se identificam pelo cookie, e quem chega lá costuma ter o token
+     * vencido: se ele viesse no cabeçalho, o filtro recusaria (401) antes de a rota ler o cookie.
+     */
+    static String tokenForaDasRotasDeSessao(HttpServletRequest requisicao) {
+        String caminho = requisicao.getRequestURI().substring(requisicao.getContextPath().length());
+        if (caminho.equals("/api/auth/renovar") || caminho.equals("/api/auth/sair")) {
+            return null;
+        }
+        return TOKEN_DO_CABECALHO.resolve(requisicao);
     }
 
     /*

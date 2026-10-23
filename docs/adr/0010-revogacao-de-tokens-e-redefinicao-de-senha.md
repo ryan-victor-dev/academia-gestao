@@ -1,6 +1,7 @@
 # ADR 0010 — Revogação imediata de tokens e redefinição de senha
 
-- **Status:** Aceito (atualiza o ADR 0007)
+- **Status:** Aceito (atualiza o ADR 0007); o refresh token das alternativas veio no
+  [ADR 0033](0033-front-end-e-sessao-renovavel.md)
 - **Data:** 2026-10-16
 
 ## Contexto

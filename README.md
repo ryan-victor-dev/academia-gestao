@@ -160,7 +160,8 @@ mudar `ADMIN_SENHA` depois disso não altera a senha já gravada.
 
 ```bash
 # Na própria máquina (porta interna 8090). De fora, use https://<DOMINIO>.
-# Login: devolve {"token": "...", "tipo": "Bearer", "expiraEm": "..."}
+# Login: devolve {"token": "...", "tipo": "Bearer", "expiraEm": "...", "sessaoExpiraEm": "..."}
+# e o cookie da sessão renovável (o navegador guarda; o curl pode ignorar).
 curl -X POST http://localhost:8090/api/auth/login \
      -H 'Content-Type: application/json' \
      -d '{"email": "admin@academia.local", "senha": "<ADMIN_SENHA>"}'
@@ -173,6 +174,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 |---|---|
 | `POST /api/auth/login` | Público |
 | `POST /api/auth/trocar-senha` | Qualquer usuário logado (inclusive com senha temporária) |
+| `POST /api/auth/renovar` (cookie da sessão → token novo) | Público (exige o cookie) |
+| `POST /api/auth/sair` (encerra a sessão do cookie) | Público |
 | `GET /actuator/health` | Público |
 | `GET /api/me` | Qualquer perfil logado |
 | `GET /api/usuarios` | ADMIN |
@@ -303,6 +306,14 @@ sistema nunca deixa a academia sem pelo menos um ADMIN ativo.
 
 Desativar, reativar, mudar o perfil, trocar ou redefinir a senha de um usuário
 invalida na hora todos os tokens que ele já tinha: é preciso entrar de novo.
+
+O token vale 15 minutos. Além dele, o login abre uma **sessão** (ADR 0033): um cookie
+`HttpOnly` que só vai para `/api/auth` e troca o token vencido por um novo em
+`POST /api/auth/renovar`, até 12 horas depois do login para a equipe e 30 dias para o aluno.
+A cada renovação o segredo do cookie muda; usar de novo um segredo já trocado (fora de uma
+folga de 30 s, para duas abas abertas) encerra a sessão. As mesmas mudanças acima (desativar,
+trocar ou redefinir a senha...) também encerram as sessões: para o aluno que perdeu o
+celular, basta redefinir a senha dele.
 
 Erros saem em `application/problem+json` (RFC 9457): 400 para dados inválidos
 (com a lista de campos em `erros`), 401 para token ausente, inválido ou

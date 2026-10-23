@@ -55,3 +55,7 @@ academia:
     # Chave HMAC em Base64, com pelo menos 32 bytes. Sem ela a aplicação não sobe.
     segredo: ${JWT_SEGREDO:}
     expiracao: ${JWT_EXPIRACAO:15m}
+  # Sessão renovável (ADR 0033), contada do login: um turno para a equipe, 30 dias para o aluno.
+  sessao:
+    duracao-equipe: 12h
+    duracao-aluno: 30d

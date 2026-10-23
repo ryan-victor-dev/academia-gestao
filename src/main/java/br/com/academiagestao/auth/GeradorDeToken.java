@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.UUID;
 
 @Component
 class GeradorDeToken {
@@ -24,8 +25,16 @@ class GeradorDeToken {
     }
 
     TokenEmitido gerar(Usuario usuario) {
+        return gerar(usuario, Instant.MAX);
+    }
+
+    /** Como {@link #gerar(Usuario)}, sem passar do {@code teto} (o fim da sessão, ADR 0033). */
+    TokenEmitido gerar(Usuario usuario, Instant teto) {
         Instant agora = relogio.instant();
         Instant expiraEm = agora.plus(properties.expiracao());
+        if (expiraEm.isAfter(teto)) {
+            expiraEm = teto;
+        }
 
         // "sub" leva o id, e não o e-mail: o id nunca muda e não é dado pessoal.
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
@@ -49,9 +58,9 @@ class GeradorDeToken {
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
 
         String token = encoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
-        return new TokenEmitido(token, expiraEm, usuario.isPrecisaTrocarSenha());
+        return new TokenEmitido(token, expiraEm, usuario.isPrecisaTrocarSenha(), usuario.getId());
     }
 
-    record TokenEmitido(String token, Instant expiraEm, boolean precisaTrocarSenha) {
+    record TokenEmitido(String token, Instant expiraEm, boolean precisaTrocarSenha, UUID usuarioId) {
     }
 }

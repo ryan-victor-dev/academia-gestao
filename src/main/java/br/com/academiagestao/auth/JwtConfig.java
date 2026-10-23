@@ -12,7 +12,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.util.Base64;
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, SessaoProperties.class})
 class JwtConfig {
 
     // HS256 exige uma chave de pelo menos 256 bits (32 bytes).

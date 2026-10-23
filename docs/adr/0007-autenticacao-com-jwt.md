@@ -1,7 +1,8 @@
 # ADR 0007 — Autenticação stateless com JWT (HS256) e perfis
 
 - **Status:** Aceito, atualizado pelo [ADR 0010](0010-revogacao-de-tokens-e-redefinicao-de-senha.md)
-  (tokens passaram a ser conferidos no banco para poderem ser revogados na hora)
+  (tokens passaram a ser conferidos no banco para poderem ser revogados na hora) e pelo
+  [ADR 0033](0033-front-end-e-sessao-renovavel.md) (sessão renovável por cookie)
 - **Data:** 2026-10-16
 
 ## Contexto
