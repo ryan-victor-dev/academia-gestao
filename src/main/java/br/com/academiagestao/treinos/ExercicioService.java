@@ -3,6 +3,7 @@ package br.com.academiagestao.treinos;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,8 @@ import static br.com.academiagestao.compartilhado.Auditoria.Entidade.EXERCICIO;
 
 @Service
 class ExercicioService {
+
+    private static final String INDICE_DO_NOME = "uk_exercicios_nome_ativo";
 
     // Nenhum exercício tem este id: usado quando não há exercício a ignorar na checagem de nome.
     private static final UUID NENHUM = new UUID(0, 0);
@@ -96,6 +99,12 @@ class ExercicioService {
         try {
             gravado = repository.saveAndFlush(exercicio);
         } catch (DataIntegrityViolationException e) {
+            // Só o índice do nome é "nome em uso"; outra recusa do banco é um erro de verdade (500),
+            // e não uma mensagem errada (revisão geral; etapa 7, B3).
+            if (!(e.getCause() instanceof ConstraintViolationException violacao)
+                    || !INDICE_DO_NOME.equals(violacao.getConstraintName())) {
+                throw e;
+            }
             throw new NomeDeExercicioEmUsoException();
         } catch (ObjectOptimisticLockingFailureException e) {
             throw new RecursoModificadoException("o exercício");

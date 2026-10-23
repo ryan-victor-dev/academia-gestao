@@ -3,6 +3,7 @@ package br.com.academiagestao.planos;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,8 @@ import static br.com.academiagestao.compartilhado.Auditoria.Entidade.PLANO;
 
 @Service
 class PlanoService {
+
+    private static final String INDICE_DO_NOME = "uk_planos_nome_ativo";
 
     // Nenhum plano tem este id: usado quando não há plano a ignorar na checagem de nome.
     private static final UUID NENHUM = new UUID(0, 0);
@@ -95,6 +98,12 @@ class PlanoService {
         try {
             gravado = repository.saveAndFlush(plano);
         } catch (DataIntegrityViolationException e) {
+            // Só o índice do nome é "nome em uso"; outra recusa do banco é um erro de verdade (500),
+            // e não uma mensagem errada (revisão geral; etapa 7, B3).
+            if (!(e.getCause() instanceof ConstraintViolationException violacao)
+                    || !INDICE_DO_NOME.equals(violacao.getConstraintName())) {
+                throw e;
+            }
             throw new NomeDePlanoEmUsoException();
         } catch (ObjectOptimisticLockingFailureException e) {
             throw new RecursoModificadoException("o plano");
