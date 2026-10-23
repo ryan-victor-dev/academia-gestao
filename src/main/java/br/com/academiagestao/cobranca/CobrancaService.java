@@ -92,6 +92,7 @@ class CobrancaService {
      */
     @Transactional
     Consulta pagar(UUID id, BigDecimal valor, MeioDePagamento meio, UUID usuarioId) {
+        existe(id);
         Instant agora = relogio.instant();
         LocalDate hoje = Calendario.hoje(agora);
         Caixa caixa = caixaQueRecebe(hoje);
@@ -112,6 +113,7 @@ class CobrancaService {
     @Transactional
     Consulta estornar(UUID id, String motivo, UUID usuarioId) {
         String motivoLimpo = Cobranca.motivoValido(motivo);
+        existe(id);
         Instant agora = relogio.instant();
         LocalDate hoje = Calendario.hoje(agora);
         Caixa caixa = caixaQueRecebe(hoje);
@@ -146,6 +148,17 @@ class CobrancaService {
                 "O caixa de hoje não foi aberto: abra-o, com o troco, antes de receber ou estornar"));
         caixa.conferirQueRecebe();
         return caixa;
+    }
+
+    /**
+     * Cobrança que não existe é 404, antes de olhar o caixa (sem isso, sem caixa aberto, dava
+     * 409). Leitura simples, sem trava: a ordem das travas (caixa, depois cobrança) não muda,
+     * e cobrança nunca é apagada.
+     */
+    private void existe(UUID id) {
+        if (repository.buscar(id).isEmpty()) {
+            throw new CobrancaNaoEncontradaException(id);
+        }
     }
 
     private Cobranca travar(UUID id) {

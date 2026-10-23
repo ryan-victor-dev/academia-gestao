@@ -51,6 +51,9 @@ class CaixaService {
 
     /** Até um ano por relatório: o suficiente para conferir um exercício, sem uma consulta sem fim. */
     static final int PERIODO_MAXIMO_EM_DIAS = 366;
+    /** Datas aceitas no relatório: fora disso, a conta do período estoura (era 500). */
+    static final LocalDate PRIMEIRO_DIA = LocalDate.of(2000, 1, 1);
+    static final LocalDate ULTIMO_DIA = LocalDate.of(2100, 12, 31);
 
     /**
      * O caixa com o movimento dele, por forma, e o histórico de fechamentos e reaberturas.
@@ -145,6 +148,9 @@ class CaixaService {
                 || ChronoUnit.DAYS.between(de, ate) + 1 > PERIODO_MAXIMO_EM_DIAS) {
             throw new CobrancaInvalidaException("o período vai de \"de\" até \"ate\", com até "
                     + PERIODO_MAXIMO_EM_DIAS + " dias");
+        }
+        if (de.isBefore(PRIMEIRO_DIA) || ate.isAfter(ULTIMO_DIA)) {
+            throw new CobrancaInvalidaException("as datas do relatório vão de " + PRIMEIRO_DIA + " a " + ULTIMO_DIA);
         }
         Map<LocalDate, Caixa> caixas = new HashMap<>();
         repository.doPeriodo(de, ate).forEach(c -> caixas.put(c.getDia(), c));

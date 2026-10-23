@@ -225,6 +225,14 @@ class CaixaControllerTest {
                 .andExpect(jsonPath("$.fechamentos[0].esperado").value(150.00));
     }
 
+    /** Cobrança que não existe é 404 antes de olhar o caixa (era 409 sem caixa aberto). */
+    @Test
+    void cobrancaInexistenteEh404MesmoSemCaixa() throws Exception {
+        UUID nenhuma = UUID.randomUUID();
+        pagar(nenhuma, "PIX").andExpect(status().isNotFound());
+        estornar(nenhuma).andExpect(status().isNotFound());
+    }
+
     @Test
     void semCaixaAbertoNadaEntraNemSai() throws Exception {
         UUID id = cobranca();
@@ -605,6 +613,18 @@ class CaixaControllerTest {
                 .andExpect(status().isBadRequest());
         mvc.perform(get("/api/caixas/relatorio").param("de", "ontem").param("ate", dia.toString()).with(admin()))
                 .andExpect(status().isBadRequest());
+        // Datas absurdas: 400, e não 500 (a conta do período estourava).
+        for (String[] periodo : List.of(new String[] {"-999999999-01-01", "-999999999-01-02"},
+                new String[] {"+999999999-12-30", "+999999999-12-31"}, new String[] {"1999-12-31", "2000-01-01"},
+                new String[] {"2100-12-31", "2101-01-01"})) {
+            mvc.perform(get("/api/caixas/relatorio").param("de", periodo[0]).param("ate", periodo[1]).with(admin()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value(containsString("2000-01-01 a 2100-12-31")));
+        }
+        mvc.perform(get("/api/caixas/relatorio").param("de", "2000-01-01").param("ate", "2000-01-02").with(admin()))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/caixas/relatorio").param("de", "2100-12-30").param("ate", "2100-12-31").with(admin()))
+                .andExpect(status().isOk());
     }
 
     /**
