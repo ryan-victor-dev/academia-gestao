@@ -569,7 +569,7 @@ class CobrancaControllerTest {
         Set<UUID> quemPagou = new HashSet<>();
         for (int rodada = 0; rodada < 20; rodada++) {
             UUID id = cobranca(10 + rodada, 0);
-            List<Integer> resultados = correr(() -> pagar(id, "100", recepcao()), () -> pagar(id, "100", como("RECEPCAO", outraRecepcao)));
+            List<Integer> resultados = correr(rodada, () -> pagar(id, "100", recepcao()), () -> pagar(id, "100", como("RECEPCAO", outraRecepcao)));
             assertThat(resultados).as("rodada %d", rodada).containsExactly(200, 409);
             quemPagou.add(jdbc.queryForObject("SELECT paga_por FROM cobrancas WHERE id = ?", UUID.class, id));
         }
@@ -582,7 +582,7 @@ class CobrancaControllerTest {
         Set<String> finais = new HashSet<>();
         for (int rodada = 0; rodada < 20; rodada++) {
             UUID id = cobranca(10 + rodada, 0);
-            List<Integer> resultados = correr(() -> pagar(id, "100", recepcao()), () -> acao(id, "cancelar", "Bolsa", admin()));
+            List<Integer> resultados = correr(rodada, () -> pagar(id, "100", recepcao()), () -> acao(id, "cancelar", "Bolsa", admin()));
             assertThat(resultados).as("rodada %d", rodada).containsExactly(200, 409);
             finais.add(statusNoBanco(id));
         }
@@ -593,15 +593,22 @@ class CobrancaControllerTest {
         ResultActions fazer() throws Exception;
     }
 
-    private static List<Integer> correr(Chamada a, Chamada b) {
+    /**
+     * Os dois lados ao mesmo tempo. A cada rodada, um lado diferente sai com uma pequena vantagem
+     * (alternando): só o atraso aleatório deixava, no CI, o mesmo lado ganhar as 20 rodadas, e o
+     * outro caminho não era testado. A vantagem é menor que a requisição: os dois ainda se cruzam.
+     */
+    private static List<Integer> correr(int rodada, Chamada a, Chamada b) {
         CountDownLatch largada = new CountDownLatch(1);
         List<CompletableFuture<Integer>> lados = new ArrayList<>();
-        for (Chamada chamada : List.of(a, b)) {
+        List<Chamada> chamadas = List.of(a, b);
+        for (int lado = 0; lado < chamadas.size(); lado++) {
+            Chamada chamada = chamadas.get(lado);
+            int espera = ThreadLocalRandom.current().nextInt(3) + (lado == rodada % 2 ? 0 : 3);
             lados.add(CompletableFuture.supplyAsync(() -> {
                 try {
                     largada.await();
-                    // Um atraso aleatório pequeno: cada lado chega primeiro em parte das rodadas.
-                    Thread.sleep(ThreadLocalRandom.current().nextInt(3));
+                    Thread.sleep(espera);
                     var resposta = chamada.fazer().andReturn().getResponse();
                     // Quem perde precisa ter visto a cobrança já alterada (trava), e não
                     // esbarrado na versão: as duas dão 409, só o título diz qual barreira agiu.
