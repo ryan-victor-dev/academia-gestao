@@ -52,6 +52,11 @@ O dono decidiu quanto a sessão dura: **12 horas para a equipe** (um turno; o AD
   o build e a imagem do Caddy. A validação num navegador de verdade (Chromium do Playwright) fica,
   por ora, fora do repositório; entra no e2e numa parte seguinte.
 
+- **Navegação:** React Router. Só existem as rotas do menu do perfil; o endereço de outro perfil
+  cai em "página não encontrada" (e a API recusaria do mesmo jeito).
+- **Senha temporária:** a tela só oferece a troca (a API só libera ela e `/api/me`); trocada, a
+  pessoa entra com a sessão nova que a troca abre.
+
 Os detalhes de cada tela entram nas próximas partes.
 
 ### Sessão renovável

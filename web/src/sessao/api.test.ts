@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { chamar, entrar, ErroDaApi, renovar, sair } from './api';
+import { chamar, entrar, ErroDaApi, renovar, sair, trocarSenha } from './api';
 
 type Chamada = { url: string; init: RequestInit };
 
@@ -106,5 +106,16 @@ describe('sessão', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
 
     await expect(entrar('ana@academia.com', 'senha')).rejects.toMatchObject({ status: 0 });
+  });
+
+  it('trocar a senha passa a usar o token novo que a API devolve', async () => {
+    const chamadas = servidor(token('temporario'), token('definitivo'), json(200, {}));
+    await entrar('ana@academia.com', 'senha');
+
+    await trocarSenha('temporaria-123', 'minha-senha-nova-1');
+    await chamar('/api/me');
+
+    expect(autorizacao(chamadas[1])).toBe('Bearer temporario');
+    expect(autorizacao(chamadas[2])).toBe('Bearer definitivo');
   });
 });

@@ -10,6 +10,8 @@
   --destaque-texto: #ffffff;
   --erro: #b42318;
   --aviso: #8a5a00;
+  --sucesso: #1a7f37;
+  --destaque-suave: #e3effb;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--texto);
   background: var(--fundo);
@@ -26,6 +28,8 @@
     --destaque-texto: #0b1420;
     --erro: #ff8a7a;
     --aviso: #f0c060;
+    --sucesso: #6fd08c;
+    --destaque-suave: #16283b;
   }
 }
 
@@ -85,3 +89,69 @@ button.secundario { background: transparent; color: var(--destaque); }
 .aviso { color: var(--aviso); }
 
 .carregando { text-align: center; margin-top: 30vh; color: var(--texto-suave); }
+
+.suave { color: var(--texto-suave); }
+
+.sucesso { color: var(--sucesso); }
+
+/* Área logada: barra no topo, menu logo abaixo (rola para o lado no celular). */
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borda);
+}
+
+.marca { font-weight: 700; font-size: 1.1rem; }
+
+.quem { margin-left: auto; display: grid; text-align: right; line-height: 1.2; min-width: 0; }
+
+.quem .nome { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.quem .perfil { margin: 0; font-size: 0.85rem; }
+
+.menu {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borda);
+}
+
+.menu a {
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--texto);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.menu a.active { background: var(--destaque-suave); color: var(--destaque); font-weight: 600; }
+
+.faixa { margin: 0; padding: 10px 16px; background: var(--superficie); border-bottom: 1px solid var(--borda); }
+
+.atalhos {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.atalhos a {
+  display: block;
+  padding: 20px 16px;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  color: var(--texto);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.login { gap: 12px; align-content: center; }
+
+a { color: var(--destaque); }

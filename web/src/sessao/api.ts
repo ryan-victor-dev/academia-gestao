@@ -91,6 +91,18 @@ export function renovar(): Promise<boolean> {
   return renovacaoEmAndamento;
 }
 
+/**
+ * Troca a senha do próprio usuário. A API devolve um token novo (sem a restrição da senha
+ * temporária) e abre uma sessão nova, com cookie novo: a antiga deixa de renovar.
+ */
+export async function trocarSenha(senhaAtual: string, novaSenha: string): Promise<void> {
+  const resposta = await chamar<RespostaDeLogin>('/api/auth/trocar-senha', {
+    metodo: 'POST',
+    corpo: { senhaAtual, novaSenha },
+  });
+  token = resposta.token;
+}
+
 /** Encerra a sessão no servidor e esquece o token. Falha de rede não impede sair da tela. */
 export async function sair(): Promise<void> {
   token = null;

@@ -1,22 +1,37 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
 const json = (status: number, corpo: unknown) =>
   new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } });
-const ana = { id: '1', nome: 'Ana', email: 'ana@academia.com', perfil: 'RECEPCAO', ativo: true,
-  precisaTrocarSenha: false, somenteLeitura: false };
+const usuario = (mudancas: object = {}) => ({ id: '1', nome: 'Ana', email: 'ana@academia.com', perfil: 'RECEPCAO',
+  ativo: true, precisaTrocarSenha: false, somenteLeitura: false, ...mudancas });
+
+/** API falsa: sessão válida e /api/me devolvendo cada usuário da lista, na ordem. */
+function comSessao(...eus: object[]) {
+  const fetch = vi.fn(async (url: string, _init?: RequestInit) => {
+    if (url === '/api/auth/renovar' || url === '/api/auth/trocar-senha') return json(200, { token: 't' });
+    if (url === '/api/auth/sair') return new Response(null, { status: 204 });
+    if (url === '/api/me') return json(200, eus.length > 1 ? eus.shift() : eus[0]);
+    return json(404, {});
+  });
+  vi.stubGlobal('fetch', fetch);
+  return fetch;
+}
 
 describe('App', () => {
-  it('com a sessão do cookie, abre já dentro, sem pedir a senha', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
-      url === '/api/auth/renovar' ? json(200, { token: 't' }) : json(200, ana)));
+  beforeEach(() => window.history.pushState({}, '', '/'));
+
+  it('com a sessão do cookie, abre já dentro, com o menu do perfil', async () => {
+    comSessao(usuario());
 
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Olá, Ana' })).toBeInTheDocument();
-    expect(screen.getByText('Recepção')).toBeInTheDocument();
+    const menu = screen.getByRole('navigation', { name: 'Menu' });
+    expect(within(menu).getByRole('link', { name: 'Caixa' })).toBeInTheDocument();
+    expect(within(menu).queryByRole('link', { name: 'Exercícios' })).not.toBeInTheDocument();
   });
 
   it('sem sessão, mostra o login', async () => {
@@ -28,15 +43,53 @@ describe('App', () => {
   });
 
   it('sair volta ao login e encerra a sessão no servidor', async () => {
-    const fetch = vi.fn(async (url: string) =>
-      url === '/api/auth/renovar' ? json(200, { token: 't' })
-        : url === '/api/auth/sair' ? new Response(null, { status: 204 }) : json(200, ana));
-    vi.stubGlobal('fetch', fetch);
+    const fetch = comSessao(usuario());
     render(<App />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Sair' }));
 
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
     expect(fetch.mock.calls.map((c) => c[0])).toContain('/api/auth/sair');
+  });
+
+  it('senha temporária: só a troca de senha, sem menu; trocada, entra', async () => {
+    comSessao(usuario({ precisaTrocarSenha: true }), usuario());
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Crie sua senha' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Senha atual'), 'temporaria-123');
+    await userEvent.type(screen.getByLabelText(/Nova senha/), 'minha-senha-nova-1');
+    await userEvent.type(screen.getByLabelText('Repita a nova senha'), 'minha-senha-nova-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
+
+    expect(await screen.findByRole('heading', { name: 'Olá, Ana' })).toBeInTheDocument();
+  });
+
+  it('aluno inativo: avisa que é só consulta', async () => {
+    comSessao(usuario({ perfil: 'ALUNO', somenteLeitura: true }));
+
+    render(<App />);
+
+    expect(await screen.findByText(/você pode consultar seus dados, mas não alterar nada/)).toBeInTheDocument();
+  });
+
+  it('endereço de outro perfil: não encontrada', async () => {
+    window.history.pushState({}, '', '/equipe');
+    comSessao(usuario());
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Página não encontrada' })).toBeInTheDocument();
+  });
+
+  it('endereço do próprio perfil abre direto (link salvo, recarregar)', async () => {
+    window.history.pushState({}, '', '/senha');
+    comSessao(usuario());
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Trocar minha senha' })).toBeInTheDocument();
   });
 });
