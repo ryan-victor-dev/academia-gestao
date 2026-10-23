@@ -160,4 +160,21 @@ class RetencaoDaAuditoriaTest {
         }
         assertThat(acessosQueSobraram()).containsExactly("vencido");
     }
+
+    /**
+     * A retenção apaga sem varrer a tabela: índices BRIN em "momento" (diagnóstico da etapa 8,
+     * M3; medido com 3 milhões de linhas: 460 ms sem eles e com a ordem pelo id, menos de 1 ms
+     * com eles e a ordem por "momento").
+     */
+    @Test
+    void retencaoTemIndicePorMomento() {
+        for (String tabela : List.of("acessos", "auditoria")) {
+            assertThat(jdbc.queryForList("SELECT indexdef FROM pg_indexes WHERE tablename = ?", String.class, tabela))
+                    .as(tabela).anyMatch(definicao -> definicao.contains("USING brin (momento)"));
+        }
+        for (String funcao : List.of("apagar_acessos_vencidos", "apagar_auditoria_vencida")) {
+            assertThat(jdbc.queryForObject("SELECT prosrc FROM pg_proc WHERE proname = ?", String.class, funcao))
+                    .as(funcao).contains("ORDER BY momento");
+        }
+    }
 }

@@ -18,6 +18,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -114,5 +116,21 @@ class LimiteDaTrocaDeSenhaTest {
         assertThat(log.getAll())
                 .contains("Troca de senha recusada (senha atual errada): conta ana@academia.com")
                 .doesNotContain("chute-secreto");
+    }
+
+    /**
+     * Os chutes e o bloqueio da troca vão para o registro de acessos com o id de quem está
+     * logado; o bloqueio, uma vez na janela (ADR 0031 e diagnóstico da etapa 8, M3).
+     */
+    @Test
+    void chutesEBloqueioDaTrocaVaoParaORegistroDeAcessos() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            trocar("chute-" + i + "-xxxxxx");
+        }
+
+        UUID ana = repository.findByEmail("ana@academia.com").orElseThrow().getId();
+        assertThat(jdbc.queryForList("SELECT tipo FROM acessos WHERE usuario_id = ? AND tipo <> 'LOGIN' ORDER BY id",
+                String.class, ana)).containsExactly("TROCA_SENHA_FALHA", "TROCA_SENHA_FALHA", "TROCA_SENHA_FALHA",
+                "LOGIN_BLOQUEADO");
     }
 }

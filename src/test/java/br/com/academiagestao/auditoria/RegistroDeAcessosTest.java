@@ -25,6 +25,7 @@ import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -245,9 +246,43 @@ class RegistroDeAcessosTest {
         assertThatThrownBy(() -> transacao.executeWithoutResult(
                 t -> registro.login(RegistroDeAcessos.Tipo.LOGIN, recepcao, "x@y.z", ip)))
                 .isInstanceOf(IllegalTransactionStateException.class);
+        assertThatThrownBy(() -> transacao.executeWithoutResult(
+                t -> registro.loginBloqueado(recepcao, "x@y.z", ip, Duration.ofMinutes(15))))
+                .isInstanceOf(IllegalTransactionStateException.class);
         assertThatThrownBy(() -> registro.login(RegistroDeAcessos.Tipo.CONSULTA_ALUNO, recepcao, "x@y.z", ip))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> registro.login(RegistroDeAcessos.Tipo.LOGIN_BLOQUEADO, recepcao, "x@y.z", ip))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThat(acessos()).isEmpty();
+    }
+
+    /**
+     * Um ataque de horas não vira uma linha por tentativa: o bloqueio entra uma vez por conta e
+     * IP dentro da janela (diagnóstico da etapa 8, M3).
+     */
+    @Test
+    void bloqueioUmaVezPorContaEIpNaJanela() {
+        Duration janela = Duration.ofMinutes(15);
+        String conta = email("atacada");
+        for (int i = 0; i < 5; i++) {
+            registro.loginBloqueado(null, conta, ip, janela);
+        }
+        assertThat(acessos()).hasSize(1);
+
+        // Outra conta do mesmo IP, ou a mesma conta de outro IP: outro ataque, outra linha.
+        registro.loginBloqueado(null, email("outra"), ip, janela);
+        registro.loginBloqueado(null, conta, ip + "0", janela);
+        assertThat(jdbc.update("DELETE FROM acessos WHERE ip = ?", ip + "0")).isEqualTo(1);
+        assertThat(acessos()).hasSize(2);
+
+        // Ainda dentro da janela (14 min atrás): nada novo. Fora dela (16 min): uma linha nova.
+        jdbc.update("UPDATE acessos SET momento = now() - interval '14 minutes' WHERE ip = ?", ip);
+        registro.loginBloqueado(null, conta, ip, janela);
+        assertThat(acessos()).hasSize(2);
+        jdbc.update("UPDATE acessos SET momento = now() - interval '16 minutes' WHERE ip = ?", ip);
+        registro.loginBloqueado(null, conta, ip, janela);
+        assertThat(acessos()).hasSize(3);
+        assertThat(acessos()).extracting(a -> a.get("tipo")).containsOnly("LOGIN_BLOQUEADO");
     }
 
     /** As travas da V38, também para quem grava sem passar pelo Java. */

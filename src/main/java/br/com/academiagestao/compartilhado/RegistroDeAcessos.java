@@ -1,5 +1,6 @@
 package br.com.academiagestao.compartilhado;
 
+import java.time.Duration;
 import java.util.UUID;
 
 /**
@@ -18,8 +19,17 @@ public interface RegistroDeAcessos {
     void consultaDeAluno(UUID usuarioId, UUID alunoId, String ip);
 
     /**
-     * Um login ou uma troca de senha. {@code usuarioId} nulo: a conta digitada não existe.
-     * {@code conta}: o e-mail digitado, normalizado. Nunca a senha.
+     * Um login ou uma troca de senha recusada. {@code usuarioId} nulo: a conta digitada não
+     * existe. {@code conta}: o e-mail digitado, normalizado. Nunca a senha. O bloqueio vai por
+     * {@link #loginBloqueado}.
      */
     void login(Tipo tipo, UUID usuarioId, String conta, String ip);
+
+    /**
+     * Uma tentativa recusada pelo limite (login ou troca de senha). Só a primeira de cada conta
+     * e IP dentro da {@code janela} é gravada: um ataque de horas vira poucas linhas, e não uma
+     * por tentativa (diagnóstico da etapa 8, M3). Tentativas simultâneas podem gravar uma ou
+     * outra a mais; o número não cresce com a duração do ataque.
+     */
+    void loginBloqueado(UUID usuarioId, String conta, String ip, Duration janela);
 }

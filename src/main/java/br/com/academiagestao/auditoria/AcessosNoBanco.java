@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.UUID;
 
 /** O registro de acessos na tabela {@code acessos} (V38): só INSERT, como a trilha. */
@@ -31,10 +32,22 @@ class AcessosNoBanco implements RegistroDeAcessos {
     @Override
     @Transactional(propagation = Propagation.NEVER)
     public void login(Tipo tipo, UUID usuarioId, String conta, String ip) {
-        if (tipo == Tipo.CONSULTA_ALUNO) {
-            throw new IllegalArgumentException("consulta de aluno vai por consultaDeAluno");
+        if (tipo == Tipo.CONSULTA_ALUNO || tipo == Tipo.LOGIN_BLOQUEADO) {
+            throw new IllegalArgumentException(tipo + " tem o próprio método");
         }
         jdbc.update("INSERT INTO acessos (tipo, usuario_id, conta, ip) VALUES (?, ?, ?, ?)",
                 tipo.name(), usuarioId, conta, ip);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.NEVER)
+    public void loginBloqueado(UUID usuarioId, String conta, String ip, Duration janela) {
+        // Um comando só: a procura e a gravação não abrem uma transação nem pedem outra conexão.
+        jdbc.update("""
+                INSERT INTO acessos (tipo, usuario_id, conta, ip)
+                SELECT 'LOGIN_BLOQUEADO', ?, ?, ?
+                WHERE NOT EXISTS (SELECT 1 FROM acessos WHERE tipo = 'LOGIN_BLOQUEADO' AND conta = ? AND ip = ?
+                                  AND momento > now() - make_interval(secs => ?))""",
+                usuarioId, conta, ip, conta, ip, (double) janela.toSeconds());
     }
 }

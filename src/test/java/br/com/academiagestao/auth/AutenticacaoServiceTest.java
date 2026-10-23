@@ -21,7 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AutenticacaoServiceTest {
@@ -32,11 +34,14 @@ class AutenticacaoServiceTest {
     private final SecretKey chave = new SecretKeySpec(new byte[32], "HmacSHA256");
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final UsuarioRepository repository = mock(UsuarioRepository.class);
+    private final LimitadorDeTentativas limitador = mock(LimitadorDeTentativas.class);
+    private final RegistroDeAcessos acessos = mock(RegistroDeAcessos.class);
     private final AutenticacaoService service = new AutenticacaoService(repository, passwordEncoder,
             new GeradorDeToken(new NimbusJwtEncoder(new ImmutableSecret<>(chave)),
                     new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao"), Clock.systemUTC()),
-            mock(LimitadorDeTentativas.class), mock(org.springframework.transaction.PlatformTransactionManager.class),
-            mock(TrilhaDeUsuarios.class), mock(RegistroDeAcessos.class));
+            limitador, mock(org.springframework.transaction.PlatformTransactionManager.class),
+            mock(TrilhaDeUsuarios.class), acessos,
+            new LimitesDeLoginProperties(20, Duration.ofMinutes(1), 10, 100, Duration.ofMinutes(15)));
 
     private Usuario cadastrar(Perfil perfil) {
         Usuario usuario = Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), perfil);
@@ -119,5 +124,21 @@ class AutenticacaoServiceTest {
                 .isInstanceOf(br.com.academiagestao.compartilhado.DadosInvalidosException.class)
                 .hasMessageContaining("senha atual incorreta");
         org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
+    }
+
+    /**
+     * O bloqueio vai para o registro com a janela do limite por conta (15 min), e não a por
+     * IP (1 min): é ela que diz quando a conta volta a aceitar tentativas (diagnóstico da
+     * etapa 8, M3).
+     */
+    @Test
+    void bloqueioVaiParaORegistroComAJanelaDaConta() {
+        doThrow(new MuitasTentativasException(Duration.ofSeconds(30))).when(limitador)
+                .verificarERegistrar(IP, "ana@academia.com");
+
+        assertThatThrownBy(() -> service.autenticar("Ana@Academia.com", SENHA, IP))
+                .isInstanceOf(MuitasTentativasException.class);
+
+        verify(acessos).loginBloqueado(null, "ana@academia.com", IP, Duration.ofMinutes(15));
     }
 }

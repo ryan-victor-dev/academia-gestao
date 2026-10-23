@@ -142,13 +142,15 @@ class LimiteDeLoginTest {
     }
 
     /**
-     * Cada entrada, senha errada e bloqueio vai para o registro de acessos, com a conta e o
-     * IP (ADR 0031). O bloqueado vem sem o id: a conta não é consultada antes do limite.
+     * Cada entrada e senha errada vai para o registro de acessos, com a conta e o IP (ADR 0031);
+     * o bloqueio, uma vez por conta e IP na janela (diagnóstico da etapa 8, M3), sem o id: a
+     * conta não é consultada antes do limite.
      */
     @Test
     void falhasBloqueiosEEntradasVaoParaORegistroDeAcessos() throws Exception {
         UUID ana = repository.findByEmail("ana@academia.com").orElseThrow().getId();
-        for (int i = 0; i < 4; i++) {
+        // 3 falhas e 5 tentativas bloqueadas: um bloqueio só no registro.
+        for (int i = 0; i < 8; i++) {
             login("10.0.4.1", "Ana@Academia.com", "chute-" + i + "-xxxxxx");
         }
         login("10.0.4.2", "ana@academia.com", SENHA).andExpect(status().isOk());

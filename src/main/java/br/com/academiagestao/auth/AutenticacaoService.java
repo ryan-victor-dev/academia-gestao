@@ -32,6 +32,7 @@ class AutenticacaoService {
     private final TransactionTemplate transacao;
     private final TrilhaDeUsuarios trilha;
     private final RegistroDeAcessos acessos;
+    private final LimitesDeLoginProperties limites;
 
     // Hash de uma senha que ninguém conhece. Quando o e-mail não existe, comparamos a senha
     // com ele mesmo assim, para a resposta demorar o mesmo tanto que com um e-mail válido.
@@ -44,10 +45,12 @@ class AutenticacaoService {
                         LimitadorDeTentativas limitador,
                         PlatformTransactionManager transacoes,
                         TrilhaDeUsuarios trilha,
-                        RegistroDeAcessos acessos) {
+                        RegistroDeAcessos acessos,
+                        LimitesDeLoginProperties limites) {
         this.repository = repository;
         this.trilha = trilha;
         this.acessos = acessos;
+        this.limites = limites;
         this.passwordEncoder = passwordEncoder;
         this.geradorDeToken = geradorDeToken;
         this.limitador = limitador;
@@ -69,7 +72,7 @@ class AutenticacaoService {
         } catch (MuitasTentativasException e) {
             log.warn("Login bloqueado por excesso de tentativas: conta {} / IP {}", conta, ip);
             // Sem o id: a conta não é consultada antes do limite (bloqueado não gasta o banco).
-            acessos.login(Tipo.LOGIN_BLOQUEADO, null, conta, ip);
+            acessos.loginBloqueado(null, conta, ip, limites.janelaPorConta());
             throw e;
         }
 
@@ -108,7 +111,7 @@ class AutenticacaoService {
             limitador.verificarERegistrar(ip, conta);
         } catch (MuitasTentativasException e) {
             log.warn("Troca de senha bloqueada por excesso de tentativas: conta {} / IP {}", conta, ip);
-            acessos.login(Tipo.LOGIN_BLOQUEADO, usuarioId, conta, ip);
+            acessos.loginBloqueado(usuarioId, conta, ip, limites.janelaPorConta());
             throw e;
         }
         if (!passwordEncoder.matches(senhaAtual, usuario.getSenhaHash())) {
