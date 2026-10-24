@@ -24,6 +24,7 @@ import { NaoEncontrada } from './paginas/NaoEncontrada';
 import { chamar, renovar, sair, type Perfil, type Usuario } from './sessao/api';
 import { ContextoDoUsuario, useUsuario } from './sessao/contexto';
 import { TelaDeLogin } from './sessao/TelaDeLogin';
+import { ConfirmarEmail } from './sessao/ConfirmarEmail';
 import { TrocarSenha } from './sessao/TrocarSenha';
 
 type Estado = { tipo: 'carregando' } | { tipo: 'fora' } | { tipo: 'dentro'; usuario: Usuario };
@@ -71,6 +72,15 @@ export function App() {
         return (
           <main className="pagina login">
             <TrocarSenha obrigatoria aoTrocar={carregarUsuario} />
+            <button type="button" className="secundario" onClick={encerrar}>Sair</button>
+          </main>
+        );
+      }
+      if (estado.usuario.precisaConfirmarEmail) {
+        // E-mail não confirmado (ADR 0038): a API só libera a confirmação.
+        return (
+          <main className="pagina login">
+            <ConfirmarEmail email={estado.usuario.email} aoConfirmar={carregarUsuario} />
             <button type="button" className="secundario" onClick={encerrar}>Sair</button>
           </main>
         );

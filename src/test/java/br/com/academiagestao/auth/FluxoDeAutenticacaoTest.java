@@ -73,6 +73,19 @@ class FluxoDeAutenticacaoTest {
         return JsonPath.read(corpo, "$.token");
     }
 
+    /** Com o e-mail desligado (o padrão, ADR 0038), ninguém precisa confirmar o e-mail. */
+    @Test
+    void emailDesligadoNaoExigeConfirmacao() throws Exception {
+        login("recepcao@academia.com", SENHA_RECEPCAO).andExpect(jsonPath("$.precisaConfirmarEmail").value(false));
+        String token = tokenDe("recepcao@academia.com", SENHA_RECEPCAO);
+
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + token))
+                .andExpect(jsonPath("$.precisaConfirmarEmail").value(false));
+        mvc.perform(get("/api/planos").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
+        mvc.perform(post("/api/auth/email/codigo").header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict());
+    }
+
     @Test
     void loginOkEOTokenDaAcessoAoMe() throws Exception {
         String token = tokenDe("admin@academia.com", SENHA_ADMIN);

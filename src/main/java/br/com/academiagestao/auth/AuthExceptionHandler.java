@@ -1,5 +1,8 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.CorreioIndisponivelException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +18,8 @@ import java.time.Duration;
 
 @RestControllerAdvice
 class AuthExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthExceptionHandler.class);
 
     // Mesma resposta para e-mail inexistente, senha errada e usuário inativo.
     @ExceptionHandler(CredenciaisInvalidasException.class)
@@ -44,6 +49,31 @@ class AuthExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundos(e.esperar())))
                 .body(problema);
+    }
+
+    @ExceptionHandler(MuitosCodigosException.class)
+    ResponseEntity<ProblemDetail> muitosCodigos(MuitosCodigosException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());
+        problema.setTitle("Muitos códigos pedidos");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundos(e.esperar()))).body(problema);
+    }
+
+    @ExceptionHandler(CodigoInvalidoException.class)
+    ProblemDetail codigoInvalido(CodigoInvalidoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+        problema.setTitle("Código inválido");
+        return problema;
+    }
+
+    /** O detalhe fica no log; a resposta só diz para tentar depois (ADR 0038). */
+    @ExceptionHandler(CorreioIndisponivelException.class)
+    ProblemDetail correioIndisponivel(CorreioIndisponivelException e) {
+        log.warn("Servidor de e-mail indisponível: {}", e.getMessage());
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+                "Não foi possível enviar o e-mail agora. Tente de novo em alguns minutos.");
+        problema.setTitle("E-mail indisponível");
+        return problema;
     }
 
     @ExceptionHandler(MuitasRequisicoesException.class)
@@ -102,10 +132,16 @@ class AuthExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     ProblemDetail semPermissao() {
-        if (estaComSenhaTemporaria()) {
+        if (tem(SegurancaConfig.SENHA_TEMPORARIA)) {
             ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
                     "Troque a senha temporária em POST /api/auth/trocar-senha antes de continuar.");
             problema.setTitle("Troca de senha obrigatória");
+            return problema;
+        }
+        if (tem(SegurancaConfig.EMAIL_NAO_CONFIRMADO)) {
+            ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
+                    "Confirme o seu e-mail com o código enviado (POST /api/auth/email/confirmar) antes de continuar.");
+            problema.setTitle("Confirmação de e-mail obrigatória");
             return problema;
         }
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(
@@ -119,9 +155,9 @@ class AuthExceptionHandler {
         return Math.max(1, (esperar.toMillis() + 999) / 1000);
     }
 
-    private static boolean estaComSenhaTemporaria() {
+    private static boolean tem(String autoridade) {
         Authentication autenticacao = SecurityContextHolder.getContext().getAuthentication();
         return autenticacao != null && autenticacao.getAuthorities().stream()
-                .anyMatch(a -> SegurancaConfig.SENHA_TEMPORARIA.equals(a.getAuthority()));
+                .anyMatch(a -> autoridade.equals(a.getAuthority()));
     }
 }

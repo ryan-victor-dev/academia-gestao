@@ -53,6 +53,7 @@ class SegurancaConfig {
 
     /** Autoridade de quem entrou com senha temporária; substitui o ROLE_ do perfil. */
     static final String SENHA_TEMPORARIA = "SENHA_TEMPORARIA";
+    static final String EMAIL_NAO_CONFIRMADO = "EMAIL_NAO_CONFIRMADO";
 
     /** Autoridade do login de aluno inativo (ADR 0029); vem junto com o ROLE_ALUNO. */
     static final String SOMENTE_LEITURA = "SOMENTE_LEITURA";
@@ -96,10 +97,18 @@ class SegurancaConfig {
                         // aluno inativo (só de leitura) também pode trocar a senha.
                         .requestMatchers(HttpMethod.POST, "/api/auth/trocar-senha").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
+                        // Quem precisa confirmar o e-mail (ADR 0038) só confirma (ou corrige o
+                        // e-mail); a senha temporária vem antes.
+                        .requestMatchers("/api/auth/email/**").access(AuthorizationManagers.allOf(
+                                AuthenticatedAuthorizationManager.authenticated(),
+                                AuthorizationManagers.not(
+                                        AuthorityAuthorizationManager.hasAuthority(SENHA_TEMPORARIA))))
                         .anyRequest().access(AuthorizationManagers.allOf(
                                 AuthenticatedAuthorizationManager.authenticated(),
                                 AuthorizationManagers.not(
                                         AuthorityAuthorizationManager.hasAuthority(SENHA_TEMPORARIA)),
+                                AuthorizationManagers.not(
+                                        AuthorityAuthorizationManager.hasAuthority(EMAIL_NAO_CONFIRMADO)),
                                 SO_CONSULTA_SE_SOMENTE_LEITURA)))
                 .oauth2ResourceServer(rs -> rs
                         .bearerTokenResolver(SegurancaConfig::tokenForaDasRotasDeSessao)
@@ -206,6 +215,10 @@ class SegurancaConfig {
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             if (Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.TROCAR_SENHA))) {
                 return List.of(new SimpleGrantedAuthority(SENHA_TEMPORARIA));
+            }
+            // Como a senha temporária: sem o perfil, nenhuma regra de perfil deixa passar.
+            if (Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.CONFIRMAR_EMAIL))) {
+                return List.of(new SimpleGrantedAuthority(EMAIL_NAO_CONFIRMADO));
             }
             List<GrantedAuthority> autoridades = new ArrayList<>(perfis.convert(jwt));
             if (Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.SOMENTE_LEITURA))) {

@@ -15,6 +15,9 @@ public final class ClaimsDoToken {
     /** Presente (true) quando o usuário entrou com senha temporária e precisa trocá-la. */
     public static final String TROCAR_SENHA = "trocarSenha";
 
+    /** Presente (true) quando o usuário precisa confirmar o e-mail antes de usar o sistema (ADR 0038). */
+    public static final String CONFIRMAR_EMAIL = "confirmarEmail";
+
     /** Presente (true) no login de aluno inativo: só consulta (ADR 0029). */
     public static final String SOMENTE_LEITURA = "somenteLeitura";
 

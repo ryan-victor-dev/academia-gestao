@@ -323,6 +323,11 @@ dependa dele é exigido. Para testar sem mandar nada para fora: `EMAIL_HOST=mail
 EMAIL_TLS=false EMAIL_REMETENTE=teste@academia.local docker compose --profile email-de-teste up -d`,
 e os e-mails aparecem em http://localhost:8025.
 
+Com o e-mail ligado¹³, aluno e equipe (não o ADMIN) confirmam o e-mail no primeiro acesso: até lá, só
+`GET /api/me`, `POST /api/auth/email/codigo` (manda o código de 6 dígitos), `POST /api/auth/email/confirmar`
+(`codigo`) e `PUT /api/auth/email` (`email`: corrige e manda o código para o novo). Confirmado, a tela
+renova o token, que sai sem a restrição.
+
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
 

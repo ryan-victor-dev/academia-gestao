@@ -148,6 +148,8 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - E-mail (ADR 0038): desligado sem `EMAIL_HOST`. Nos testes, o `Correio` é desligado (padrão); para testar
   um fluxo com e-mail, um `Correio` de teste que guarda as mensagens. No Docker, o Mailpit (`--profile
   email-de-teste`, veja o README); a API dele (`/api/v1/messages`) serve aos roteiros de validação.
+  Com o e-mail ligado, aluno e equipe confirmam o e-mail no primeiro acesso (token sem o perfil, como a
+  senha temporária): teste de fluxo com e-mail faz login de verdade; o `usuario-validacao.sh` já confirma.
 - Telas (`web/`): validar no Chromium (Playwright) pelo Caddy, e não só no Vitest; os roteiros
   de validação de cada parte ficam em `revisao-local/ferramentas/navegador/` (fora do Git). No
   Playwright, `getByLabel('Nome')` acha por trecho ("Buscar por nome" também): use `exact: true`.

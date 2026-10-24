@@ -38,7 +38,8 @@ class AutenticacaoServiceTest {
     private final RegistroDeAcessos acessos = mock(RegistroDeAcessos.class);
     private final AutenticacaoService service = new AutenticacaoService(repository, passwordEncoder,
             new GeradorDeToken(new NimbusJwtEncoder(new ImmutableSecret<>(chave)),
-                    new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao"), Clock.systemUTC()),
+                    new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao"), Clock.systemUTC(),
+                    mock(br.com.academiagestao.compartilhado.Correio.class)),
             limitador, mock(org.springframework.transaction.PlatformTransactionManager.class),
             mock(TrilhaDeUsuarios.class), acessos,
             new LimitesDeLoginProperties(20, Duration.ofMinutes(1), 10, 100, Duration.ofMinutes(15)));

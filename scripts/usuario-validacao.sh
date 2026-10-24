@@ -4,6 +4,8 @@
 #   ATENÇÃO: só para desenvolvimento. Escreve direto no banco, passando por cima das
 #   regras da API. Nunca rode num servidor de verdade. A trava abaixo recusa rodar
 #   quando o .env tem um DOMINIO configurado.
+#   O usuário já sai com o e-mail confirmado (ADR 0038): com o e-mail ligado, senão, ficaria
+#   preso na confirmação, e os roteiros de validação parariam.
 #
 # Uso:  scripts/usuario-validacao.sh PERFIL [aluno_id]
 #       PERFIL: ADMIN, RECEPCAO, INSTRUTOR ou ALUNO (ALUNO exige o id de um aluno)
@@ -47,9 +49,9 @@ HASH=$(java -cp "$CRYPTO:$LOGS" "$TMP/H.java" "$SENHA")
 
 if [ -n "$ALUNO" ]; then VALOR_ALUNO="'$ALUNO'"; else VALOR_ALUNO=NULL; fi
 docker exec "$PG" psql -U academia -d academia -v ON_ERROR_STOP=1 -q \
-  -c "INSERT INTO usuarios (id,nome,email,senha_hash,perfil,aluno_id) VALUES (gen_random_uuid(),'Validacao $PERFIL','$EMAIL','$HASH','$PERFIL',$VALOR_ALUNO)
+  -c "INSERT INTO usuarios (id,nome,email,senha_hash,perfil,aluno_id,email_confirmado_em) VALUES (gen_random_uuid(),'Validacao $PERFIL','$EMAIL','$HASH','$PERFIL',$VALOR_ALUNO,now())
       ON CONFLICT (lower(email)) DO UPDATE SET senha_hash = EXCLUDED.senha_hash, perfil = EXCLUDED.perfil,
-        aluno_id = EXCLUDED.aluno_id, ativo = true, precisa_trocar_senha = false,
+        aluno_id = EXCLUDED.aluno_id, ativo = true, precisa_trocar_senha = false, email_confirmado_em = now(),
         versao_token = usuarios.versao_token + 1" >&2
 
 TOKEN=$(curl -sk ${COOKIE_JAR:+-c "$COOKIE_JAR"} -X POST "$URL/api/auth/login" -H 'Content-Type: application/json' \

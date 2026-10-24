@@ -109,11 +109,11 @@ class AuthController {
 
     /** {@code expiraEm}: do token (15 min); {@code sessaoExpiraEm}: até quando dá para renovar. */
     record LoginResponse(String token, String tipo, Instant expiraEm, boolean precisaTrocarSenha,
-                         Instant sessaoExpiraEm) {
+                         boolean precisaConfirmarEmail, Instant sessaoExpiraEm) {
 
         static LoginResponse de(GeradorDeToken.TokenEmitido emitido, Instant sessaoExpiraEm) {
             return new LoginResponse(emitido.token(), "Bearer", emitido.expiraEm(), emitido.precisaTrocarSenha(),
-                    sessaoExpiraEm);
+                    emitido.precisaConfirmarEmail(), sessaoExpiraEm);
         }
     }
 }

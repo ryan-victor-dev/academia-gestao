@@ -53,6 +53,10 @@ public class Usuario {
     @Column(name = "criado_em", nullable = false, updatable = false)
     private Instant criadoEm;
 
+    // Nulo: o e-mail não foi confirmado (ADR 0038).
+    @Column(name = "email_confirmado_em")
+    private Instant emailConfirmadoEm;
+
     // Exigido pelo JPA. Protegido para ninguém criar um Usuario vazio pelo código.
     protected Usuario() {
     }
@@ -179,6 +183,25 @@ public class Usuario {
         this.precisaTrocarSenha = true;
     }
 
+    /**
+     * O código chegou a este e-mail (ADR 0038). {@code emailDoCodigo} é para onde o código foi:
+     * se o e-mail do login mudou depois, ele não confirma o novo.
+     */
+    public void confirmarEmail(String emailDoCodigo, Instant agora) {
+        if (!email.equals(emailDoCodigo)) {
+            throw new IllegalStateException("o código foi para outro e-mail");
+        }
+        this.emailConfirmadoEm = agora.truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+    }
+
+    /** O próprio usuário corrige o e-mail antes de confirmar; o novo também precisa ser confirmado. */
+    public void corrigirEmail(String novoEmail) {
+        if (emailConfirmadoEm != null) {
+            throw new IllegalStateException("e-mail já confirmado não se corrige por aqui");
+        }
+        this.email = normalizarEmail(novoEmail);
+    }
+
     private void revogarTokens() {
         this.versaoToken++;
     }
@@ -194,4 +217,5 @@ public class Usuario {
     public boolean isSomenteLeitura() { return somenteLeitura; }
     public int getVersaoToken() { return versaoToken; }
     public Instant getCriadoEm() { return criadoEm; }
+    public Instant getEmailConfirmadoEm() { return emailConfirmadoEm; }
 }

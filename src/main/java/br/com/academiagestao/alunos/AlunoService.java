@@ -4,15 +4,18 @@ import br.com.academiagestao.auth.CredenciaisTemporarias;
 import br.com.academiagestao.auth.LoginsDeAlunos;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import br.com.academiagestao.compartilhado.EmailDoAlunoCorrigido;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -140,6 +143,20 @@ class AlunoService {
         Aluno gravado = gravar(aluno);
         auditoria.registrar(ALUNO, id, "EDITADO", antes, retrato(gravado));
         return gravado;
+    }
+
+    /**
+     * O aluno corrigiu o e-mail do login no primeiro acesso (ADR 0038): o cadastro acompanha, na
+     * transação de quem corrigiu, e a trilha registra.
+     */
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
+    void aoCorrigirEmail(EmailDoAlunoCorrigido evento) {
+        Aluno aluno = buscar(evento.alunoId());
+        Map<String, Object> antes = retrato(aluno);
+        aluno.corrigirEmail(evento.email());
+        Aluno gravado = gravar(aluno);
+        auditoria.registrar(ALUNO, aluno.getId(), "EMAIL_CORRIGIDO", antes, retrato(gravado));
     }
 
     // Dados pessoais: a trilha guarda o valor anterior (por isso só o ADMIN a consulta).

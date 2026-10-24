@@ -82,6 +82,15 @@ public class Aluno {
         aplicar(dados, agora);
     }
 
+    /** O próprio aluno corrigiu o e-mail do login no primeiro acesso (ADR 0038): o cadastro acompanha. */
+    public void corrigirEmail(String novoEmail) {
+        String emailLimpo = textoOuNull(novoEmail);
+        if (emailLimpo == null || !emailLimpo.contains("@") || emailLimpo.length() > TAMANHO_MAXIMO_EMAIL) {
+            throw new DadosInvalidosException("e-mail inválido");
+        }
+        this.email = emailLimpo.toLowerCase(Locale.ROOT);
+    }
+
     /** Aluno saiu da academia. Chamar de novo não muda nada. */
     public void inativar() {
         this.ativo = false;

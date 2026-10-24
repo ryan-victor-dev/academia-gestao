@@ -103,6 +103,8 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             // O Pix e o boleto gerados ficam, com o que aconteceu com eles (ADR 0034).
             sql.execute("REVOKE DELETE, TRUNCATE ON TABLE pagamentos_online FROM " + usuario);
             sql.execute("REVOKE INSERT, DELETE, TRUNCATE ON TABLE configuracao_pagamento_online FROM " + usuario);
+            // Os códigos mandados por e-mail ficam, encerrados (usados, trocados ou esgotados), ADR 0038.
+            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE codigos_de_email FROM " + usuario);
             // O registro de acessos também só cresce (V38, ADR 0031).
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE acessos FROM " + usuario);
             // A única saída da trilha e dos acessos: as funções do dono que só apagam o que

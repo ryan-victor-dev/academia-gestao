@@ -13,6 +13,7 @@ function comSessao(...eus: object[]) {
   const fetch = vi.fn(async (url: string, _init?: RequestInit) => {
     if (url === '/api/auth/renovar' || url === '/api/auth/trocar-senha') return json(200, { token: 't' });
     if (url === '/api/auth/sair') return new Response(null, { status: 204 });
+    if (url === '/api/auth/email/codigo' || url === '/api/auth/email/confirmar') return new Response(null, { status: 204 });
     if (url === '/api/me') return json(200, eus.length > 1 ? eus.shift() : eus[0]);
     return json(404, {});
   });
@@ -65,6 +66,24 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
 
     expect(await screen.findByRole('heading', { name: 'Olá, Ana' })).toBeInTheDocument();
+  });
+
+  it('e-mail a confirmar (ADR 0038): só a confirmação, sem menu; confirmado, entra', async () => {
+    const fetch = comSessao(usuario({ precisaConfirmarEmail: true }), usuario());
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Confirme seu e-mail' })).toBeInTheDocument();
+    expect(screen.getByText('ana@academia.com')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar código' }));
+    await userEvent.type(await screen.findByLabelText('Código'), '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(await screen.findByRole('heading', { name: 'Olá, Ana' })).toBeInTheDocument();
+    const urls = fetch.mock.calls.map((c) => c[0]);
+    // Confirmado, renova o token (sem a restrição) antes de carregar o usuário de novo.
+    expect(urls.slice(urls.indexOf('/api/auth/email/confirmar'))).toEqual(['/api/auth/email/confirmar', '/api/auth/renovar', '/api/me']);
   });
 
   it('aluno inativo: avisa que é só consulta', async () => {

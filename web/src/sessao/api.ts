@@ -14,6 +14,8 @@ export interface Usuario {
   perfil: Perfil;
   ativo: boolean;
   precisaTrocarSenha: boolean;
+  /** Aluno e equipe confirmam o e-mail no primeiro acesso, com um código (ADR 0038). Só no /api/me. */
+  precisaConfirmarEmail?: boolean;
   somenteLeitura: boolean;
 }
 
@@ -104,6 +106,22 @@ export async function trocarSenha(senhaAtual: string, novaSenha: string): Promis
     corpo: { senhaAtual, novaSenha },
   });
   token = resposta.token;
+}
+
+/** Manda (de novo) o código de confirmação para o e-mail do login (ADR 0038). */
+export function enviarCodigoDeEmail(): Promise<void> {
+  return chamar<void>('/api/auth/email/codigo', { metodo: 'POST' });
+}
+
+/** O e-mail estava errado: corrige e manda o código para o novo. */
+export function corrigirEmail(email: string): Promise<void> {
+  return chamar<void>('/api/auth/email', { metodo: 'PUT', corpo: { email } });
+}
+
+/** Confirma o e-mail com o código e renova o token, que sai sem a restrição. */
+export async function confirmarEmail(codigo: string): Promise<void> {
+  await chamar<void>('/api/auth/email/confirmar', { metodo: 'POST', corpo: { codigo } });
+  await renovar();
 }
 
 /** Encerra a sessão no servidor e esquece o token. Falha de rede não impede sair da tela. */

@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.Correio;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -17,11 +18,13 @@ class GeradorDeToken {
     private final JwtEncoder encoder;
     private final JwtProperties properties;
     private final Clock relogio;
+    private final Correio correio;
 
-    GeradorDeToken(JwtEncoder encoder, JwtProperties properties, Clock relogio) {
+    GeradorDeToken(JwtEncoder encoder, JwtProperties properties, Clock relogio, Correio correio) {
         this.encoder = encoder;
         this.properties = properties;
         this.relogio = relogio;
+        this.correio = correio;
     }
 
     TokenEmitido gerar(Usuario usuario) {
@@ -52,15 +55,22 @@ class GeradorDeToken {
         if (usuario.isPrecisaTrocarSenha()) {
             claims.claim(ClaimsDoToken.TROCAR_SENHA, true);
         }
+        // Primeiro a senha temporária, depois o e-mail (ADR 0038).
+        boolean confirmarEmail = !usuario.isPrecisaTrocarSenha()
+                && ConfirmacaoDeEmail.exigida(usuario, correio.ligado());
+        if (confirmarEmail) {
+            claims.claim(ClaimsDoToken.CONFIRMAR_EMAIL, true);
+        }
         if (usuario.isSomenteLeitura()) {
             claims.claim(ClaimsDoToken.SOMENTE_LEITURA, true);
         }
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
 
         String token = encoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
-        return new TokenEmitido(token, expiraEm, usuario.isPrecisaTrocarSenha(), usuario.getId());
+        return new TokenEmitido(token, expiraEm, usuario.isPrecisaTrocarSenha(), confirmarEmail, usuario.getId());
     }
 
-    record TokenEmitido(String token, Instant expiraEm, boolean precisaTrocarSenha, UUID usuarioId) {
+    record TokenEmitido(String token, Instant expiraEm, boolean precisaTrocarSenha, boolean precisaConfirmarEmail,
+                        UUID usuarioId) {
     }
 }
