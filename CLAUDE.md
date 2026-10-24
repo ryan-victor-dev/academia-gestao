@@ -145,6 +145,9 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   usa `PIX_ONLINE`/`BOLETO` com `caixa_id` nulo, e os do balcão continuam com caixa.
   Só um pagamento online `AGUARDANDO` por cobrança e forma (V43, ADR 0035).
   `DEVOLVENDO` (V45, ADR 0036) exige recebido, motivo e valor a devolver, como `A_DEVOLVER`.
+- E-mail (ADR 0038): desligado sem `EMAIL_HOST`. Nos testes, o `Correio` é desligado (padrão); para testar
+  um fluxo com e-mail, um `Correio` de teste que guarda as mensagens. No Docker, o Mailpit (`--profile
+  email-de-teste`, veja o README); a API dele (`/api/v1/messages`) serve aos roteiros de validação.
 - Telas (`web/`): validar no Chromium (Playwright) pelo Caddy, e não só no Vitest; os roteiros
   de validação de cada parte ficam em `revisao-local/ferramentas/navegador/` (fora do Git). No
   Playwright, `getByLabel('Nome')` acha por trecho ("Buscar por nome" também): use `exact: true`.

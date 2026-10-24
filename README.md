@@ -317,6 +317,12 @@ mais, a cobrança fica paga e a sobra vai para a devolver; o ADMIN confirma, e o
 pela empresa (o boleto, por fora). Um Pix e um boleto aguardando por cobrança, no máximo (ADR 0035). Se o aluno contestar no banco, a mensalidade volta em aberto, e
 o ADMIN vê a contestação (ADR 0037; consulta diária dos cartões dos últimos 120 dias).
 
+¹³ E-mail (ADR 0038): os códigos de confirmação do e-mail e de recuperação da senha vão por SMTP,
+configurado no `.env` (`EMAIL_HOST` e afins). Sem servidor, o e-mail fica desligado, e nada que
+dependa dele é exigido. Para testar sem mandar nada para fora: `EMAIL_HOST=mailpit EMAIL_PORTA=1025
+EMAIL_TLS=false EMAIL_REMETENTE=teste@academia.local docker compose --profile email-de-teste up -d`,
+e os e-mails aparecem em http://localhost:8025.
+
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
 

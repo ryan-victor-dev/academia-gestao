@@ -83,9 +83,30 @@ services:
       # Pagamento online (ADR 0034): desligado, simulado (só testes) ou a empresa implementada.
       ACADEMIA_PAGAMENTOS_PROVEDOR: ${PAGAMENTOS_PROVEDOR:-desligado}
       ACADEMIA_PAGAMENTOS_TOKEN_DO_AVISO_SIMULADO: ${PAGAMENTOS_TOKEN_DO_AVISO_SIMULADO:-}
+      # E-mail (ADR 0038): sem EMAIL_HOST, desligado (nada que dependa de e-mail é exigido).
+      ACADEMIA_EMAIL_HOST: ${EMAIL_HOST:-}
+      ACADEMIA_EMAIL_PORTA: ${EMAIL_PORTA:-587}
+      ACADEMIA_EMAIL_USUARIO: ${EMAIL_USUARIO:-}
+      ACADEMIA_EMAIL_SENHA: ${EMAIL_SENHA:-}
+      ACADEMIA_EMAIL_TLS: ${EMAIL_TLS:-true}
+      ACADEMIA_EMAIL_REMETENTE: ${EMAIL_REMETENTE:-}
     ports:
       # Só nesta máquina (diagnóstico); quem vem da rede entra pelo Caddy, com HTTPS.
       - "127.0.0.1:8090:8090"
+
+  # Caixa de e-mails de teste (ADR 0038), só com --profile email-de-teste: recebe os e-mails
+  # do sistema sem mandar nada para fora, e mostra numa página (http://localhost:8025, só nesta
+  # máquina). Para usar: EMAIL_HOST=mailpit EMAIL_PORTA=1025 EMAIL_TLS=false e um EMAIL_REMETENTE.
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    container_name: academia-mailpit
+    profiles: [email-de-teste]
+    restart: unless-stopped
+    logging: *logs
+    security_opt: *sem-novos-privilegios
+    cap_drop: [ALL]
+    ports:
+      - "127.0.0.1:8025:8025"
 
   # Backup diário do banco (ADR 0020): pg_dump a partir das 3h numa pasta do servidor
   # (BACKUP_PASTA, padrão ./backups), com 7 diários e 4 semanais. Usa o dono do banco: o
