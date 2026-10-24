@@ -8,6 +8,9 @@ import { ListaDeAlunos } from './paginas/alunos/ListaDeAlunos';
 import { NovoAluno } from './paginas/alunos/NovoAluno';
 import { CaixaDoDia } from './paginas/caixa/CaixaDoDia';
 import { CobrancasAtrasadas } from './paginas/cobrancas/CobrancasAtrasadas';
+import { Auditoria } from './paginas/admin/Auditoria';
+import { ConfiguracaoDaCobranca } from './paginas/admin/ConfiguracaoDaCobranca';
+import { Equipe } from './paginas/admin/Equipe';
 import { InicioDoAluno } from './paginas/aluno/InicioDoAluno';
 import { MeusPagamentos } from './paginas/aluno/MeusPagamentos';
 import { MeuTreino } from './paginas/aluno/MeuTreino';
@@ -95,6 +98,9 @@ function AreaLogada({ aoSair, aoTrocarSenha }: { aoSair: () => void; aoTrocarSen
     '/meu-treino': <MeuTreino />,
     '/minhas-cobrancas': <MeusPagamentos />,
     '/planos': <ListaDePlanos />,
+    '/equipe': <Equipe />,
+    '/configuracao': <ConfiguracaoDaCobranca />,
+    '/auditoria': <Auditoria />,
     '/revisoes': <RevisoesVencidas />,
     '/senha': <TrocarSenha obrigatoria={false} aoTrocar={aoTrocarSenha} />,
   };

@@ -5,6 +5,7 @@ import { data, dataHora, dinheiro, hoje } from '../../formato';
 import { chamar, ErroDaApi } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
 import { NOME_DO_MEIO, type Meio } from '../cobrancas/tipos';
+import { RelatorioDoCaixa } from './RelatorioDoCaixa';
 
 interface Forma { forma: Meio; recebido: number; pagamentos: number; estornado: number; estornos: number; liquido: number }
 interface Fechamento { contado: number; esperado: number; diferenca: number; justificativa: string | null; em: string }
@@ -156,6 +157,8 @@ export function CaixaDoDia() {
           ) : <button type="button" className="secundario" onClick={() => setReabrindo(true)}>Reabrir o dia</button>)}
         </>
       )}
+
+      {admin && <RelatorioDoCaixa />}
     </>
   );
 }

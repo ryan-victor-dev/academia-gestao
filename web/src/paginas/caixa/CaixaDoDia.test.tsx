@@ -75,11 +75,13 @@ describe('caixa do dia', () => {
     await screen.findByText('Fechado');
     expect(screen.queryByLabelText('Ver o dia')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reabrir o dia' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Relatório do período' })).not.toBeInTheDocument();
     unmount();
 
     const api = apiFalsa(rotas);
     renderizar(<CaixaDoDia />, { perfil: 'ADMIN' });
     expect(await screen.findByLabelText('Ver o dia')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Relatório do período' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Reabrir o dia' }));
     await userEvent.type(screen.getByLabelText('Motivo'), 'contagem errada');
     await userEvent.click(screen.getByRole('button', { name: 'Reabrir' }));

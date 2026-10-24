@@ -110,4 +110,14 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Minha matrícula' })).toBeInTheDocument();
   });
+
+  it('as telas do ADMIN existem de verdade (não "em breve")', async () => {
+    window.history.pushState({}, '', '/equipe');
+    comSessao(usuario({ perfil: 'ADMIN' }));
+
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: 'Novo login' })).toBeInTheDocument();
+    expect(screen.queryByText(/chega numa próxima versão/)).not.toBeInTheDocument();
+  });
 });
