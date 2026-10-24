@@ -194,6 +194,22 @@ class UsuarioDaAplicacaoNoBancoTest {
         }
     }
 
+    /** O Pix e o boleto gerados não se apagam; a configuração do pagamento online é uma linha só (ADR 0034). */
+    @Test
+    void pagamentosOnlineNaoSaoApagados() {
+        assertThatCode(() -> {
+            executar("UPDATE pagamentos_online SET situacao = situacao WHERE false");
+            executar("INSERT INTO pagamentos_online SELECT * FROM pagamentos_online WHERE false");
+            executar("UPDATE configuracao_pagamento_online SET versao = versao WHERE false");
+        }).doesNotThrowAnyException();
+        for (String ataque : List.of("DELETE FROM pagamentos_online", "TRUNCATE pagamentos_online",
+                "DELETE FROM configuracao_pagamento_online", "TRUNCATE configuracao_pagamento_online",
+                "INSERT INTO configuracao_pagamento_online SELECT * FROM configuracao_pagamento_online WHERE false")) {
+            assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
+                    .hasMessageContaining("permission denied");
+        }
+    }
+
     /**
      * O histórico de treinos não se apaga, e divisões e exercícios da ficha não se alteram
      * (ADR 0027, V32). "WHERE false": a permissão é conferida mesmo sem linhas.

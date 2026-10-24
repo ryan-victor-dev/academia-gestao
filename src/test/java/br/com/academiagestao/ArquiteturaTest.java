@@ -46,14 +46,15 @@ class ArquiteturaTest {
             .that().resideInAPackage("..compartilhado..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..auth..", "..alunos..", "..planos..", "..matriculas..", "..cobranca..", "..treinos..",
-                    "..auditoria..")
+                    "..auditoria..", "..pagamentos..")
             .because("compartilhado é a base comum: se dependesse de um módulo, todos dependeriam dele");
 
     @ArchTest
     static final ArchRule authNaoDependeDeOutrosModulos = noClasses()
             .that().resideInAPackage("..auth..")
             .should().dependOnClassesThat().resideInAnyPackage(
-                    "..alunos..", "..planos..", "..matriculas..", "..cobranca..", "..treinos..", "..auditoria..")
+                    "..alunos..", "..planos..", "..matriculas..", "..cobranca..", "..treinos..", "..auditoria..",
+                    "..pagamentos..")
             .because("os outros módulos dependem do auth, nunca o contrário (sem ciclos)");
 
     // Porta pública de cada módulo: o que outros módulos podem usar. O resto é interno.
@@ -64,7 +65,7 @@ class ArquiteturaTest {
     @ArchTest
     static final ArchRule alunosSoPelaPortaPublica = soPelaPortaPublica("alunos",
             Set.of("AlunosParaMatricula", "EstadoDoAluno", "ImpedimentoParaInativar",
-                    "AoMudarASituacaoDoAluno"));
+                    "AoMudarASituacaoDoAluno", "Pagador"));
 
     @ArchTest
     static final ArchRule planosSoPelaPortaPublica = soPelaPortaPublica("planos",
@@ -75,6 +76,12 @@ class ArquiteturaTest {
             Set.of("CobrancasDasMatriculas", "MatriculaParaCobranca", "Pausa", "Encerramento", "Tipo",
                     "Continuacao", "CobrancasParaPagamentoOnline", "CobrancaEmAberto", "ValorCombinado",
                     "FormaOnline", "ResultadoDoRecebimento"));
+
+    // Para outra empresa, uma classe nova que implementa a porta (ADR 0034); o resto é interno.
+    @ArchTest
+    static final ArchRule pagamentosSoPelaPortaPublica = soPelaPortaPublica("pagamentos",
+            Set.of("ProvedorDePagamento", "Forma", "Pagador", "Pedido", "Gerado", "Estado", "Situacao",
+                    "ProvedorIndisponivelException", "AvisoRecusadoException"));
 
     @ArchTest
     static final ArchRule cobrancaEmJavaPuro = classes()

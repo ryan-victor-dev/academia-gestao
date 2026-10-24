@@ -80,6 +80,9 @@ services:
       ADMIN_SENHA: ${ADMIN_SENHA:-}
       JWT_SEGREDO: ${JWT_SEGREDO:-}
       JWT_EXPIRACAO: ${JWT_EXPIRACAO:-15m}
+      # Pagamento online (ADR 0034): desligado, simulado (só testes) ou a empresa implementada.
+      ACADEMIA_PAGAMENTOS_PROVEDOR: ${PAGAMENTOS_PROVEDOR:-desligado}
+      ACADEMIA_PAGAMENTOS_TOKEN_DO_AVISO_SIMULADO: ${PAGAMENTOS_TOKEN_DO_AVISO_SIMULADO:-}
     ports:
       # Só nesta máquina (diagnóstico); quem vem da rede entra pelo Caddy, com HTTPS.
       - "127.0.0.1:8090:8090"

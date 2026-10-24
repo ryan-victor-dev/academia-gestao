@@ -6,11 +6,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * O que os módulos de matrículas, de treinos e de cobrança podem pedir ao de alunos. Devolve dados, não
+ * O que os módulos de matrículas, de treinos, de cobrança e de pagamentos podem pedir ao de alunos. Devolve dados, não
  * lança as exceções daqui: quem decide a resposta HTTP é o módulo que chamou.
  */
 @Service
@@ -54,5 +55,15 @@ public class AlunosParaMatricula {
     public Map<UUID, String> nomes(Collection<UUID> ids) {
         return repository.nomes(ids).stream()
                 .collect(Collectors.toMap(AlunoRepository.NomeDoAluno::id, AlunoRepository.NomeDoAluno::nome));
+    }
+
+    /** Quem paga um boleto (ADR 0034): a empresa de pagamentos exige o nome e o CPF. */
+    public record Pagador(String nome, String cpf, String email) {
+    }
+
+    /** Os dados de quem paga, para o pagamento online. Inexistente: vazio. */
+    @Transactional(readOnly = true)
+    public Optional<Pagador> pagador(UUID alunoId) {
+        return repository.findById(alunoId).map(a -> new Pagador(a.getNome(), a.getCpf(), a.getEmail()));
     }
 }

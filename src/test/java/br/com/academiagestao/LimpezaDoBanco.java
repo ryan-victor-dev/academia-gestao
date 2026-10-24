@@ -21,9 +21,10 @@ public class LimpezaDoBanco {
 
     /**
      * Não são dados de teste: o histórico do Flyway e as linhas que as migrações criam e a
-     * aplicação só altera (a configuração da cobrança, V22). Quem altera restaura.
+     * aplicação só altera (as configurações da cobrança, V22, e do pagamento online, V42). Quem altera restaura.
      */
-    static final List<String> FICAM = List.of("flyway_schema_history", "configuracao_cobranca");
+    static final List<String> FICAM = List.of("flyway_schema_history", "configuracao_cobranca",
+            "configuracao_pagamento_online");
 
     private final JdbcTemplate jdbc;
 

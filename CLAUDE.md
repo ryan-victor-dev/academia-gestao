@@ -18,7 +18,7 @@ scripts/usuario-validacao.sh PERFIL   # token de um usuário de teste (só desen
 ## Arquitetura
 
 Monolito modular por domínio (ADR 0002): `auth`, `alunos`, `planos`, `cobranca`,
-`matriculas`, `treinos`, `auditoria`, `compartilhado`. Em cada módulo: Controller
+`matriculas`, `treinos`, `auditoria`, `pagamentos`, `compartilhado`. Em cada módulo: Controller
 (records de entrada/saída, nunca a entidade) → Service (transação, checagens que dependem
 do banco) → Entidade rica (fábrica, sem setters, valida tudo antes de alterar) → Repository.
 As regras da cobrança ficam em `cobranca.dominio`, Java puro (ADRs 0004 e 0024); o resto
@@ -139,6 +139,10 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 - A API da cobrança mostra a `situacao` (calculada: `ATRASADA` é a pendente vencida), não o
   `status` do banco: em scripts de validação, compare com a situação certa.
 
+- Pagamento online (ADR 0034): o padrão é `desligado`. Para testar, `academia.pagamentos.provedor=simulado`
+  (nos testes, um `@SpringBootTest(properties = ...)`; no Docker, `PAGAMENTOS_PROVEDOR=simulado`). Chamada à
+  empresa nunca dentro de transação. O lançamento online não tem caixa (V41): teste que insere um à mão
+  usa `PIX_ONLINE`/`BOLETO` com `caixa_id` nulo, e os do balcão continuam com caixa.
 - Telas (`web/`): validar no Chromium (Playwright) pelo Caddy, e não só no Vitest; os roteiros
   de validação de cada parte ficam em `revisao-local/ferramentas/navegador/` (fora do Git). No
   Playwright, `getByLabel('Nome')` acha por trecho ("Buscar por nome" também): use `exact: true`.
@@ -153,6 +157,6 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029, 0031 (registro de acessos) e 0033 (sessão renovável); dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029, 0031 (registro de acessos), 0033 (sessão renovável) e 0034 (pagamento online); dinheiro, nos 0024, 0025 e 0026. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.

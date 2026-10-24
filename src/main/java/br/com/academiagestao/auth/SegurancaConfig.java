@@ -87,6 +87,9 @@ class SegurancaConfig {
                         // Sessão renovável (ADR 0033): quem chega aqui é quem tem o token vencido.
                         .requestMatchers(HttpMethod.POST, "/api/auth/renovar", "/api/auth/sair").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        // Quem avisa é a empresa de pagamentos, sem login: ela prova quem é no
+                        // próprio aviso, e o sistema só consulta a empresa (ADR 0034).
+                        .requestMatchers(HttpMethod.POST, "/api/pagamentos-online/aviso").permitAll()
                         // Deixa o Spring montar a página de erro de uma rota já autorizada.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         // Quem entrou com senha temporária só pode trocá-la (e ver quem é). O
