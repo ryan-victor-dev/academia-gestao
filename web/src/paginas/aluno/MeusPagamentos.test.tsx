@@ -1,9 +1,9 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { desenhoDoQr } from '../../componentes/QrCode';
 import { apiFalsa, json, renderizar } from '../../testes/ajudantes';
-import { MeusPagamentos } from './MeusPagamentos';
+import { MeusPagamentos, paginaExterna } from './MeusPagamentos';
 
 const desligado = { ligado: false, simulado: false, pix: false, boleto: false, pagaveis: [] };
 const atrasada = { tipo: 'MENSALIDADE', valor: 100, pagaEm: null, meioDePagamento: null, pagoTotal: null, id: 'c1', parcela: 1,
@@ -46,6 +46,81 @@ describe('meus pagamentos', () => {
     expect(screen.getByText(/\(Débito pelo app\)/)).toBeInTheDocument();
   });
 
+  describe('cartão (ADR 0037)', () => {
+    afterEach(() => vi.restoreAllMocks());
+    const comCartao = (extra = {}) => ligado({ pix: false, boleto: false, credito: true, debito: true, ...extra });
+    const cartao = (forma: string, link: string) => ({ ...pix, id: 'k1', forma, pixCopiaECola: null, linkDePagamento: link });
+
+    it('só com cartão já conta como ligado; os dois botões aparecem', async () => {
+      apiFalsa({ 'GET /api/cobrancas/me': json(200, [atrasada]), 'GET /api/pagamentos-online/me': json(200, comCartao()) });
+      renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });
+
+      expect(await screen.findByRole('button', { name: 'Cartão de crédito' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Cartão de débito' })).toBeInTheDocument();
+      expect(screen.getByText(/Pague pelo app, com Pix, boleto ou cartão/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Pagar com Pix' })).not.toBeInTheDocument();
+    });
+
+    it.each([['CREDITO', 'Cartão de crédito', 'Cartão de débito'], ['DEBITO', 'Cartão de débito', 'Cartão de crédito']])(
+      'só %s ligado: só o botão dele', async (forma, aparece, some) => {
+        apiFalsa({ 'GET /api/cobrancas/me': json(200, [atrasada]),
+          'GET /api/pagamentos-online/me': json(200, comCartao({ credito: forma === 'CREDITO', debito: forma === 'DEBITO' })) });
+        renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });
+
+        expect(await screen.findByRole('button', { name: aparece })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: some })).not.toBeInTheDocument();
+      });
+
+    it('crédito: gera e vai à página do simulado, dentro do app', async () => {
+      const api = apiFalsa({ 'GET /api/cobrancas/me': json(200, [atrasada]), 'GET /api/pagamentos-online/me': json(200, comCartao()),
+        'POST /api/pagamentos-online/me': json(201, cartao('CREDITO', '/cartao-simulado/k1')) });
+      const externa = vi.spyOn(paginaExterna, 'abrir').mockImplementation(() => {});
+      renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Cartão de crédito' }));
+
+      expect(await screen.findByText(/Fora da tela/)).toBeInTheDocument();
+      expect(api.de('POST /api/pagamentos-online/me')[0].corpo).toEqual({ cobrancaId: 'c1', forma: 'CREDITO' });
+      expect(externa).not.toHaveBeenCalled();
+    });
+
+    it('débito numa empresa de verdade: sai do app para a página dela', async () => {
+      const api = apiFalsa({ 'GET /api/cobrancas/me': json(200, [atrasada]), 'GET /api/pagamentos-online/me': json(200, comCartao()),
+        'POST /api/pagamentos-online/me': json(201, cartao('DEBITO', 'https://empresa.exemplo/pagar/k1')) });
+      const externa = vi.spyOn(paginaExterna, 'abrir').mockImplementation(() => {});
+      renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Cartão de débito' }));
+
+      await vi.waitFor(() => expect(externa).toHaveBeenCalledWith('https://empresa.exemplo/pagar/k1'));
+      expect(api.de('POST /api/pagamentos-online/me')[0].corpo).toEqual({ cobrancaId: 'c1', forma: 'DEBITO' });
+    });
+
+    it('o que ainda vale: vai direto, sem gerar outro', async () => {
+      const api = apiFalsa({ 'GET /api/cobrancas/me': json(200, [atrasada]),
+        'GET /api/pagamentos-online/me': json(200, comCartao({ pagaveis: [{ cobrancaId: 'c1', total: 102.1, pix: null, boleto: null,
+          credito: cartao('CREDITO', 'https://empresa.exemplo/pagar/k1'), debito: null }] })) });
+      const externa = vi.spyOn(paginaExterna, 'abrir').mockImplementation(() => {});
+      renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Cartão de crédito' }));
+
+      expect(externa).toHaveBeenCalledWith('https://empresa.exemplo/pagar/k1');
+      expect(api.de('POST /api/pagamentos-online/me')).toHaveLength(0);
+    });
+
+    it('erro ao gerar o cartão aparece, e o botão volta', async () => {
+      apiFalsa({ 'GET /api/cobrancas/me': json(200, [atrasada]), 'GET /api/pagamentos-online/me': json(200, comCartao()),
+        'POST /api/pagamentos-online/me': json(409, { detail: 'O cartão de crédito não está disponível no app' }) });
+      renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Cartão de crédito' }));
+
+      expect(await screen.findByText('O cartão de crédito não está disponível no app')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Cartão de crédito' })).toBeEnabled();
+    });
+  });
+
   it('nada em aberto: diz isso', async () => {
     apiFalsa({ 'GET /api/cobrancas/me': json(200, []), 'GET /api/pagamentos-online/me': json(200, desligado) });
     renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });
@@ -66,7 +141,7 @@ describe('meus pagamentos', () => {
       'POST /api/pagamentos-online/me': json(201, pix) });
     renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });
 
-    expect(await screen.findByText('Pague pelo app, com Pix ou boleto, ou na recepção.')).toBeInTheDocument();
+    expect(await screen.findByText('Pague pelo app, com Pix, boleto ou cartão, ou na recepção.')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Pagar com Pix' })).toHaveLength(1);
     await userEvent.click(screen.getByRole('button', { name: 'Pagar com Pix' }));
 

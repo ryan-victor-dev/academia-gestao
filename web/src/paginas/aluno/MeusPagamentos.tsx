@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { QrCode } from '../../componentes/QrCode';
 import { data, dataHora, dinheiro } from '../../formato';
@@ -19,7 +20,7 @@ export interface CobrancaDoAluno {
   pagoTotal: number | null;
 }
 
-type Forma = 'PIX' | 'BOLETO';
+type Forma = 'PIX' | 'BOLETO' | 'CREDITO' | 'DEBITO';
 
 export interface PagamentoOnline {
   id: string;
@@ -29,17 +30,27 @@ export interface PagamentoOnline {
   pixCopiaECola: string | null;
   boletoLinhaDigitavel: string | null;
   boletoUrl: string | null;
+  linkDePagamento: string | null;
   validoAte: string;
   situacao: string;
 }
 
-interface Pagavel { cobrancaId: string; total: number; pix: PagamentoOnline | null; boleto: PagamentoOnline | null }
+interface Pagavel {
+  cobrancaId: string; total: number;
+  pix: PagamentoOnline | null; boleto: PagamentoOnline | null; credito: PagamentoOnline | null; debito: PagamentoOnline | null;
+}
 
-export interface OpcoesOnline { ligado: boolean; simulado: boolean; pix: boolean; boleto: boolean; pagaveis: Pagavel[] }
+export interface OpcoesOnline {
+  ligado: boolean; simulado: boolean; pix: boolean; boleto: boolean; credito: boolean; debito: boolean; pagaveis: Pagavel[];
+}
+
+/** A página da empresa de pagamentos fica fora do app: o navegador sai e volta (separado para os testes). */
+export const paginaExterna = { abrir: (endereco: string) => window.location.assign(endereco) };
 
 /**
  * As cobranças do aluno: primeiro o que está em aberto (com o valor de hoje), depois o pago. Com
- * o pagamento online ligado (ADR 0034), as que ele pode pagar ganham o Pix e o boleto.
+ * o pagamento online ligado (ADRs 0034 e 0037), as que ele pode pagar ganham o Pix, o boleto e o
+ * cartão (pago na página da empresa: nenhum dado de cartão passa pelo app).
  */
 export function MeusPagamentos() {
   const [cobrancas, setCobrancas] = useState<CobrancaDoAluno[] | null>(null);
@@ -58,12 +69,12 @@ export function MeusPagamentos() {
   if (!cobrancas) return erro ? <MensagemDeErro erro={erro} /> : <p className="suave" role="status">Carregando…</p>;
   const abertas = cobrancas.filter((c) => c.situacao === 'PENDENTE' || c.situacao === 'ATRASADA');
   const outras = cobrancas.filter((c) => c.situacao === 'PAGA' || c.situacao === 'CANCELADA');
-  const ligado = online?.ligado === true && (online.pix || online.boleto);
+  const ligado = online?.ligado === true && (online.pix || online.boleto || online.credito || online.debito);
 
   return (
     <>
       <h1>Pagamentos</h1>
-      <p className="suave">{ligado ? 'Pague pelo app, com Pix ou boleto, ou na recepção.' : 'O pagamento é feito na recepção.'}</p>
+      <p className="suave">{ligado ? 'Pague pelo app, com Pix, boleto ou cartão, ou na recepção.' : 'O pagamento é feito na recepção.'}</p>
       {online?.simulado && (
         <p className="aviso" role="note">Modo de teste: os pagamentos pelo app são simulados e não cobram nada.</p>
       )}
@@ -114,6 +125,7 @@ function PagarPeloApp({ pagavel, opcoes, aoMudar }: { pagavel: Pagavel; opcoes: 
     { ...(pagavel.pix ? { PIX: pagavel.pix } : {}), ...(pagavel.boleto ? { BOLETO: pagavel.boleto } : {}) });
   const [erro, setErro] = useState<unknown>(null);
   const [ocupado, setOcupado] = useState(false);
+  const navegar = useNavigate();
 
   async function gerar(forma: Forma) {
     setErro(null);
@@ -124,6 +136,23 @@ function PagarPeloApp({ pagavel, opcoes, aoMudar }: { pagavel: Pagavel; opcoes: 
     } catch (e) {
       setErro(e);
     } finally {
+      setOcupado(false);
+    }
+  }
+
+  /** O cartão: vai à página da empresa (a que ainda vale, ou uma nova). */
+  async function pagarComCartao(forma: 'CREDITO' | 'DEBITO') {
+    const valendo = forma === 'CREDITO' ? pagavel.credito : pagavel.debito;
+    setErro(null);
+    setOcupado(true);
+    try {
+      const pagamento = valendo ?? await chamar<PagamentoOnline>('/api/pagamentos-online/me', { metodo: 'POST', corpo: { cobrancaId: pagavel.cobrancaId, forma } });
+      const link = pagamento.linkDePagamento ?? '';
+      // O simulado é uma tela do próprio app; a empresa de verdade, um endereço de fora.
+      if (link.startsWith('/')) navegar(link);
+      else paginaExterna.abrir(link);
+    } catch (e) {
+      setErro(e);
       setOcupado(false);
     }
   }
@@ -146,6 +175,8 @@ function PagarPeloApp({ pagavel, opcoes, aoMudar }: { pagavel: Pagavel; opcoes: 
       <div className="acoes">
         {opcoes.pix && !gerados.PIX && <button type="button" disabled={ocupado} onClick={() => gerar('PIX')}>Pagar com Pix</button>}
         {opcoes.boleto && !gerados.BOLETO && <button type="button" className="secundario" disabled={ocupado} onClick={() => gerar('BOLETO')}>Gerar boleto</button>}
+        {opcoes.credito && <button type="button" className="secundario" disabled={ocupado} onClick={() => pagarComCartao('CREDITO')}>Cartão de crédito</button>}
+        {opcoes.debito && <button type="button" className="secundario" disabled={ocupado} onClick={() => pagarComCartao('DEBITO')}>Cartão de débito</button>}
       </div>
       {gerados.PIX && (
         <Gerado titulo="Pix copia e cola" codigo={gerados.PIX.pixCopiaECola ?? ''} pagamento={gerados.PIX} qr

@@ -40,3 +40,12 @@ ou de débito, além do Pix e do boleto (ADR 0034). Decisões do dono:
 - Devolução de cartão pelo sistema (estorno na fatura), como o Pix (ADR 0035), se a empresa
   devolver. O simulado oferece todas as formas e devolve tudo, menos boleto; a "página da
   empresa" dele é uma tela do próprio app, que não pede cartão nenhum.
+
+### O aluno paga com cartão (parte 13)
+- Na tela Pagamentos, cada mensalidade que se paga hoje ganha "Cartão de crédito" e "Cartão de
+  débito" (só as formas disponíveis). O toque vai à página da empresa: a que ainda vale, ou uma
+  nova. Link de fora (empresa de verdade): o navegador sai do app e volta no fim. Link do próprio
+  app (o simulado): a navegação fica dentro dele.
+- A "página da empresa" do simulado é a rota `/cartao-simulado/{id}`, só do ALUNO: avisa que é
+  teste, não pede cartão, e "Aprovar pagamento (teste)" faz o mesmo que o simular do Pix. A API
+  recusa a simulação fora do provedor simulado ou para o pagamento de outro aluno.

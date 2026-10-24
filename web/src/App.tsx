@@ -14,6 +14,7 @@ import { PagamentosOnline } from './paginas/admin/PagamentosOnline';
 import { Equipe } from './paginas/admin/Equipe';
 import { InicioDoAluno } from './paginas/aluno/InicioDoAluno';
 import { MeusPagamentos } from './paginas/aluno/MeusPagamentos';
+import { CartaoSimulado } from './paginas/aluno/CartaoSimulado';
 import { MeuTreino } from './paginas/aluno/MeuTreino';
 import { Inicio } from './paginas/Inicio';
 import { ListaDePlanos } from './paginas/planos/ListaDePlanos';
@@ -86,6 +87,8 @@ export function App() {
 const SUBROTAS: Array<{ caminho: string; perfis: Perfil[]; elemento: ReactNode }> = [
   { caminho: '/alunos/novo', perfis: ['ADMIN', 'RECEPCAO'], elemento: <NovoAluno /> },
   { caminho: '/alunos/:id', perfis: ['ADMIN', 'RECEPCAO', 'INSTRUTOR'], elemento: <CadastroDoAluno /> },
+  // A "página da empresa" do cartão no modo de teste (ADR 0037); a API recusa se não for o simulado.
+  { caminho: '/cartao-simulado/:id', perfis: ['ALUNO'], elemento: <CartaoSimulado /> },
 ];
 
 /** Só as rotas do perfil existem: endereço de outro perfil cai em "não encontrada". */
