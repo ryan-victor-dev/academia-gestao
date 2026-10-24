@@ -43,7 +43,7 @@ projetos. Para as regras, aceitou os valores iniciais propostos:
   dias não são cobrados, porque o boleto tem valor fixo.
 - **Pedir de novo** devolve o mesmo Pix ou boleto enquanto ele vale (com o valor combinado). Depois
   do prazo, o antigo é cancelado na empresa e um novo é gerado, com o valor do dia. Duas abas
-  pedindo ao mesmo tempo podem gerar dois: se os dois forem pagos, o segundo fica a devolver.
+  pedindo ao mesmo tempo podiam gerar dois; desde o ADR 0035, fica um só.
 - **Só INSERT no registro**: o pagamento online vira um lançamento como o do balcão (ADR 0025),
   com a forma `PIX_ONLINE` ou `BOLETO` e **sem caixa** (o dinheiro cai na conta, não na gaveta).
   O fechamento do caixa não muda; o relatório do ADMIN mostra o online à parte.

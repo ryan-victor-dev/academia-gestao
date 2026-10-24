@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -28,10 +29,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -67,7 +73,8 @@ class PagamentoOnlineControllerTest {
     @Autowired
     RelogioDeTeste relogio;
 
-    @Autowired
+    /** Espião: chama o simulado de verdade; a corrida dos dois pedidos segura os dois em {@code gerar}. */
+    @MockitoSpyBean
     ProvedorSimulado simulado;
 
     @Autowired
@@ -457,6 +464,56 @@ class PagamentoOnlineControllerTest {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM lancamentos WHERE cobranca_id = ?", Integer.class, id))
                     .as("rodada %d", rodada).isEqualTo(1);
         }
+    }
+
+    /**
+     * Dois pedidos do mesmo Pix ao mesmo tempo (ADR 0035): os dois passam pela checagem e geram na
+     * empresa; o índice único deixa um gravar, e o outro cancela o seu lá e devolve o que ficou.
+     * A barreira segura os dois em {@code gerar} até ambos chegarem: sem ela, quase sempre um
+     * terminaria antes de o outro começar, e a corrida não seria testada. Várias rodadas, e cada
+     * lado precisa ganhar em parte delas.
+     */
+    @Test
+    void doisPedidosAoMesmoTempoFicamComUmPix() throws Exception {
+        jdbc.update("UPDATE configuracao_pagamento_online SET adiantar = 'TODAS'");
+        CyclicBarrier barreira = new CyclicBarrier(2);
+        ThreadLocal<Integer> lado = new ThreadLocal<>();
+        Map<Integer, String> geradoPorLado = new ConcurrentHashMap<>();
+        doAnswer(chamada -> {
+            barreira.await(10, TimeUnit.SECONDS);
+            ProvedorDePagamento.Gerado gerado = (ProvedorDePagamento.Gerado) chamada.callRealMethod();
+            geradoPorLado.put(lado.get(), gerado.idExterno());
+            return gerado;
+        }).when(simulado).gerar(any());
+        Map<Integer, Integer> vitorias = new ConcurrentHashMap<>();
+
+        for (int rodada = 0; rodada < 10; rodada++) {
+            UUID id = cobranca(10 + rodada, 0);
+            geradoPorLado.clear();
+            List<CompletableFuture<PagamentoOnline>> pedidos = List.of(1, 2).stream()
+                    .map(i -> CompletableFuture.supplyAsync(() -> {
+                        lado.set(i);
+                        return service.gerar(aluno, usuarioDoAluno, id, ProvedorDePagamento.Forma.PIX);
+                    })).toList();
+            List<PagamentoOnline> devolvidos = pedidos.stream().map(CompletableFuture::join).toList();
+
+            assertThat(devolvidos.get(0).getId()).as("rodada %d", rodada).isEqualTo(devolvidos.get(1).getId());
+            assertThat(jdbc.queryForList("SELECT situacao FROM pagamentos_online WHERE cobranca_id = ?", String.class,
+                    id)).as("rodada %d", rodada).containsExactly("AGUARDANDO");
+            String vencedor = devolvidos.get(0).getIdExterno();
+            assertThat(geradoPorLado.values()).as("rodada %d: os dois geraram na empresa", rodada)
+                    .hasSize(2).contains(vencedor);
+            int r = rodada;
+            geradoPorLado.forEach((i, externo) -> {
+                boolean ganhou = externo.equals(vencedor);
+                assertThat(simulado.consultar(externo).estado()).as("rodada %d, lado %d", r, i)
+                        .isEqualTo(ganhou ? ProvedorDePagamento.Estado.AGUARDANDO : ProvedorDePagamento.Estado.ENCERRADO);
+                if (ganhou) {
+                    vitorias.merge(i, 1, Integer::sum);
+                }
+            });
+        }
+        assertThat(vitorias).as("cada lado ganha em parte das rodadas").containsOnlyKeys(1, 2);
     }
 
     @Test

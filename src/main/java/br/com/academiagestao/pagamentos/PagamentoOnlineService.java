@@ -16,6 +16,7 @@ import br.com.academiagestao.pagamentos.ProvedorDePagamento.Situacao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -137,6 +138,11 @@ class PagamentoOnlineService {
                 devido.valor(), devido.acrescimo(), devido.juros(), validoAte, usuarioId, agora);
         try {
             transacao.executeWithoutResult(t -> repository.inserir(novo));
+        } catch (DuplicateKeyException e) {
+            // Dois pedidos ao mesmo tempo (ADR 0035): o outro gravou primeiro. O deste sai da
+            // empresa, e o aluno recebe o que ficou.
+            cancelarNaEmpresa(empresa, gerado.idExterno());
+            return valendo(repository.aguardandoDaCobranca(cobrancaId), forma, agora).orElseThrow(() -> e);
         } catch (RuntimeException e) {
             // Gerado na empresa e não gravado aqui: cancela lá para ninguém pagar o que o sistema não conhece.
             cancelarNaEmpresa(empresa, gerado.idExterno());

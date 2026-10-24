@@ -143,6 +143,7 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   (nos testes, um `@SpringBootTest(properties = ...)`; no Docker, `PAGAMENTOS_PROVEDOR=simulado`). Chamada à
   empresa nunca dentro de transação. O lançamento online não tem caixa (V41): teste que insere um à mão
   usa `PIX_ONLINE`/`BOLETO` com `caixa_id` nulo, e os do balcão continuam com caixa.
+  Só um pagamento online `AGUARDANDO` por cobrança e forma (V43, ADR 0035).
 - Telas (`web/`): validar no Chromium (Playwright) pelo Caddy, e não só no Vitest; os roteiros
   de validação de cada parte ficam em `revisao-local/ferramentas/navegador/` (fora do Git). No
   Playwright, `getByLabel('Nome')` acha por trecho ("Buscar por nome" também): use `exact: true`.
