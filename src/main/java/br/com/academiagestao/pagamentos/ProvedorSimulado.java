@@ -106,6 +106,16 @@ class ProvedorSimulado implements ProvedorDePagamento {
         devolucoes.putIfAbsent(devolucao.chave(), devolucao);
     }
 
+    /** Só no simulado: o pagador contestou no banco (ADR 0037). Só um pago se contesta. */
+    void simularContestacao(String idExterno) {
+        registros.compute(idExterno, (id, r) -> {
+            if (r == null || r.situacao().estado() != Estado.PAGO) {
+                throw new IllegalArgumentException("só um pagamento simulado pago se contesta: " + idExterno);
+            }
+            return new Registro(r.valor(), Situacao.CONTESTADO);
+        });
+    }
+
     /** Quanto já foi devolvido deste pagamento (para os testes). */
     BigDecimal devolvido(String idExterno) {
         return devolucoes.values().stream().filter(d -> d.idExterno().equals(idExterno))

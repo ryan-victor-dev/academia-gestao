@@ -741,6 +741,37 @@ class CobrancaControllerTest {
         assertThat(estorno.get("meio_de_pagamento")).isEqualTo("PIX_ONLINE");
     }
 
+    /**
+     * Contestação (ADR 0037): a cobrança paga no crédito pelo app volta em aberto, com um estorno
+     * sem caixa (mesmo com o caixa fechado). Já estornada, ou paga em outro meio: nada.
+     */
+    @Test
+    void contestacaoReabreACobrancaPagaNaqueleMeio() throws Exception {
+        UUID id = cobranca(1, 0);
+        UUID noBalcao = cobranca(2, 0);
+        pagar(noBalcao, "100", recepcao()).andExpect(status().isOk());
+        online.receber(id, combinado("100", "0", "0"), new BigDecimal("100"),
+                CobrancasParaPagamentoOnline.FormaOnline.CREDITO, recepcao);
+        fecharOCaixa();
+
+        assertThat(online.estornarPorContestacao(id, CobrancasParaPagamentoOnline.FormaOnline.DEBITO, "Contestação",
+                recepcao)).as("outro meio").isFalse();
+        assertThat(online.estornarPorContestacao(id, CobrancasParaPagamentoOnline.FormaOnline.CREDITO, "Contestação",
+                recepcao)).isTrue();
+
+        assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, id)).isEqualTo("PENDENTE");
+        Map<String, Object> estorno = jdbc.queryForMap(
+                "SELECT * FROM lancamentos WHERE cobranca_id = ? AND tipo = 'ESTORNO'", id);
+        assertThat(estorno.get("caixa_id")).isNull();
+        assertThat(estorno.get("meio_de_pagamento")).isEqualTo("CREDITO_ONLINE");
+        assertThat(estorno.get("motivo")).isEqualTo("Contestação");
+        assertThat(online.estornarPorContestacao(id, CobrancasParaPagamentoOnline.FormaOnline.CREDITO, "Contestação",
+                recepcao)).as("já estornada").isFalse();
+        assertThat(online.estornarPorContestacao(noBalcao, CobrancasParaPagamentoOnline.FormaOnline.PIX, "Contestação",
+                recepcao)).as("paga no balcão").isFalse();
+        assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, noBalcao)).isEqualTo("PAGA");
+    }
+
     /** Cada forma online vira o seu meio (ADR 0037: crédito e débito pelo app), sempre sem caixa. */
     @ParameterizedTest
     @CsvSource({"PIX, PIX_ONLINE", "BOLETO, BOLETO", "CREDITO, CREDITO_ONLINE", "DEBITO, DEBITO_ONLINE"})

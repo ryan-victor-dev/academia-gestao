@@ -162,6 +162,6 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029, 0031 (registro de acessos), 0033 (sessão renovável) e 0034 (pagamento online); dinheiro, nos 0024, 0025, 0026, 0034, 0035 e 0036. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029, 0031 (registro de acessos), 0033 (sessão renovável) e 0034 (pagamento online); dinheiro, nos 0024, 0025, 0026, 0034, 0035, 0036 e 0037. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.

@@ -110,6 +110,24 @@ class PagamentoOnlineController {
         return PagamentoOnlineResponse.de(service.devolverPelaEmpresa(id, UUID.fromString(jwt.getSubject())));
     }
 
+    /** As contestações dos últimos 90 dias (ADR 0037): o ADMIN é avisado aqui. */
+    @GetMapping("/contestacoes")
+    @PreAuthorize("hasRole('ADMIN')")
+    List<ContestacaoResponse> contestacoes() {
+        List<PagamentoOnline> lista = service.contestacoes();
+        Map<UUID, String> nomes = alunos.nomes(lista.stream().map(PagamentoOnline::getAlunoId).collect(Collectors.toSet()));
+        return lista.stream().map(p -> new ContestacaoResponse(PagamentoOnlineResponse.de(p), nomes.get(p.getAlunoId())))
+                .toList();
+    }
+
+    /** Só com o provedor simulado (desenvolvimento e testes): o pagador "contesta" no banco. */
+    @PostMapping("/{id}/simular-contestacao")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void simularContestacao(@PathVariable UUID id) {
+        service.simularContestacao(id);
+    }
+
     /** Devolvido por fora (a empresa não devolve boleto pelo sistema, por exemplo). */
     @PostMapping("/{id}/devolvido")
     @PreAuthorize("hasRole('ADMIN')")
@@ -134,19 +152,24 @@ class PagamentoOnlineController {
                                    String boletoLinhaDigitavel, String boletoUrl, String linkDePagamento,
                                    Instant validoAte, Instant geradoEm, PagamentoOnline.Situacao situacao, BigDecimal recebido,
                                    Instant recebidoEm, String motivoDaDevolucao, BigDecimal valorADevolver,
-                                   boolean pagouACobranca, Instant devolvidoEm, UUID devolvidoPor) {
+                                   boolean pagouACobranca, Instant devolvidoEm, UUID devolvidoPor,
+                                   Instant contestadoEm, Boolean cobrancaReaberta) {
         static PagamentoOnlineResponse de(PagamentoOnline p) {
             return new PagamentoOnlineResponse(p.getId(), p.getCobrancaId(), p.getAlunoId(), p.getForma(),
                     p.getValor(), p.getAcrescimo(), p.getJuros(), p.total(), p.getPixCopiaECola(),
                     p.getBoletoLinhaDigitavel(), p.getBoletoUrl(), p.getLinkDePagamento(), p.getValidoAte(),
                     p.getGeradoEm(),
                     p.getSituacao(), p.getRecebido(), p.getRecebidoEm(), p.getMotivoDaDevolucao(),
-                    p.getValorADevolver(), p.pagouACobranca(), p.getDevolvidoEm(), p.getDevolvidoPor());
+                    p.getValorADevolver(), p.pagouACobranca(), p.getDevolvidoEm(), p.getDevolvidoPor(),
+                    p.getContestadoEm(), p.getCobrancaReaberta());
         }
     }
 
     record ADevolverResponse(@JsonUnwrapped PagamentoOnlineResponse pagamento, String alunoNome,
                              boolean devolvePeloSistema) {
+    }
+
+    record ContestacaoResponse(@JsonUnwrapped PagamentoOnlineResponse pagamento, String alunoNome) {
     }
 
     record PagavelResponse(UUID cobrancaId, String tipo, int parcela, LocalDate vencimento, BigDecimal valor,

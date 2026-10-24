@@ -31,4 +31,11 @@ class ConsultaPeriodicaDosPagamentos {
     void consultarEncerrados() {
         service.consultarEncerrados();
     }
+
+    /** Os cartões recebidos nos últimos meses (ADR 0037): a contestação chega semanas depois. */
+    @Scheduled(fixedDelayString = "${academia.pagamentos.intervalo-da-consulta-das-contestacoes:24h}",
+            initialDelayString = "${academia.pagamentos.intervalo-da-consulta-das-contestacoes:24h}")
+    void consultarContestacoes() {
+        service.consultarContestacoes();
+    }
 }

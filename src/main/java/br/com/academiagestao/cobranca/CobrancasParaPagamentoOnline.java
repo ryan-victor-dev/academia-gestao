@@ -75,16 +75,31 @@ public class CobrancasParaPagamentoOnline {
     public ResultadoDoRecebimento receber(UUID cobrancaId, ValorCombinado combinado, BigDecimal recebido,
                                           FormaOnline forma, UUID por) {
         ValorDevido devido = new ValorDevido(combinado.valor(), combinado.acrescimo(), combinado.juros(), 0);
-        MeioDePagamento meio = switch (forma) {
+        return switch (service.receberOnline(cobrancaId, devido, recebido, meio(forma), por)) {
+            case RECEBIDO -> ResultadoDoRecebimento.RECEBIDO;
+            case NAO_ESTA_EM_ABERTO -> ResultadoDoRecebimento.NAO_ESTA_EM_ABERTO;
+            case VALOR_DIFERENTE -> ResultadoDoRecebimento.VALOR_DIFERENTE;
+        };
+    }
+
+    /**
+     * A contestação (ADR 0037): o banco devolveu ao aluno o dinheiro deste pagamento online, e a
+     * cobrança volta em aberto. Só se ela ainda estiver paga nessa forma; senão, nada. Na
+     * transação de quem chama (o pagamento online travado antes da cobrança, como no recebimento).
+     *
+     * @return se a cobrança foi reaberta
+     */
+    @Transactional
+    public boolean estornarPorContestacao(UUID cobrancaId, FormaOnline forma, String motivo, UUID por) {
+        return service.estornarPorContestacao(cobrancaId, meio(forma), motivo, por);
+    }
+
+    private static MeioDePagamento meio(FormaOnline forma) {
+        return switch (forma) {
             case PIX -> MeioDePagamento.PIX_ONLINE;
             case BOLETO -> MeioDePagamento.BOLETO;
             case CREDITO -> MeioDePagamento.CREDITO_ONLINE;
             case DEBITO -> MeioDePagamento.DEBITO_ONLINE;
-        };
-        return switch (service.receberOnline(cobrancaId, devido, recebido, meio, por)) {
-            case RECEBIDO -> ResultadoDoRecebimento.RECEBIDO;
-            case NAO_ESTA_EM_ABERTO -> ResultadoDoRecebimento.NAO_ESTA_EM_ABERTO;
-            case VALOR_DIFERENTE -> ResultadoDoRecebimento.VALOR_DIFERENTE;
         };
     }
 }

@@ -103,7 +103,9 @@ public interface ProvedorDePagamento {
         AGUARDANDO,
         PAGO,
         /** Cancelado ou expirado sem pagamento. */
-        ENCERRADO
+        ENCERRADO,
+        /** Pago, mas o pagador contestou no banco, que devolveu o dinheiro a ele (ADR 0037). */
+        CONTESTADO
     }
 
     /** {@code valorPago} e {@code pagoEm} só no PAGO. */
@@ -115,5 +117,7 @@ public interface ProvedorDePagamento {
         public static Situacao pago(BigDecimal valor, Instant em) {
             return new Situacao(Estado.PAGO, valor, em);
         }
+
+        public static final Situacao CONTESTADO = new Situacao(Estado.CONTESTADO, null, null);
     }
 }

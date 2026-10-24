@@ -34,6 +34,16 @@ interface ADevolver {
   situacao: 'A_DEVOLVER' | 'DEVOLVENDO';
 }
 
+interface Contestacao {
+  id: string;
+  forma: Forma;
+  alunoNome: string | null;
+  recebido: number;
+  contestadoEm: string;
+  cobrancaReaberta: boolean;
+  devolvidoEm: string | null;
+}
+
 const NOME_DO_ADIANTAR: Record<Adiantar, string> = {
   NENHUMA: 'Só as vencidas e as que vencem hoje',
   PROXIMA: 'Também a próxima a vencer',
@@ -58,6 +68,8 @@ export function PagamentosOnline() {
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [recusadas, setRecusadas] = useState<Set<string>>(new Set());
   const [devolvendo, setDevolvendo] = useState(false);
+  const [contestacoes, setContestacoes] = useState<Contestacao[] | null>(null);
+  const [erroDasContestacoes, setErroDasContestacoes] = useState<unknown>(null);
 
   function mostrar(dados: Configuracao, v: string | null) {
     setAtual(dados);
@@ -73,6 +85,7 @@ export function PagamentosOnline() {
   useEffect(() => {
     chamarComVersao<Configuracao>('/api/pagamentos-online/configuracao').then((r) => mostrar(r.dados, r.versao)).catch(setErro);
     carregarLista();
+    chamar<Contestacao[]>('/api/pagamentos-online/contestacoes').then(setContestacoes).catch(setErroDasContestacoes);
   }, [carregarLista]);
 
   async function enviar(evento: FormEvent) {
@@ -211,6 +224,36 @@ export function PagamentosOnline() {
                     <button type="button" className="secundario" onClick={() => devolvido(p.id)}>Já devolvi por fora</button>
                   )}
                 </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="secao" aria-labelledby="titulo-contestacoes">
+        <h2 id="titulo-contestacoes">Contestações</h2>
+        <p className="suave">
+          O aluno contestou o pagamento no banco, que devolveu o dinheiro a ele. Se esse dinheiro tinha pago a mensalidade, ela voltou a
+          ficar em aberto. Últimos 90 dias.
+        </p>
+        <MensagemDeErro erro={erroDasContestacoes} />
+        {contestacoes?.length === 0 && <p>Nenhuma contestação.</p>}
+        <ul className="cartoes">
+          {contestacoes?.map((c) => (
+            <li key={c.id} className="cartao-item">
+              <div className="cabecalho">
+                <strong>{c.alunoNome ?? 'Aluno'}</strong>
+                <span className="valor">{dinheiro(c.recebido)}</span>
+              </div>
+              <p>{NOME_DA_FORMA[c.forma]} contestado em {dataHora(c.contestadoEm)}</p>
+              <p className="suave">
+                {c.cobrancaReaberta ? 'A mensalidade voltou a ficar em aberto.' : 'A mensalidade não mudou: este dinheiro não tinha pago nada.'}
+              </p>
+              {c.devolvidoEm && (
+                <p className="aviso" role="note">
+                  A academia já tinha devolvido este dinheiro (em {dataHora(c.devolvidoEm)}): o aluno recebeu duas vezes. Confira com a
+                  empresa de pagamentos.
+                </p>
               )}
             </li>
           ))}

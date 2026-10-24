@@ -161,6 +161,31 @@ class CobrancaService {
         return estornada;
     }
 
+    /**
+     * A contestação no cartão (ADR 0037): o banco devolveu o dinheiro ao aluno, e a cobrança paga
+     * por esse pagamento online volta em aberto (ou cancelada, se já saiu do cronograma), com um
+     * estorno no registro, sem caixa. Já não está paga nesse meio (estornada antes, por exemplo):
+     * nada, e devolve {@code false}. Na transação de quem chama, que travou o pagamento online antes.
+     */
+    @Transactional
+    boolean estornarPorContestacao(UUID id, MeioDePagamento meio, String motivo, UUID por) {
+        Cobranca cobranca = travar(id);
+        if (cobranca.getStatus() != StatusCobranca.PAGA || cobranca.getPagamento() == null
+                || cobranca.getPagamento().meio() != meio) {
+            return false;
+        }
+        Instant agora = relogio.instant();
+        LocalDate hoje = Calendario.hoje(agora);
+        Map<String, Object> antes = retrato(cobranca);
+        cobranca.estornar(hoje, por, agora);
+        Lancamento estorno = lancamentos.pagamentoEmVigor(id)
+                .orElseThrow(() -> new IllegalStateException("cobrança paga sem o lançamento do pagamento: " + id))
+                .estornar(motivo, por, agora, null);
+        gravar(cobranca, "ESTORNADA", antes, motivo, configuracao.ler().regras(), hoje);
+        lancamentos.inserir(estorno);
+        return true;
+    }
+
     /** Só o ADMIN, só em aberto (paga: estorne antes). */
     @Transactional
     Consulta cancelar(UUID id, String motivo, UUID usuarioId) {

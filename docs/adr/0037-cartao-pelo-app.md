@@ -49,3 +49,27 @@ ou de débito, além do Pix e do boleto (ADR 0034). Decisões do dono:
 - A "página da empresa" do simulado é a rota `/cartao-simulado/{id}`, só do ALUNO: avisa que é
   teste, não pede cartão, e "Aprovar pagamento (teste)" faz o mesmo que o simular do Pix. A API
   recusa a simulação fora do provedor simulado ou para o pagamento de outro aluno.
+
+### Contestação: a mensalidade volta em aberto (parte 14, decisão do dono)
+- A empresa diz `CONTESTADO` quando o pagador contestou no banco e recebeu o dinheiro de volta.
+  O sistema descobre pelo aviso da empresa e por uma consulta **diária** dos cartões recebidos
+  nos últimos **120 dias** (configuráveis), que funciona sem o site na internet. O Pix tem
+  devolução especial (MED), mais rara: aparece pelo aviso, mas fica fora da consulta diária.
+- Se aquele dinheiro tinha pago a mensalidade (pago, ou pago a mais), ela é estornada e **volta
+  em aberto** (ou cancelada, se já saiu do cronograma, ADR 0026), com as regras de atraso e
+  bloqueio. O estorno fica no registro, sem caixa, pelo login do aluno, como o recebimento.
+- Se o dinheiro estava a devolver, sai da lista: o banco já o devolveu. Se a academia já tinha
+  devolvido, o aluno recebeu duas vezes: a lista do ADMIN avisa, para conferir com a empresa.
+- Situação nova `CONTESTADO` (V49), com a data e se a mensalidade foi reaberta. O ADMIN vê as
+  contestações dos últimos 90 dias na tela do pagamento online. No simulado, o ADMIN simula a
+  contestação de um pagamento recebido (`POST /api/pagamentos-online/{id}/simular-contestacao`).
+- Pago e contestado antes de o sistema saber: não pagou nada aqui; sai como expirado.
+
+## Consequências
+
+- Uma empresa de verdade precisa informar a contestação na consulta do pagamento (ou o sistema
+  só a vê pelo painel dela). Débito online depende da empresa.
+- A consulta diária pergunta por cada cartão recebido nos últimos 120 dias: uma academia grande
+  faz milhares de chamadas por dia, dentro do que as empresas costumam aceitar; se a escolhida
+  limitar, diminui-se a janela ou confia-se no aviso.
+- Contestação depois de 120 dias só aparece pelo aviso da empresa.

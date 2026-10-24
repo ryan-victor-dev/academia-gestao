@@ -48,6 +48,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -834,6 +835,207 @@ class PagamentoOnlineControllerTest {
                 perdedor)).isEqualTo("PAGO");
         assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, cobrancaId))
                 .isEqualTo("PAGA");
+    }
+
+    /** Um cartão de crédito pago, para a cobrança dada. Devolve o id. */
+    private Map<String, Object> creditoPago(UUID cobrancaId) throws Exception {
+        Map<String, Object> cartao = gerado(cobrancaId, "CREDITO");
+        simular(cartao.get("id")).andExpect(status().isNoContent());
+        return cartao;
+    }
+
+    private String statusDaCobranca(UUID cobrancaId) {
+        return jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, cobrancaId);
+    }
+
+    /**
+     * Contestação (decisão do dono, ADR 0037): o aluno contesta no banco, a consulta diária acha,
+     * e a mensalidade volta em aberto, com o estorno; o ADMIN vê na lista das contestações.
+     */
+    @Test
+    void contestacaoReabreAMensalidade() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> cartao = creditoPago(atrasada);
+        assertThat(statusDaCobranca(atrasada)).isEqualTo("PAGA");
+
+        simulado.simularContestacao(idExterno(cartao.get("id")));
+        service.consultarContestacoes();
+
+        assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
+        assertThat(statusDaCobranca(atrasada)).isEqualTo("PENDENTE");
+        assertThat(jdbc.queryForObject("SELECT meio_de_pagamento FROM lancamentos WHERE cobranca_id = ? AND tipo = 'ESTORNO'",
+                String.class, atrasada)).isEqualTo("CREDITO_ONLINE");
+        assertThat(jdbc.queryForObject("SELECT registrado_por FROM lancamentos WHERE cobranca_id = ? AND tipo = 'ESTORNO'",
+                UUID.class, atrasada)).as("o estorno é do login do aluno, como o recebimento").isEqualTo(usuarioDoAluno);
+        mvc.perform(get("/api/pagamentos-online/contestacoes").with(doAdmin()))
+                .andExpect(jsonPath("$[?(@.id == '" + cartao.get("id") + "')].alunoNome", contains("Aluna Online")))
+                .andExpect(jsonPath("$[?(@.id == '" + cartao.get("id") + "')].cobrancaReaberta", contains(true)))
+                .andExpect(jsonPath("$[?(@.id == '" + cartao.get("id") + "')].contestadoEm", contains(notNullValue())));
+        assertThat(jdbc.queryForObject("SELECT alteracoes -> 'cobrancaReaberta' ->> 'depois' FROM auditoria "
+                + "WHERE entidade_id = ?::uuid AND acao = 'CONTESTADO'", String.class, cartao.get("id").toString()))
+                .isEqualTo("true");
+        mvc.perform(get("/api/pagamentos-online/contestacoes").with(doAluno())).andExpect(status().isForbidden());
+        // De novo: nada muda.
+        service.consultarContestacoes();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM lancamentos WHERE cobranca_id = ? AND tipo = 'ESTORNO'",
+                Integer.class, atrasada)).isEqualTo(1);
+    }
+
+    /** O aviso da empresa também traz a contestação (com o site na internet, é o caminho rápido). */
+    @Test
+    void contestacaoPeloAviso() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> cartao = creditoPago(atrasada);
+        String externo = idExterno(cartao.get("id"));
+
+        simulado.simularContestacao(externo);
+        aviso(TOKEN, externo).andExpect(status().isNoContent());
+
+        assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
+        assertThat(statusDaCobranca(atrasada)).isEqualTo("PENDENTE");
+    }
+
+    /** Dinheiro que não pagou nada (a devolver) e foi contestado: o banco já devolveu; sai da lista, e a mensalidade fica como está. */
+    @Test
+    void contestacaoDoADevolverNaoMexeNaMensalidade() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> pix = gerado(atrasada, "PIX");
+        Map<String, Object> cartao = gerado(atrasada, "CREDITO");
+        simular(pix.get("id")).andExpect(status().isNoContent());
+        simular(cartao.get("id")).andExpect(status().isNoContent());
+        assertThat(situacao(cartao.get("id"))).isEqualTo("A_DEVOLVER");
+
+        simulado.simularContestacao(idExterno(cartao.get("id")));
+        service.consultarContestacoes();
+
+        assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
+        assertThat(jdbc.queryForObject("SELECT cobranca_reaberta FROM pagamentos_online WHERE id = ?::uuid", Boolean.class,
+                cartao.get("id").toString())).isFalse();
+        assertThat(statusDaCobranca(atrasada)).as("continua paga pelo Pix").isEqualTo("PAGA");
+        mvc.perform(get("/api/pagamentos-online/a-devolver").with(doAdmin()))
+                .andExpect(jsonPath("$[?(@.id == '" + cartao.get("id") + "')]", hasSize(0)));
+    }
+
+    /**
+     * Dois Pix pagos da mesma mensalidade (o de ontem, trocado, e o de hoje): um pagou, o outro
+     * ficou a devolver, no mesmo meio. Contestado o que estava a devolver, a mensalidade continua
+     * paga pelo outro: não reabre (a guarda da cobrança, que olha o meio, não basta aqui).
+     */
+    @Test
+    void contestacaoDoADevolverNoMesmoMeioNaoReabre() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> ontem = gerado(atrasada, "PIX");
+        irPara(hoje.plusDays(1).atTime(9, 0));
+        Map<String, Object> deHoje = gerado(atrasada, "PIX");
+        simular(deHoje.get("id")).andExpect(status().isNoContent());
+        String externoDeOntem = idExterno(ontem.get("id"));
+        simulado.simularPagamento(externoDeOntem, null);
+        service.confirmar(externoDeOntem);
+        assertThat(situacao(ontem.get("id"))).isEqualTo("A_DEVOLVER");
+
+        simulado.simularContestacao(externoDeOntem);
+        aviso(TOKEN, externoDeOntem).andExpect(status().isNoContent());
+
+        assertThat(situacao(ontem.get("id"))).isEqualTo("CONTESTADO");
+        assertThat(statusDaCobranca(atrasada)).isEqualTo("PAGA");
+    }
+
+    /** Devolvido pela academia e depois contestado: o aluno recebeu duas vezes; a lista mostra que já tinha sido devolvido. */
+    @Test
+    void contestacaoDoDevolvidoFicaMarcada() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> pix = gerado(atrasada, "PIX");
+        Map<String, Object> cartao = gerado(atrasada, "CREDITO");
+        simular(pix.get("id")).andExpect(status().isNoContent());
+        simular(cartao.get("id")).andExpect(status().isNoContent());
+        mvc.perform(post("/api/pagamentos-online/" + cartao.get("id") + "/devolver").with(doAdmin()))
+                .andExpect(status().isOk());
+
+        simulado.simularContestacao(idExterno(cartao.get("id")));
+        service.consultarContestacoes();
+
+        assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
+        mvc.perform(get("/api/pagamentos-online/contestacoes").with(doAdmin()))
+                .andExpect(jsonPath("$[?(@.id == '" + cartao.get("id") + "')].devolvidoEm", contains(notNullValue())))
+                .andExpect(jsonPath("$[?(@.id == '" + cartao.get("id") + "')].cobrancaReaberta", contains(false)));
+        assertThat(statusDaCobranca(atrasada)).isEqualTo("PAGA");
+    }
+
+    /** Pago a mais (a cobrança paga, a sobra a devolver) e contestado: o dinheiro todo voltou ao aluno, e a mensalidade volta em aberto. */
+    @Test
+    void contestacaoDoPagoAMaisReabre() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> cartao = gerado(atrasada, "CREDITO");
+        String externo = idExterno(cartao.get("id"));
+        simulado.simularPagamento(externo, new BigDecimal("110.00"));
+        service.confirmar(externo);
+        assertThat(situacao(cartao.get("id"))).isEqualTo("A_DEVOLVER");
+
+        simulado.simularContestacao(externo);
+        service.consultarContestacoes();
+
+        assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
+        assertThat(statusDaCobranca(atrasada)).isEqualTo("PENDENTE");
+    }
+
+    /** A consulta diária olha os cartões dos últimos 120 dias; o Pix contestado só aparece pelo aviso. */
+    @Test
+    void consultaDasContestacoesSoCartoesNaJanela() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        UUID outra = cobranca(2, -5);
+        Map<String, Object> cartao = creditoPago(atrasada);
+        Map<String, Object> pix = gerado(outra, "PIX");
+        simular(pix.get("id")).andExpect(status().isNoContent());
+        simulado.simularContestacao(idExterno(cartao.get("id")));
+        simulado.simularContestacao(idExterno(pix.get("id")));
+        Instant recebidoEm = jdbc.queryForObject("SELECT recebido_em FROM pagamentos_online WHERE id = ?::uuid",
+                java.sql.Timestamp.class, cartao.get("id").toString()).toInstant();
+
+        relogio.fixar(recebidoEm.plus(Duration.ofDays(120)).plusSeconds(60));
+        service.consultarContestacoes();
+        assertThat(situacao(cartao.get("id"))).as("fora da janela").isEqualTo("PAGO");
+
+        relogio.fixar(recebidoEm.plus(Duration.ofDays(120)).minusSeconds(60));
+        service.consultarContestacoes();
+        assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
+        assertThat(situacao(pix.get("id"))).as("o Pix não entra na consulta diária").isEqualTo("PAGO");
+        aviso(TOKEN, idExterno(pix.get("id"))).andExpect(status().isNoContent());
+        assertThat(situacao(pix.get("id"))).isEqualTo("CONTESTADO");
+    }
+
+    /** Pago e contestado antes de o sistema saber: não pagou nada aqui; sai como expirado, e a mensalidade fica em aberto. */
+    @Test
+    void pagoEContestadoAntesDeSaber() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> cartao = gerado(atrasada, "CREDITO");
+        String externo = idExterno(cartao.get("id"));
+        simulado.simularPagamento(externo, null);
+        simulado.simularContestacao(externo);
+
+        service.consultarAguardando();
+
+        assertThat(situacao(cartao.get("id"))).isEqualTo("EXPIRADO");
+        assertThat(statusDaCobranca(atrasada)).isEqualTo("PENDENTE");
+    }
+
+    /** A simulação da contestação (ADMIN, só no simulado): só de um recebido. */
+    @Test
+    void simularContestacao() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> aguardando = gerado(cobranca(2, -5), "CREDITO");
+        Map<String, Object> cartao = creditoPago(atrasada);
+
+        mvc.perform(post("/api/pagamentos-online/" + cartao.get("id") + "/simular-contestacao").with(doAluno()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/pagamentos-online/" + aguardando.get("id") + "/simular-contestacao").with(doAdmin()))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/pagamentos-online/" + UUID.randomUUID() + "/simular-contestacao").with(doAdmin()))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/pagamentos-online/" + cartao.get("id") + "/simular-contestacao").with(doAdmin()))
+                .andExpect(status().isNoContent());
+
+        assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
+        assertThat(statusDaCobranca(atrasada)).isEqualTo("PENDENTE");
     }
 
     @Test

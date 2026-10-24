@@ -216,6 +216,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/pagamentos-online/aviso` (o aviso da empresa de pagamentos; só dispara a consulta a ela) | sem login (a empresa prova quem é no aviso) |
 | `GET /api/pagamentos-online/a-devolver` (dinheiro que chegou sem ter o que pagar, ou a sobra de quem pagou a mais) | ADMIN |
 | `POST /api/pagamentos-online/{id}/devolver` (o sistema devolve pela empresa¹²), `POST /api/pagamentos-online/{id}/devolvido` (devolvido por fora) | ADMIN |
+| `GET /api/pagamentos-online/contestacoes` (o aluno contestou no banco; a mensalidade volta em aberto¹²), `POST /api/pagamentos-online/{id}/simular-contestacao` (só com o provedor `simulado`) | ADMIN |
 | `GET /api/pagamentos-online/configuracao`, `PUT` (exige `If-Match`²; Pix, boleto, crédito e débito ligados, até onde adiantar, dias do boleto; as formas que a empresa oferece) | ADMIN |
 | `POST /api/caixas` (`troco`; abre o caixa de hoje¹⁰) | ADMIN, RECEPCAO |
 | `POST /api/caixas/{dia}/fechar` (`contado`, o dinheiro da gaveta; `justificativa` se houver diferença) | ADMIN, RECEPCAO |
@@ -313,7 +314,8 @@ cobrança vencida, 3 dias, configurável). Entra fora do caixa da recepção, co
 "Boleto pelo app". O sistema confirma consultando a empresa (no aviso dela, a cada 2 minutos os em aberto e, de
 hora em hora, os cancelados e expirados dos últimos 7 dias, que ainda podem ter sido pagos). Pago a
 mais, a cobrança fica paga e a sobra vai para a devolver; o ADMIN confirma, e o sistema devolve o Pix
-pela empresa (o boleto, por fora). Um Pix e um boleto aguardando por cobrança, no máximo (ADR 0035).
+pela empresa (o boleto, por fora). Um Pix e um boleto aguardando por cobrança, no máximo (ADR 0035). Se o aluno contestar no banco, a mensalidade volta em aberto, e
+o ADMIN vê a contestação (ADR 0037; consulta diária dos cartões dos últimos 120 dias).
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.

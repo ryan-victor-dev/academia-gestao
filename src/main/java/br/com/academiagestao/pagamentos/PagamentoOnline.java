@@ -33,11 +33,21 @@ class PagamentoOnline {
          * por fora". Parado aqui (o sistema caiu no meio), pode ser repetido com a mesma chave.
          */
         DEVOLVENDO,
-        DEVOLVIDO;
+        DEVOLVIDO,
+        /**
+         * O pagador contestou no banco, que devolveu o dinheiro a ele (ADR 0037). Vem de um
+         * recebido; se ele tinha pago a cobrança, ela volta em aberto.
+         */
+        CONTESTADO;
 
         /** Ainda pode chegar dinheiro: o aluno pode ter pago no último segundo. */
         boolean recebe() {
             return this == AGUARDANDO || this == EXPIRADO || this == CANCELADO;
+        }
+
+        /** O dinheiro chegou: ainda pode ser contestado. */
+        boolean contestavel() {
+            return this == PAGO || this == A_DEVOLVER || this == DEVOLVENDO || this == DEVOLVIDO;
         }
     }
 
@@ -64,13 +74,15 @@ class PagamentoOnline {
     private BigDecimal valorADevolver;
     private Instant devolvidoEm;
     private UUID devolvidoPor;
+    private Instant contestadoEm;
+    private Boolean cobrancaReaberta;
 
     private PagamentoOnline(UUID id, UUID cobrancaId, UUID alunoId, Forma forma, String provedor, String idExterno,
                             BigDecimal valor, BigDecimal acrescimo, BigDecimal juros, String pixCopiaECola,
                             String boletoLinhaDigitavel, String boletoUrl, String linkDePagamento, Instant validoAte,
                             Instant geradoEm, UUID geradoPor, Situacao situacao, BigDecimal recebido, Instant recebidoEm,
                             String motivoDaDevolucao, BigDecimal valorADevolver, Instant devolvidoEm,
-                            UUID devolvidoPor) {
+                            UUID devolvidoPor, Instant contestadoEm, Boolean cobrancaReaberta) {
         this.id = id;
         this.cobrancaId = cobrancaId;
         this.alunoId = alunoId;
@@ -94,6 +106,8 @@ class PagamentoOnline {
         this.valorADevolver = valorADevolver;
         this.devolvidoEm = devolvidoEm;
         this.devolvidoPor = devolvidoPor;
+        this.contestadoEm = contestadoEm;
+        this.cobrancaReaberta = cobrancaReaberta;
     }
 
     /** O que a empresa gerou, aguardando o pagamento. */
@@ -113,7 +127,7 @@ class PagamentoOnline {
                 juros, gerado.pixCopiaECola(), gerado.boletoLinhaDigitavel(), gerado.boletoUrl(),
                 gerado.linkDePagamento(), validoAte,
                 agora.truncatedTo(ChronoUnit.MICROS), Objects.requireNonNull(geradoPor), Situacao.AGUARDANDO,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     static PagamentoOnline restaurar(UUID id, UUID cobrancaId, UUID alunoId, Forma forma, String provedor,
@@ -121,11 +135,13 @@ class PagamentoOnline {
                                      String pixCopiaECola, String boletoLinhaDigitavel, String boletoUrl,
                                      String linkDePagamento, Instant validoAte, Instant geradoEm, UUID geradoPor, Situacao situacao,
                                      BigDecimal recebido, Instant recebidoEm, String motivoDaDevolucao,
-                                     BigDecimal valorADevolver, Instant devolvidoEm, UUID devolvidoPor) {
+                                     BigDecimal valorADevolver, Instant devolvidoEm, UUID devolvidoPor,
+                                     Instant contestadoEm, Boolean cobrancaReaberta) {
         return new PagamentoOnline(id, cobrancaId, alunoId, forma, provedor, idExterno, valor, acrescimo, juros,
                 pixCopiaECola, boletoLinhaDigitavel, boletoUrl, linkDePagamento, validoAte, geradoEm, geradoPor,
                 situacao, recebido,
-                recebidoEm, motivoDaDevolucao, valorADevolver, devolvidoEm, devolvidoPor);
+                recebidoEm, motivoDaDevolucao, valorADevolver, devolvidoEm, devolvidoPor, contestadoEm,
+                cobrancaReaberta);
     }
 
     BigDecimal total() {
@@ -208,6 +224,19 @@ class PagamentoOnline {
         this.devolvidoEm = agora.truncatedTo(ChronoUnit.MICROS);
     }
 
+    /** Se o dinheiro deste pagamento pagou a cobrança: pago, ou pago a mais (a sobra a devolver). */
+    boolean pagouACobrancaAntesDaContestacao() {
+        return situacao == Situacao.PAGO || pagouACobranca();
+    }
+
+    /** O pagador contestou no banco (ADR 0037); {@code reabriu}: a cobrança voltou em aberto. */
+    void contestar(Instant agora, boolean reabriu) {
+        conferir(Situacao.CONTESTADO, situacao.contestavel());
+        this.situacao = Situacao.CONTESTADO;
+        this.contestadoEm = agora.truncatedTo(ChronoUnit.MICROS);
+        this.cobrancaReaberta = reabriu;
+    }
+
     private void conferir(Situacao destino, boolean pode) {
         if (!pode) {
             throw new IllegalStateException("pagamento online " + situacao + " não vai para " + destino);
@@ -237,4 +266,6 @@ class PagamentoOnline {
     BigDecimal getValorADevolver() { return valorADevolver; }
     Instant getDevolvidoEm() { return devolvidoEm; }
     UUID getDevolvidoPor() { return devolvidoPor; }
+    Instant getContestadoEm() { return contestadoEm; }
+    Boolean getCobrancaReaberta() { return cobrancaReaberta; }
 }

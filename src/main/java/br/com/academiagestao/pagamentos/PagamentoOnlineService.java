@@ -9,6 +9,7 @@ import br.com.academiagestao.cobranca.CobrancasParaPagamentoOnline.ValorCombinad
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.pagamentos.ProvedorDePagamento.Devolucao;
+import br.com.academiagestao.pagamentos.ProvedorDePagamento.Estado;
 import br.com.academiagestao.pagamentos.ProvedorDePagamento.Forma;
 import br.com.academiagestao.pagamentos.ProvedorDePagamento.Gerado;
 import br.com.academiagestao.pagamentos.ProvedorDePagamento.Pagador;
@@ -24,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -44,6 +46,8 @@ class PagamentoOnlineService {
 
     private static final Logger log = LoggerFactory.getLogger(PagamentoOnlineService.class);
     private static final int LOTE_DA_CONSULTA = 200;
+    // Os cartões de 4 meses: uma academia grande passa de 200.
+    private static final int LOTE_DAS_CONTESTACOES = 5000;
 
     private final Optional<ProvedorDePagamento> provedor;
     private final PagamentoOnlineRepository repository;
@@ -180,13 +184,22 @@ class PagamentoOnlineService {
             return;
         }
         PagamentoOnline pagamento = lido.get();
+        if (pagamento.getSituacao().contestavel()) {
+            // Já recebido: a única novidade possível é a contestação (ADR 0037).
+            if (empresa.consultar(idExterno).estado() == Estado.CONTESTADO) {
+                transacao.executeWithoutResult(t -> registrarContestacao(pagamento.getId()));
+            }
+            return;
+        }
         if (!pagamento.getSituacao().recebe()) {
             return;
         }
         Situacao situacao = empresa.consultar(idExterno);
         switch (situacao.estado()) {
             case PAGO -> transacao.executeWithoutResult(t -> registrarRecebido(pagamento.getId(), situacao));
-            case ENCERRADO -> transacao.executeWithoutResult(t -> repository.travar(pagamento.getId())
+            // Contestado sem nunca ter sido recebido aqui (pago e contestado entre duas consultas): o
+            // dinheiro já voltou ao pagador, e não pagou nada; sai como encerrado.
+            case ENCERRADO, CONTESTADO -> transacao.executeWithoutResult(t -> repository.travar(pagamento.getId())
                     .filter(p -> p.getSituacao() == PagamentoOnline.Situacao.AGUARDANDO)
                     .ifPresent(p -> {
                         p.expirar();
@@ -239,6 +252,67 @@ class PagamentoOnlineService {
                 Auditoria.campos("situacao", pagamento.getSituacao().name(), "recebido", pagamento.getRecebido(),
                         "cobranca", pagamento.getCobrancaId().toString(),
                         "motivo", pagamento.getMotivoDaDevolucao(), "aDevolver", pagamento.getValorADevolver()));
+    }
+
+    /**
+     * A contestação (ADR 0037): o pagador contestou no banco, que devolveu o dinheiro a ele. Se o
+     * dinheiro tinha pago a cobrança (pago, ou pago a mais), ela volta em aberto (decisão do dono),
+     * com o estorno registrado pelo login do aluno, como o recebimento. A linha do pagamento
+     * online primeiro, depois a cobrança.
+     */
+    private void registrarContestacao(UUID id) {
+        PagamentoOnline pagamento = repository.travar(id).orElseThrow();
+        if (!pagamento.getSituacao().contestavel()) {
+            return;
+        }
+        Map<String, Object> antes = Auditoria.campos("situacao", pagamento.getSituacao().name());
+        boolean reabriu = pagamento.pagouACobrancaAntesDaContestacao()
+                && cobrancas.estornarPorContestacao(pagamento.getCobrancaId(), formaNaCobranca(pagamento.getForma()),
+                "Contestação no banco (" + pagamento.getForma().nome() + "): o dinheiro voltou ao aluno",
+                pagamento.getGeradoPor());
+        pagamento.contestar(relogio.instant(), reabriu);
+        repository.atualizar(pagamento);
+        auditoria.registrar(PAGAMENTO_ONLINE, id, "CONTESTADO", antes,
+                Auditoria.campos("situacao", "CONTESTADO", "cobrancaReaberta", reabriu,
+                        "devolvidoAntes", pagamento.getDevolvidoEm() != null));
+    }
+
+    /**
+     * A consulta das contestações (ADR 0037), uma vez por dia: os cartões recebidos nos últimos
+     * meses. A contestação chega semanas depois, e sem o site na internet o aviso nunca chega.
+     */
+    void consultarContestacoes() {
+        if (provedor.isEmpty()) {
+            return;
+        }
+        Instant desde = relogio.instant().minus(propriedades.janelaDasContestacoes());
+        for (PagamentoOnline pagamento : repository.cartoesRecebidos(provedor.get().nome(), desde,
+                LOTE_DAS_CONTESTACOES)) {
+            try {
+                confirmar(pagamento.getIdExterno());
+            } catch (RuntimeException e) {
+                log.warn("Consulta da contestação do pagamento online {} falhou: {}", pagamento.getId(), e.getMessage());
+            }
+        }
+    }
+
+    /** As contestações dos últimos 90 dias (a lista do ADMIN). */
+    List<PagamentoOnline> contestacoes() {
+        return repository.contestados(relogio.instant().minus(Duration.ofDays(90)));
+    }
+
+    /** Só com o provedor simulado (ADMIN): o pagador "contesta", e o resto é o caminho de verdade. */
+    void simularContestacao(UUID id) {
+        if (!(provedor.orElse(null) instanceof ProvedorSimulado simulado)) {
+            throw new PagamentoOnlineNaoEncontradoException("Simulação desligada");
+        }
+        PagamentoOnline pagamento = repository.buscar(id)
+                .orElseThrow(() -> new PagamentoOnlineNaoEncontradoException("Pagamento online não encontrado"));
+        if (!pagamento.getSituacao().contestavel()) {
+            throw new PagamentoOnlineRecusadoException("Só um pagamento recebido pode ser contestado");
+        }
+        simulado.simularContestacao(pagamento.getIdExterno());
+        confirmar(pagamento.getIdExterno());
     }
 
     /** A consulta periódica: os aguardando, um por um; a falha de um não para os outros. */

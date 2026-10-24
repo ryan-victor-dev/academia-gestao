@@ -20,7 +20,8 @@ class PagamentoOnlineRepository {
     private static final String COLUNAS = """
             id, cobranca_id, aluno_id, forma, provedor, id_externo, valor, acrescimo, juros, pix_copia_e_cola,
             boleto_linha_digitavel, boleto_url, link_de_pagamento, valido_ate, gerado_em, gerado_por, situacao,
-            recebido, recebido_em, motivo_da_devolucao, valor_a_devolver, devolvido_em, devolvido_por""";
+            recebido, recebido_em, motivo_da_devolucao, valor_a_devolver, devolvido_em, devolvido_por, contestado_em,
+            cobranca_reaberta""";
 
     private final JdbcTemplate jdbc;
 
@@ -30,22 +31,24 @@ class PagamentoOnlineRepository {
 
     void inserir(PagamentoOnline p) {
         jdbc.update("INSERT INTO pagamentos_online (" + COLUNAS + ") VALUES "
-                        + "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 p.getId(), p.getCobrancaId(), p.getAlunoId(), p.getForma().name(), p.getProvedor(), p.getIdExterno(),
                 p.getValor(), p.getAcrescimo(), p.getJuros(), p.getPixCopiaECola(), p.getBoletoLinhaDigitavel(),
                 p.getBoletoUrl(), p.getLinkDePagamento(), Timestamp.from(p.getValidoAte()), Timestamp.from(p.getGeradoEm()), p.getGeradoPor(),
                 p.getSituacao().name(), p.getRecebido(), quando(p.getRecebidoEm()), p.getMotivoDaDevolucao(),
-                p.getValorADevolver(), quando(p.getDevolvidoEm()), p.getDevolvidoPor());
+                p.getValorADevolver(), quando(p.getDevolvidoEm()), p.getDevolvidoPor(), quando(p.getContestadoEm()),
+                p.getCobrancaReaberta());
     }
 
     /** Só o que muda depois de gerado. */
     void atualizar(PagamentoOnline p) {
         jdbc.update("""
                 UPDATE pagamentos_online SET situacao = ?, recebido = ?, recebido_em = ?, motivo_da_devolucao = ?,
-                                             valor_a_devolver = ?, devolvido_em = ?, devolvido_por = ?
+                                             valor_a_devolver = ?, devolvido_em = ?, devolvido_por = ?,
+                                             contestado_em = ?, cobranca_reaberta = ?
                 WHERE id = ?""", p.getSituacao().name(), p.getRecebido(), quando(p.getRecebidoEm()),
                 p.getMotivoDaDevolucao(), p.getValorADevolver(), quando(p.getDevolvidoEm()), p.getDevolvidoPor(),
-                p.getId());
+                quando(p.getContestadoEm()), p.getCobrancaReaberta(), p.getId());
     }
 
     Optional<PagamentoOnline> buscar(UUID id) {
@@ -92,6 +95,20 @@ class PagamentoOnlineRepository {
                 Timestamp.from(desde), limite);
     }
 
+    /** Os cartões recebidos desde {@code desde}, para a consulta diária das contestações (ADR 0037). */
+    List<PagamentoOnline> cartoesRecebidos(String provedor, Instant desde, int limite) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM pagamentos_online "
+                + "WHERE situacao IN ('PAGO', 'A_DEVOLVER', 'DEVOLVENDO', 'DEVOLVIDO') AND forma IN ('CREDITO', 'DEBITO') "
+                + "AND provedor = ? AND recebido_em > ? ORDER BY recebido_em DESC LIMIT ?", this::mapear, provedor,
+                Timestamp.from(desde), limite);
+    }
+
+    /** As contestações desde {@code desde}, da mais nova para a mais antiga (a lista do ADMIN). */
+    List<PagamentoOnline> contestados(Instant desde) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM pagamentos_online WHERE situacao = 'CONTESTADO' "
+                + "AND contestado_em > ? ORDER BY contestado_em DESC", this::mapear, Timestamp.from(desde));
+    }
+
     /** O dinheiro a devolver, e o que está sendo devolvido, do mais antigo para o mais novo. */
     List<PagamentoOnline> aDevolver() {
         return jdbc.query("SELECT " + COLUNAS + " FROM pagamentos_online WHERE situacao IN ('A_DEVOLVER', 'DEVOLVENDO') "
@@ -116,6 +133,7 @@ class PagamentoOnlineRepository {
                 rs.getObject("gerado_por", UUID.class), Situacao.valueOf(rs.getString("situacao")),
                 rs.getBigDecimal("recebido"), instante(rs, "recebido_em"), rs.getString("motivo_da_devolucao"),
                 rs.getBigDecimal("valor_a_devolver"), instante(rs, "devolvido_em"),
-                rs.getObject("devolvido_por", UUID.class));
+                rs.getObject("devolvido_por", UUID.class), instante(rs, "contestado_em"),
+                rs.getObject("cobranca_reaberta", Boolean.class));
     }
 }

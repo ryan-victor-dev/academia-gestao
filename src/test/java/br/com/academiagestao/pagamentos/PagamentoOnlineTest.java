@@ -33,7 +33,7 @@ class PagamentoOnlineTest {
                 p.getValidoAte(), p.getGeradoEm(), p.getGeradoPor(), situacao,
                 situacao == Situacao.A_DEVOLVER ? new BigDecimal("102.50") : null,
                 situacao == Situacao.A_DEVOLVER ? AGORA : null, situacao == Situacao.A_DEVOLVER ? "motivo" : null,
-                situacao == Situacao.A_DEVOLVER ? new BigDecimal("102.50") : null, null, null);
+                situacao == Situacao.A_DEVOLVER ? new BigDecimal("102.50") : null, null, null, null, null);
     }
 
     @Test
@@ -158,6 +158,31 @@ class PagamentoOnlineTest {
         assertThat(p.getSituacao()).isEqualTo(Situacao.DEVOLVIDO);
         assertThatThrownBy(() -> pix().iniciarDevolucao()).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> em(Situacao.PAGO).iniciarDevolucao()).isInstanceOf(IllegalStateException.class);
+    }
+
+    /** Contesta-se o que foi recebido (ADR 0037); o que pagou a cobrança é o pago e o pago a mais. */
+    @Test
+    void contestacao() {
+        PagamentoOnline pago = em(Situacao.PAGO);
+        assertThat(pago.pagouACobrancaAntesDaContestacao()).isTrue();
+        pago.contestar(AGORA, true);
+        assertThat(pago.getSituacao()).isEqualTo(Situacao.CONTESTADO);
+        assertThat(pago.getContestadoEm()).isEqualTo(Instant.parse("2026-11-10T15:00:00.123456Z"));
+        assertThat(pago.getCobrancaReaberta()).isTrue();
+        assertThatThrownBy(() -> pago.contestar(AGORA, true)).isInstanceOf(IllegalStateException.class);
+
+        assertThat(em(Situacao.A_DEVOLVER).pagouACobrancaAntesDaContestacao()).as("devolver tudo: não pagou").isFalse();
+        PagamentoOnline comSobra = pix();
+        comSobra.pagoComSobra(new BigDecimal("110.00"), AGORA, "pago a mais");
+        assertThat(comSobra.pagouACobrancaAntesDaContestacao()).isTrue();
+        for (Situacao situacao : new Situacao[] {Situacao.A_DEVOLVER, Situacao.DEVOLVENDO, Situacao.DEVOLVIDO}) {
+            PagamentoOnline p = em(situacao);
+            p.contestar(AGORA, false);
+            assertThat(p.getSituacao()).isEqualTo(Situacao.CONTESTADO);
+        }
+        for (Situacao situacao : new Situacao[] {Situacao.AGUARDANDO, Situacao.EXPIRADO, Situacao.CANCELADO}) {
+            assertThatThrownBy(() -> em(situacao).contestar(AGORA, false)).isInstanceOf(IllegalStateException.class);
+        }
     }
 
     @Test

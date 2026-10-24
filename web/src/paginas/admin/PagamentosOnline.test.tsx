@@ -15,7 +15,7 @@ const sobra = { ...aDevolver, id: 'p8', forma: 'PIX', recebido: 110, valorADevol
 describe('pagamento online (ADMIN)', () => {
   it('mostra a empresa e salva com a versão lida', async () => {
     const api = apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual, { ETag: '"1"' }),
-      'GET /api/pagamentos-online/a-devolver': json(200, []),
+      'GET /api/pagamentos-online/contestacoes': json(200, []), 'GET /api/pagamentos-online/a-devolver': json(200, []),
       'PUT /api/pagamentos-online/configuracao': json(200, { ...atual, boletoLigado: false, adiantar: 'TODAS', diasDoBoleto: 5 }, { ETag: '"2"' }) });
     renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
 
@@ -39,7 +39,7 @@ describe('pagamento online (ADMIN)', () => {
 
   it('a forma que a empresa não oferece: avisa ao lado da chave', async () => {
     apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, { ...atual, formasDaEmpresa: ['PIX', 'BOLETO', 'CREDITO'] }),
-      'GET /api/pagamentos-online/a-devolver': json(200, []) });
+      'GET /api/pagamentos-online/contestacoes': json(200, []), 'GET /api/pagamentos-online/a-devolver': json(200, []) });
     renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
 
     expect(await screen.findByLabelText(/Cartão de débito pelo app/)).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe('pagamento online (ADMIN)', () => {
 
   it('cartão a devolver: com o nome da forma', async () => {
     apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
-      'GET /api/pagamentos-online/a-devolver': json(200, [{ ...sobra, forma: 'CREDITO' }]) });
+      'GET /api/pagamentos-online/contestacoes': json(200, []), 'GET /api/pagamentos-online/a-devolver': json(200, [{ ...sobra, forma: 'CREDITO' }]) });
     renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
 
     expect(await screen.findByText(/Cartão de crédito de R\$\s110,00 recebido em/)).toBeInTheDocument();
@@ -57,7 +57,7 @@ describe('pagamento online (ADMIN)', () => {
 
   it('desligado: explica que a empresa é do servidor', async () => {
     apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, { ...atual, provedor: 'desligado', simulado: false }),
-      'GET /api/pagamentos-online/a-devolver': json(200, []) });
+      'GET /api/pagamentos-online/contestacoes': json(200, []), 'GET /api/pagamentos-online/a-devolver': json(200, []) });
     renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
 
     expect(await screen.findByText(/Nenhuma empresa de pagamentos configurada/)).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe('pagamento online (ADMIN)', () => {
   it('boleto (a empresa não devolve): com o nome e o motivo; só "devolvi por fora", que recarrega', async () => {
     let devolvido = false;
     const api = apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
-      'GET /api/pagamentos-online/a-devolver': () => json(200, devolvido ? [] : [aDevolver]),
+      'GET /api/pagamentos-online/contestacoes': json(200, []), 'GET /api/pagamentos-online/a-devolver': () => json(200, devolvido ? [] : [aDevolver]),
       'POST /api/pagamentos-online/p9/devolvido': () => { devolvido = true; return json(200, { ...aDevolver, situacao: 'DEVOLVIDO' }); } });
     renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
 
@@ -84,7 +84,7 @@ describe('pagamento online (ADMIN)', () => {
   it('pago a mais: mostra a sobra; devolver pede confirmação, e só então chama a empresa', async () => {
     let devolvido = false;
     const api = apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
-      'GET /api/pagamentos-online/a-devolver': () => json(200, devolvido ? [] : [sobra]),
+      'GET /api/pagamentos-online/contestacoes': json(200, []), 'GET /api/pagamentos-online/a-devolver': () => json(200, devolvido ? [] : [sobra]),
       'POST /api/pagamentos-online/p8/devolver': () => { devolvido = true; return json(200, { ...sobra, situacao: 'DEVOLVIDO' }); } });
     renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
 
@@ -108,7 +108,7 @@ describe('pagamento online (ADMIN)', () => {
 
   it('devolvendo (parado no meio): avisa, deixa tentar de novo, e não oferece "por fora"', async () => {
     apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
-      'GET /api/pagamentos-online/a-devolver': json(200, [{ ...sobra, situacao: 'DEVOLVENDO' }]) });
+      'GET /api/pagamentos-online/contestacoes': json(200, []), 'GET /api/pagamentos-online/a-devolver': json(200, [{ ...sobra, situacao: 'DEVOLVENDO' }]) });
     renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
 
     expect(await screen.findByText(/Devolução pela empresa em andamento/)).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe('pagamento online (ADMIN)', () => {
 
   it('boleto devolvendo (outra empresa que devolve boleto, por exemplo): também sem "por fora"', async () => {
     apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
-      'GET /api/pagamentos-online/a-devolver': json(200, [{ ...aDevolver, situacao: 'DEVOLVENDO' }]) });
+      'GET /api/pagamentos-online/contestacoes': json(200, []), 'GET /api/pagamentos-online/a-devolver': json(200, [{ ...aDevolver, situacao: 'DEVOLVENDO' }]) });
     renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
 
     expect(await screen.findByText(/Devolução pela empresa em andamento/)).toBeInTheDocument();
@@ -127,7 +127,7 @@ describe('pagamento online (ADMIN)', () => {
 
   it('a empresa recusou: mostra o erro, deixa tentar de novo ou devolver por fora', async () => {
     apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
-      'GET /api/pagamentos-online/a-devolver': json(200, [sobra]),
+      'GET /api/pagamentos-online/contestacoes': json(200, []), 'GET /api/pagamentos-online/a-devolver': json(200, [sobra]),
       'POST /api/pagamentos-online/p8/devolver': json(503, { detail: 'A empresa de pagamentos não respondeu. Tente de novo em alguns minutos.' }) });
     renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
 
@@ -138,5 +138,31 @@ describe('pagamento online (ADMIN)', () => {
     expect(screen.getByRole('button', { name: 'Tentar devolver de novo' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Já devolvi por fora' })).toBeInTheDocument();
     expect(screen.getByText(/Antes de devolver por fora, tente de novo pelo sistema/)).toBeInTheDocument();
+  });
+  it('contestações: a mensalidade reaberta ou não, e o aviso de quem recebeu duas vezes', async () => {
+    apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual), 'GET /api/pagamentos-online/a-devolver': json(200, []),
+      'GET /api/pagamentos-online/contestacoes': json(200, [
+        { id: 'k1', forma: 'CREDITO', alunoNome: 'Maria', recebido: 103, contestadoEm: '2026-10-20T15:00:00Z', cobrancaReaberta: true,
+          devolvidoEm: null },
+        { id: 'k2', forma: 'DEBITO', alunoNome: 'João', recebido: 120, contestadoEm: '2026-10-21T15:00:00Z', cobrancaReaberta: false,
+          devolvidoEm: '2026-10-10T15:00:00Z' },
+      ]) });
+    renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
+
+    const maria = (await screen.findByText('Maria')).closest('li')!;
+    expect(maria).toHaveTextContent(/Cartão de crédito contestado em/);
+    expect(maria).toHaveTextContent('A mensalidade voltou a ficar em aberto.');
+    expect(maria).not.toHaveTextContent(/recebeu duas vezes/);
+    const joao = screen.getByText('João').closest('li')!;
+    expect(joao).toHaveTextContent('A mensalidade não mudou');
+    expect(joao).toHaveTextContent(/recebeu duas vezes/);
+  });
+
+  it('sem contestações: diz isso', async () => {
+    apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual), 'GET /api/pagamentos-online/a-devolver': json(200, []),
+      'GET /api/pagamentos-online/contestacoes': json(200, []) });
+    renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
+
+    expect(await screen.findByText('Nenhuma contestação.')).toBeInTheDocument();
   });
 });
