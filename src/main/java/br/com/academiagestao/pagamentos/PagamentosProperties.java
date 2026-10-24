@@ -14,6 +14,10 @@ import java.time.Duration;
  * @param toleranciaDoPix     depois de expirado, por quanto tempo ainda perguntar (um pagamento no
  *                            último segundo pode demorar a aparecer)
  * @param toleranciaDoBoleto  o boleto pago no vencimento pode levar dias úteis para compensar
+ * @param intervaloDaConsultaDosEncerrados de quanto em quanto tempo perguntar pelos cancelados e
+ *                            expirados recentes (ADR 0036): menos que os em aberto, para não
+ *                            multiplicar as chamadas à empresa
+ * @param janelaDosEncerrados por quanto tempo, depois do prazo, ainda perguntar por eles
  * @param tokenDoAvisoSimulado só no simulado: o token que o aviso de teste precisa trazer
  */
 @ConfigurationProperties(prefix = "academia.pagamentos")
@@ -22,6 +26,8 @@ record PagamentosProperties(
         @DefaultValue("2m") Duration intervaloDaConsulta,
         @DefaultValue("1h") Duration toleranciaDoPix,
         @DefaultValue("5d") Duration toleranciaDoBoleto,
+        @DefaultValue("1h") Duration intervaloDaConsultaDosEncerrados,
+        @DefaultValue("7d") Duration janelaDosEncerrados,
         String tokenDoAvisoSimulado) {
 
     static final String DESLIGADO = "desligado";

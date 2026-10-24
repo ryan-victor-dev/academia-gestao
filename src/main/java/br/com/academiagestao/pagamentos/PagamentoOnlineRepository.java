@@ -82,6 +82,16 @@ class PagamentoOnlineRepository {
                 + "AND provedor = ? ORDER BY valido_ate LIMIT ?", this::mapear, provedor, limite);
     }
 
+    /**
+     * Os cancelados e expirados de um provedor cujo prazo acabou depois de {@code desde}, para a
+     * consulta dos encerrados (ADR 0036): ainda podem ter sido pagos.
+     */
+    List<PagamentoOnline> encerradosRecentes(String provedor, Instant desde, int limite) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM pagamentos_online WHERE situacao IN ('EXPIRADO', 'CANCELADO') "
+                + "AND provedor = ? AND valido_ate > ? ORDER BY valido_ate DESC LIMIT ?", this::mapear, provedor,
+                Timestamp.from(desde), limite);
+    }
+
     /** O dinheiro a devolver, e o que está sendo devolvido, do mais antigo para o mais novo. */
     List<PagamentoOnline> aDevolver() {
         return jdbc.query("SELECT " + COLUNAS + " FROM pagamentos_online WHERE situacao IN ('A_DEVOLVER', 'DEVOLVENDO') "

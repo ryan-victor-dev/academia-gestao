@@ -185,7 +185,14 @@ class PagamentoOnlineService {
                         p.expirar();
                         repository.atualizar(p);
                     }));
-            case AGUARDANDO -> expirarSePassouDaTolerancia(empresa, pagamento);
+            case AGUARDANDO -> {
+                if (pagamento.getSituacao() == PagamentoOnline.Situacao.AGUARDANDO) {
+                    expirarSePassouDaTolerancia(empresa, pagamento);
+                } else {
+                    // Encerrado aqui, mas em aberto lá: o cancelamento falhou (ADR 0036). De novo.
+                    cancelarNaEmpresa(empresa, idExterno);
+                }
+            }
         }
     }
 
@@ -238,6 +245,25 @@ class PagamentoOnlineService {
                 confirmar(pagamento.getIdExterno());
             } catch (RuntimeException e) {
                 log.warn("Consulta do pagamento online {} falhou: {}", pagamento.getId(), e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * A consulta dos encerrados (ADR 0036): os cancelados e expirados dos últimos dias, que ainda
+     * podem ter sido pagos (no último segundo, ou porque o cancelamento na empresa falhou). A
+     * falha de um não para os outros.
+     */
+    void consultarEncerrados() {
+        if (provedor.isEmpty()) {
+            return;
+        }
+        Instant desde = relogio.instant().minus(propriedades.janelaDosEncerrados());
+        for (PagamentoOnline pagamento : repository.encerradosRecentes(provedor.get().nome(), desde, LOTE_DA_CONSULTA)) {
+            try {
+                confirmar(pagamento.getIdExterno());
+            } catch (RuntimeException e) {
+                log.warn("Consulta do pagamento online encerrado {} falhou: {}", pagamento.getId(), e.getMessage());
             }
         }
     }

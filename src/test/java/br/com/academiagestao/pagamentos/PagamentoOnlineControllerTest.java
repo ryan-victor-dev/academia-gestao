@@ -607,6 +607,66 @@ class PagamentoOnlineControllerTest {
                 BigDecimal.class, pix.get("id").toString())).as("pago a menos: volta tudo").isEqualByComparingTo("50.00");
     }
 
+    /**
+     * Pago no último segundo (ADR 0036): o Pix de ontem foi trocado (cancelado) e pago no mesmo
+     * instante. A consulta dos em aberto não olha os cancelados; a dos encerrados acha, e o
+     * dinheiro paga a cobrança. Sem aviso: é o caso do servidor sem endereço público.
+     */
+    @Test
+    void consultaDosEncerradosAchaOCanceladoPago() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> ontem = gerado(atrasada, "PIX");
+        irPara(hoje.plusDays(1).atTime(9, 0));
+        gerado(atrasada, "PIX");
+        assertThat(situacao(ontem.get("id"))).isEqualTo("CANCELADO");
+        simulado.simularPagamento(idExterno(ontem.get("id")), null);
+
+        service.consultarAguardando();
+        assertThat(situacao(ontem.get("id"))).as("a consulta dos em aberto não olha os cancelados").isEqualTo("CANCELADO");
+
+        service.consultarEncerrados();
+        assertThat(situacao(ontem.get("id"))).isEqualTo("PAGO");
+        assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, atrasada))
+                .isEqualTo("PAGA");
+    }
+
+    /** Passada a janela (7 dias depois do prazo), o encerrado não é mais consultado. */
+    @Test
+    void consultaDosEncerradosTemJanela() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> ontem = gerado(atrasada, "PIX");
+        irPara(hoje.plusDays(1).atTime(9, 0));
+        gerado(atrasada, "PIX");
+        simulado.simularPagamento(idExterno(ontem.get("id")), null);
+
+        // O Pix de ontem valia até o início de hoje + 1 dia: 7 dias depois disso, mais um minuto.
+        relogio.fixar(inicioDo(hoje.plusDays(1)).plus(Duration.ofDays(7)).plusSeconds(60));
+        service.consultarEncerrados();
+        assertThat(situacao(ontem.get("id"))).isEqualTo("CANCELADO");
+
+        relogio.fixar(inicioDo(hoje.plusDays(1)).plus(Duration.ofDays(7)).minusSeconds(60));
+        service.consultarEncerrados();
+        assertThat(situacao(ontem.get("id"))).as("um minuto antes do fim da janela").isEqualTo("PAGO");
+    }
+
+    /** Cancelado aqui, mas em aberto na empresa (o cancelamento falhou): a consulta dos encerrados cancela de novo. */
+    @Test
+    void consultaDosEncerradosCancelaDeNovoNaEmpresa() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> ontem = gerado(atrasada, "PIX");
+        doThrow(new ProvedorIndisponivelException("fora do ar", null)).doCallRealMethod().when(simulado).cancelar(any());
+        irPara(hoje.plusDays(1).atTime(9, 0));
+        gerado(atrasada, "PIX");
+        String externo = idExterno(ontem.get("id"));
+        assertThat(situacao(ontem.get("id"))).isEqualTo("CANCELADO");
+        assertThat(simulado.consultar(externo).estado()).isEqualTo(ProvedorDePagamento.Estado.AGUARDANDO);
+
+        service.consultarEncerrados();
+
+        assertThat(simulado.consultar(externo).estado()).isEqualTo(ProvedorDePagamento.Estado.ENCERRADO);
+        assertThat(situacao(ontem.get("id"))).isEqualTo("CANCELADO");
+    }
+
     /** A consulta periódica acha o pago sem aviso, e expira o que passou do prazo e da tolerância (1 h no Pix). */
     @Test
     void consultaPeriodica() throws Exception {
@@ -614,10 +674,16 @@ class PagamentoOnlineControllerTest {
         Map<String, Object> esquecido = gerado(cobranca(2, -5), "PIX");
         simulado.simularPagamento(idExterno(pago.get("id")), null);
 
+        service.consultarAguardando();
+        assertThat(simulado.consultar(idExterno(esquecido.get("id"))).estado())
+                .as("dentro do prazo, a consulta não cancela na empresa").isEqualTo(ProvedorDePagamento.Estado.AGUARDANDO);
+
         irPara(hoje.plusDays(1).atTime(0, 30));
         service.consultarAguardando();
         assertThat(situacao(pago.get("id"))).isEqualTo("PAGO");
         assertThat(situacao(esquecido.get("id"))).isEqualTo("AGUARDANDO");
+        assertThat(simulado.consultar(idExterno(esquecido.get("id"))).estado())
+                .as("na tolerância, também não").isEqualTo(ProvedorDePagamento.Estado.AGUARDANDO);
 
         irPara(hoje.plusDays(1).atTime(1, 1));
         service.consultarAguardando();

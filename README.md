@@ -309,7 +309,8 @@ isso a lista de alunos traz só o resumo: os dados pessoais saem só pelo cadast
 ¹² Pagamento online (ADR 0034): desligado por padrão (`PAGAMENTOS_PROVEDOR` no `.env`). O valor é
 o do dia em que o aluno gerou; o Pix vale até o fim do dia, e o boleto até o vencimento (de uma
 cobrança vencida, 3 dias, configurável). Entra fora do caixa da recepção, como "Pix pelo app" ou
-"Boleto pelo app". O sistema confirma consultando a empresa (no aviso dela e a cada 2 minutos). Pago a
+"Boleto pelo app". O sistema confirma consultando a empresa (no aviso dela, a cada 2 minutos os em aberto e, de
+hora em hora, os cancelados e expirados dos últimos 7 dias, que ainda podem ter sido pagos). Pago a
 mais, a cobrança fica paga e a sobra vai para a devolver; o ADMIN confirma, e o sistema devolve o Pix
 pela empresa (o boleto, por fora). Um Pix e um boleto aguardando por cobrança, no máximo (ADR 0035).
 

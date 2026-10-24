@@ -24,4 +24,11 @@ class ConsultaPeriodicaDosPagamentos {
     void consultar() {
         service.consultarAguardando();
     }
+
+    /** Os cancelados e expirados recentes (ADR 0036): pagos no último segundo, ou o cancelamento lá falhou. */
+    @Scheduled(fixedDelayString = "${academia.pagamentos.intervalo-da-consulta-dos-encerrados:1h}",
+            initialDelayString = "${academia.pagamentos.intervalo-da-consulta-dos-encerrados:1h}")
+    void consultarEncerrados() {
+        service.consultarEncerrados();
+    }
 }
