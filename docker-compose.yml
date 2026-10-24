@@ -17,7 +17,7 @@ x-sem-novos-privilegios: &sem-novos-privilegios
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: academia-postgres
     restart: unless-stopped
     logging: *logs
@@ -93,7 +93,7 @@ services:
   # o banco restaurado não sobe). Não abre porta nenhuma. Copie a pasta para fora do
   # servidor; restaure com scripts/restaurar-backup.sh.
   backup:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: academia-backup
     restart: unless-stopped
     logging: *logs
