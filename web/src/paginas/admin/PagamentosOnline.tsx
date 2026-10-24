@@ -101,8 +101,8 @@ export function PagamentosOnline() {
       {atual.simulado && <p className="aviso" role="note">Modo de teste: os pagamentos são simulados. Nunca use assim com alunos de verdade.</p>}
 
       <form className="formulario" onSubmit={enviar} aria-label="Configuração do pagamento online" noValidate>
-        <label className="largo"><input type="checkbox" checked={form.pixLigado} onChange={(e) => setForm({ ...form, pixLigado: e.target.checked })} /> Pix pelo app</label>
-        <label className="largo"><input type="checkbox" checked={form.boletoLigado} onChange={(e) => setForm({ ...form, boletoLigado: e.target.checked })} /> Boleto pelo app</label>
+        <label className="marcar largo"><input type="checkbox" checked={form.pixLigado} onChange={(e) => setForm({ ...form, pixLigado: e.target.checked })} /> Pix pelo app</label>
+        <label className="marcar largo"><input type="checkbox" checked={form.boletoLigado} onChange={(e) => setForm({ ...form, boletoLigado: e.target.checked })} /> Boleto pelo app</label>
         <label>O aluno pode pagar
           <select aria-label="Até onde adiantar" value={form.adiantar} onChange={(e) => setForm({ ...form, adiantar: e.target.value as Adiantar })}>
             {Object.entries(NOME_DO_ADIANTAR).map(([valor, nome]) => <option key={valor} value={valor}>{nome}</option>)}
