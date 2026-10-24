@@ -91,6 +91,14 @@ class FluxoDeAutenticacaoTest {
         mvc.perform(post("/api/auth/redefinir-senha").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\": \"recepcao@academia.com\", \"codigo\": \"123456\", \"novaSenha\": \"senha-nova-bem-forte\"}"))
                 .andExpect(status().isConflict());
+        // Nem o primeiro acesso do aluno (ADR 0039): a recepção continua criando o acesso.
+        mvc.perform(get("/api/auth/opcoes")).andExpect(jsonPath("$.primeiroAcesso").value(false));
+        mvc.perform(post("/api/auth/primeiro-acesso").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cpf\": \"52998224725\", \"email\": \"aluno@academia.com\"}")).andExpect(status().isConflict());
+        mvc.perform(post("/api/auth/primeiro-acesso/senha").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cpf\": \"52998224725\", \"email\": \"aluno@academia.com\", \"codigo\": \"123456\", "
+                        + "\"senha\": \"senha-nova-bem-forte\"}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

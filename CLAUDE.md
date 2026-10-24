@@ -150,6 +150,9 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   email-de-teste`, veja o README); a API dele (`/api/v1/messages`) serve aos roteiros de validação.
   Com o e-mail ligado, aluno e equipe confirmam o e-mail no primeiro acesso (token sem o perfil, como a
   senha temporária): teste de fluxo com e-mail faz login de verdade; o `usuario-validacao.sh` já confirma.
+  O código do primeiro acesso do aluno (ADR 0039) é do aluno (`codigos_de_email.aluno_id`, V51), e não do
+  login, que ainda não existe; os outros, do login. O auth pergunta ao cadastro pela `CadastroParaPrimeiroAcesso`
+  (compartilhado), que o módulo de alunos implementa.
 - Telas (`web/`): validar no Chromium (Playwright) pelo Caddy, e não só no Vitest; os roteiros
   de validação de cada parte ficam em `revisao-local/ferramentas/navegador/` (fora do Git). No
   Playwright, `getByLabel('Nome')` acha por trecho ("Buscar por nome" também): use `exact: true`.
@@ -167,6 +170,6 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029, 0031 (registro de acessos), 0033 (sessão renovável) e 0034 (pagamento online); dinheiro, nos 0024, 0025, 0026, 0034, 0035, 0036 e 0037. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029, 0031 (registro de acessos), 0033 (sessão renovável), 0034 (pagamento online), 0038 (e-mail e esqueci a senha) e 0039 (primeiro acesso do aluno); dinheiro, nos 0024, 0025, 0026, 0034, 0035, 0036 e 0037. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.

@@ -75,7 +75,7 @@ export async function entrar(email: string, senha: string): Promise<void> {
   token = ((await resposta.json()) as RespostaDeLogin).token;
 }
 
-/** POST sem login (o "esqueci a senha", ADR 0038): nem token nem renovação. */
+/** POST sem login (o "esqueci a senha" e o primeiro acesso, ADRs 0038 e 0039): nem token nem renovação. */
 async function publico(caminho: string, corpo: unknown): Promise<void> {
   const resposta = await buscar(caminho, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
@@ -85,13 +85,17 @@ async function publico(caminho: string, corpo: unknown): Promise<void> {
   }
 }
 
-/** O que a tela de login oferece: o "esqueci a senha" só com o e-mail ligado. Falhou, nada a mais. */
-export async function opcoesDoLogin(): Promise<{ esqueciSenha: boolean }> {
+/**
+ * O que a tela de login oferece: o "esqueci a senha" e o primeiro acesso do aluno só com o e-mail
+ * ligado. Falhou, nada a mais.
+ */
+export async function opcoesDoLogin(): Promise<{ esqueciSenha: boolean; primeiroAcesso: boolean }> {
+  const nada = { esqueciSenha: false, primeiroAcesso: false };
   try {
     const resposta = await buscar('/api/auth/opcoes', { method: 'GET' });
-    return resposta.ok ? await resposta.json() : { esqueciSenha: false };
+    return resposta.ok ? { ...nada, ...(await resposta.json()) } : nada;
   } catch {
-    return { esqueciSenha: false };
+    return nada;
   }
 }
 
@@ -103,6 +107,16 @@ export function pedirCodigoDeSenha(email: string): Promise<void> {
 /** Com o código do e-mail, cria a senha nova (as sessões abertas caem). */
 export function redefinirSenha(email: string, codigo: string, novaSenha: string): Promise<void> {
   return publico('/api/auth/redefinir-senha', { email, codigo, novaSenha });
+}
+
+/** Primeiro acesso do aluno (ADR 0039): pede o código. A resposta é sempre a mesma, seja aluno ou não. */
+export function pedirCodigoDoPrimeiroAcesso(cpf: string, email: string): Promise<void> {
+  return publico('/api/auth/primeiro-acesso', { cpf, email });
+}
+
+/** Com o código do e-mail, cria o login do aluno, já com o e-mail confirmado. */
+export function criarSenhaDoPrimeiroAcesso(cpf: string, email: string, codigo: string, senha: string): Promise<void> {
+  return publico('/api/auth/primeiro-acesso/senha', { cpf, email, codigo, senha });
 }
 
 /**

@@ -1,19 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { entrar, ErroDaApi, opcoesDoLogin } from './api';
 import { EsqueciASenha } from './EsqueciASenha';
+import { PrimeiroAcesso } from './PrimeiroAcesso';
 
 export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [esqueciSenha, setEsqueciSenha] = useState(false);
-  const [recuperando, setRecuperando] = useState(false);
-  const [senhaCriada, setSenhaCriada] = useState(false);
+  const [opcoes, setOpcoes] = useState({ esqueciSenha: false, primeiroAcesso: false });
+  const [outraTela, setOutraTela] = useState<'esqueci' | 'primeiro' | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
     let ativo = true;
-    opcoesDoLogin().then((o) => { if (ativo) setEsqueciSenha(o.esqueciSenha); });
+    opcoesDoLogin().then((o) => { if (ativo) setOpcoes(o); });
     return () => { ativo = false; };
   }, []);
 
@@ -31,23 +32,28 @@ export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
     }
   }
 
-  if (recuperando) {
+  if (outraTela !== null) {
+    const voltar = (texto: string) => (pronto: boolean) => {
+      setOutraTela(null);
+      setAviso(pronto ? texto : null);
+      setSenha('');
+    };
     return (
       <main className="pagina login">
-        <EsqueciASenha emailInicial={email} aoVoltar={(pronta) => {
-          setRecuperando(false);
-          setSenhaCriada(pronta);
-          setSenha('');
-        }} />
+        {outraTela === 'esqueci'
+          ? <EsqueciASenha emailInicial={email} aoVoltar={voltar('Senha nova criada. Entre com ela.')} />
+          : <PrimeiroAcesso emailInicial={email} aoVoltar={voltar('Acesso criado. Entre com o seu e-mail e a senha nova.')} />}
       </main>
     );
   }
+
+  const abrir = (tela: 'esqueci' | 'primeiro') => () => { setErro(null); setOutraTela(tela); };
 
   return (
     <main className="pagina login">
       <form onSubmit={enviar} className="cartao" noValidate>
         <h1>Entrar</h1>
-        {senhaCriada && <p className="sucesso" role="status">Senha nova criada. Entre com ela.</p>}
+        {aviso && <p className="sucesso" role="status">{aviso}</p>}
         <label>
           E-mail
           <input type="email" autoComplete="username" required value={email}
@@ -62,8 +68,11 @@ export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
         <button type="submit" disabled={enviando || !email || !senha}>
           {enviando ? 'Entrando…' : 'Entrar'}
         </button>
-        {esqueciSenha && (
-          <button type="button" className="secundario" onClick={() => { setErro(null); setRecuperando(true); }}>Esqueci a senha</button>
+        {opcoes.esqueciSenha && (
+          <button type="button" className="secundario" onClick={abrir('esqueci')}>Esqueci a senha</button>
+        )}
+        {opcoes.primeiroAcesso && (
+          <button type="button" className="secundario" onClick={abrir('primeiro')}>Primeiro acesso (aluno)</button>
         )}
       </form>
     </main>

@@ -328,6 +328,12 @@ Esqueceu a senha (com o e-mail ligado¹³; aluno e equipe com o e-mail confirmad
 dígitos, e `POST /api/auth/redefinir-senha` (`email`, `codigo`, `novaSenha`) troca a senha e derruba as
 sessões abertas. Sem login, com os limites do login. `GET /api/auth/opcoes` diz se a tela oferece.
 
+Primeiro acesso do aluno (com o e-mail ligado¹³, ADR 0039): o aluno ativo, ainda sem login, cria o
+próprio acesso. `POST /api/auth/primeiro-acesso` (`cpf`, `email` do cadastro; sempre 202, sem revelar
+quem é aluno) manda o código de 6 dígitos para o e-mail do cadastro, e `POST
+/api/auth/primeiro-acesso/senha` (`cpf`, `email`, `codigo`, `senha`) cria o login, com o e-mail já
+confirmado. Sem login, com os limites do login. Quem não tem e-mail no cadastro segue pela recepção.
+
 Com o e-mail ligado¹³, aluno e equipe (não o ADMIN) confirmam o e-mail no primeiro acesso: até lá, só
 `GET /api/me`, `POST /api/auth/email/codigo` (manda o código de 6 dígitos), `POST /api/auth/email/confirmar`
 (`codigo`) e `PUT /api/auth/email` (`email`: corrige e manda o código para o novo). Confirmado, a tela

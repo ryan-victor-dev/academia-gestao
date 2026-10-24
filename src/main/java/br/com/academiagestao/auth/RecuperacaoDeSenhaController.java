@@ -19,15 +19,17 @@ import org.springframework.web.bind.annotation.RestController;
 class RecuperacaoDeSenhaController {
 
     private final RecuperacaoDeSenha recuperacao;
+    private final PrimeiroAcesso primeiroAcesso;
 
-    RecuperacaoDeSenhaController(RecuperacaoDeSenha recuperacao) {
+    RecuperacaoDeSenhaController(RecuperacaoDeSenha recuperacao, PrimeiroAcesso primeiroAcesso) {
         this.recuperacao = recuperacao;
+        this.primeiroAcesso = primeiroAcesso;
     }
 
     /** O que a tela de login oferece. */
     @GetMapping("/opcoes")
     OpcoesResponse opcoes() {
-        return new OpcoesResponse(recuperacao.disponivel());
+        return new OpcoesResponse(recuperacao.disponivel(), primeiroAcesso.disponivel());
     }
 
     /** Sempre 202: se o e-mail for de quem pode recuperar, o código chega nele. */
@@ -43,7 +45,7 @@ class RecuperacaoDeSenhaController {
         recuperacao.redefinir(request.email(), request.codigo(), request.novaSenha(), requisicao.getRemoteAddr());
     }
 
-    record OpcoesResponse(boolean esqueciSenha) {
+    record OpcoesResponse(boolean esqueciSenha, boolean primeiroAcesso) {
     }
 
     // Mesmo tamanho máximo do e-mail cadastrado (é o que vai para a tabela do limite).
