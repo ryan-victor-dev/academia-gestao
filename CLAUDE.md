@@ -10,7 +10,8 @@ comentários, mensagens de commit, ADRs e respostas ao usuário.
 ./mvnw verify                      # todos os testes (precisa do Docker ligado)
 ./mvnw -P mutacao test-compile org.pitest:pitest-maven:mutationCoverage   # mutação (PIT)
 docker compose up --build -d       # ambiente local; entrada em https://localhost:<HTTPS_PORTA>
-scripts/e2e.sh                     # ponta a ponta numa instalação do zero, isolada (~4 min)
+scripts/e2e.sh                     # ponta a ponta (API e telas) numa instalação do zero, isolada (~6 min)
+(cd web && npm test && npm run tipos)   # testes e tipos das telas (Vitest)
 scripts/usuario-validacao.sh PERFIL   # token de um usuário de teste (só desenvolvimento)
 ```
 
@@ -137,6 +138,18 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   antes de ler o corpo, quando os argumentos do método ainda não existem.
 - A API da cobrança mostra a `situacao` (calculada: `ATRASADA` é a pendente vencida), não o
   `status` do banco: em scripts de validação, compare com a situação certa.
+
+- Telas (`web/`): validar no Chromium (Playwright) pelo Caddy, e não só no Vitest; os roteiros
+  de validação de cada parte ficam em `revisao-local/ferramentas/navegador/` (fora do Git). No
+  Playwright, `getByLabel('Nome')` acha por trecho ("Buscar por nome" também): use `exact: true`.
+  Um `<select>` dentro do `<label>` ganha o nome "Rótulo Opção…": dê `aria-label` ao seletor.
+  Num passo de validação, `isVisible()` e `count()` não esperam; espere com `waitFor()` antes.
+- Testes das telas: no jsdom, `userEvent.type` não muda `<input type="date">` (use
+  `fireEvent.change`); valor negativo em reais sai "-R$ 10,00". Mutação no front:
+  `revisao-local/ferramentas/mutantes_web.py` (desliga a regra de variável não usada, que faria o
+  mutante falhar por estilo, e não por lógica).
+- Grade com campos (`display: grid`): sem `min-width: 0`, o campo não encolhe e passa por cima da
+  coluna vizinha; tabela com texto longo precisa de `table-layout: fixed` e `overflow-wrap`.
 
 ## Segurança
 

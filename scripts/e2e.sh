@@ -5,13 +5,20 @@
 # nomes de container e outras portas, segue o README (cp .env.example .env + senhas
 # aleatórias), roda scripts/e2e.py e SEMPRE desmonta no final, apagando os volumes.
 #
-# Uso:  scripts/e2e.sh          (leva uns 4 minutos: há esperas pelo limite de login)
+# Uso:  scripts/e2e.sh          (leva uns 5 minutos: há esperas pelo limite de login)
+# Depois da API (scripts/e2e.py), as telas num Chromium de verdade (web/e2e/telas.mjs).
+# Requer, uma vez: cd web && npm ci && npx playwright install chromium
 # Portas: E2E_HTTPS (padrão 18443) e E2E_HTTP (padrão 18089).
 set -euo pipefail
 RAIZ=$(cd "$(dirname "$0")/.." && pwd)
 DESTINO=$RAIZ/target/e2e/instalacao
 export E2E_HTTPS=${E2E_HTTPS:-18443} E2E_HTTP=${E2E_HTTP:-18089}
 export COMPOSE_PROJECT_NAME=academia-e2e E2E_PREFIXO=e2e-
+
+if [ ! -d "$RAIZ/web/node_modules/playwright" ] || ! (cd "$RAIZ/web" && npx --no-install playwright --version >/dev/null 2>&1); then
+  echo "Falta o Playwright das telas: cd web && npm ci && npx playwright install chromium" >&2
+  exit 1
+fi
 
 desmontar() { [ -d "$DESTINO" ] && (cd "$DESTINO" && docker compose down -v >/dev/null 2>&1 || true); rm -rf "$DESTINO"; }
 trap desmontar EXIT
@@ -33,4 +40,12 @@ sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -base64 24)|; \
 echo "Subindo a instalação de teste (https://localhost:$E2E_HTTPS)..."
 docker compose up --build -d >/dev/null 2>&1
 for _ in $(seq 90); do curl -skf "https://localhost:$E2E_HTTPS/actuator/health" >/dev/null && break; sleep 2; done
+set +e
 python3 -I "$RAIZ/scripts/e2e.py" "$DESTINO"
+API=$?
+echo
+echo "Telas (Chromium):"
+node "$RAIZ/web/e2e/telas.mjs" "https://localhost:$E2E_HTTPS"
+TELAS=$?
+set -e
+[ "$API" -eq 0 ] && [ "$TELAS" -eq 0 ]

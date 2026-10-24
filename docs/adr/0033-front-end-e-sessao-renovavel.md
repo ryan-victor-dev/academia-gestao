@@ -62,7 +62,21 @@ O dono decidiu quanto a sessão dura: **12 horas para a equipe** (um turno; o AD
   (ADR 0031). A API passa a mandar o `alunoNome` (só o nome, também de aluno inativo: a dívida
   continua), pela porta pública do módulo de alunos.
 
-Os detalhes de cada tela entram nas próximas partes.
+- **PWA:** manifesto e ícones (provisórios: halter branco sobre o azul do tema, até o dono
+  escolher logo e cores) e um service worker escrito à mão (`web/public/sw.js`, sem plugin): rede
+  primeiro, e sem rede o que estiver guardado. Guarda só a casca (HTML, scripts, estilos,
+  ícones); `/api` e `/actuator` passam direto e **nunca** são guardados: dado de aluno, de
+  dinheiro ou token não fica no aparelho. Sem internet, o app abre e cada chamada mostra o erro de
+  conexão. Registrado só no build de produção. Com o certificado de desenvolvimento do Caddy
+  (`localhost`, CA interna), o navegador não registra o service worker (erro de certificado): o
+  site funciona, só não instala nem abre sem internet. Com um domínio de verdade, registra.
+- **Ponta a ponta pelas telas:** `web/e2e/telas.mjs` (Playwright, versão exata) roda no
+  `scripts/e2e.sh` depois da API, na instalação do zero: ADMIN monta a equipe e o plano, a
+  recepção cadastra, matricula, recebe e fecha o caixa, o professor monta a ficha, o aluno vê tudo
+  no celular, e o PWA abre sem internet sem ter guardado nada da API. O Chromium é instalado uma
+  vez (`npx playwright install chromium`); não roda no CI (o e2e já não rodava).
+
+As telas de cada perfil estão descritas no README (tabela de rotas) e nos commits de cada parte.
 
 ### Sessão renovável
 

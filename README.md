@@ -390,6 +390,10 @@ npm run tipos                  # confere os tipos (TypeScript)
 
 As dependências entram com versão exata e publicada há pelo menos duas semanas (ADR 0033).
 
+No celular, o site é instalável (PWA): no navegador, "Adicionar à tela inicial". O service worker
+guarda só a casca do app (HTML, scripts, estilos, ícones) para ele abrir sem internet; nada da
+API (dados de alunos, cobranças, tokens) fica no aparelho.
+
 ### Testes
 
 Requer Docker ligado (o Testcontainers sobe um PostgreSQL descartável):
@@ -410,9 +414,12 @@ Para checar se os testes de domínio realmente pegam erros (teste de mutação):
 ```
 
 Teste de ponta a ponta numa instalação do zero, isolada do seu ambiente (outras portas
-e containers; tudo é apagado no final):
+e containers; tudo é apagado no final). Primeiro a API (`scripts/e2e.py`), depois as telas
+num Chromium de verdade (`web/e2e/telas.mjs`: os quatro perfis trabalhando juntos, o aluno no
+celular e o PWA sem internet):
 
 ```bash
+(cd web && npm ci && npx playwright install chromium)   # uma vez
 scripts/e2e.sh
 ```
 
@@ -434,7 +441,7 @@ um token dele. É só para desenvolvimento: ele se recusa a rodar se o `.env` ti
 - [x] **6. Cobrança** — mensalidades geradas pela matrícula (trancamento empurra, cancelamento cancela as futuras, multa vira cobrança), pagamento no balcão pelo valor exato, acréscimo com teto de 2% e juros editáveis, estorno e cancelamento pelo ADMIN, bloqueio do inadimplente no "pode treinar?"
 - [x] **7. Treinos** — catálogo de exercícios, ficha com divisões e uma atual por aluno (garantido pelo banco), correção com trilha, histórico imutável, revisões vencidas para os instrutores, visão do aluno
 - [x] **8. Caixa e auditoria completa** — caixa do dia com troco, fechamento com contagem às cegas e justificativa, reabertura pelo ADMIN, relatório por forma; trilha das matrículas e do caixa; registro de consultas ao cadastro e de logins por 1 ano
-- [ ] **9. Front-end** — PWA em React para recepção, professores e alunos (ADR 0033): sessão renovável e login prontos; telas de cada perfil a seguir
+- [x] **9. Front-end** — PWA em React (ADR 0033): sessão renovável; recepção (alunos, matrículas, cobranças, caixa), professor (exercícios, fichas, revisões), aluno no celular (treino, pagamentos) e ADMIN (equipe, planos, configuração, auditoria, relatório do caixa); instalável no celular
 
 ## Autor
 
