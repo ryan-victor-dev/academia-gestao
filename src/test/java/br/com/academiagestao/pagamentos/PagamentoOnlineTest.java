@@ -33,7 +33,7 @@ class PagamentoOnlineTest {
                 p.getValidoAte(), p.getGeradoEm(), p.getGeradoPor(), situacao,
                 situacao == Situacao.A_DEVOLVER ? new BigDecimal("102.50") : null,
                 situacao == Situacao.A_DEVOLVER ? AGORA : null, situacao == Situacao.A_DEVOLVER ? "motivo" : null,
-                null, null);
+                situacao == Situacao.A_DEVOLVER ? new BigDecimal("102.50") : null, null, null);
     }
 
     @Test
@@ -101,6 +101,32 @@ class PagamentoOnlineTest {
     void soAguardandoExpiraOuCancela(Situacao situacao) {
         assertThatThrownBy(() -> em(situacao).expirar()).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> em(situacao).cancelar()).isInstanceOf(IllegalStateException.class);
+    }
+
+    /** Não pagou nada: devolve tudo o que chegou. */
+    @Test
+    void aDevolverDevolveTudo() {
+        PagamentoOnline p = pix();
+        p.aDevolver(new BigDecimal("50.00"), AGORA, "veio menos");
+        assertThat(p.getSituacao()).isEqualTo(Situacao.A_DEVOLVER);
+        assertThat(p.getValorADevolver()).isEqualByComparingTo("50.00");
+        assertThat(p.pagouACobranca()).isFalse();
+    }
+
+    /** Pago a mais (ADR 0035): a cobrança pagou com o combinado (102,50), e só a sobra volta. */
+    @Test
+    void pagoComSobraDevolveSoOQuePassou() {
+        PagamentoOnline p = pix();
+        p.pagoComSobra(new BigDecimal("110.00"), AGORA, "pago a mais");
+        assertThat(p.getSituacao()).isEqualTo(Situacao.A_DEVOLVER);
+        assertThat(p.getRecebido()).isEqualByComparingTo("110.00");
+        assertThat(p.getValorADevolver()).isEqualByComparingTo("7.50");
+        assertThat(p.pagouACobranca()).isTrue();
+        assertThatThrownBy(() -> pix().pagoComSobra(new BigDecimal("102.50"), AGORA, "igual"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> em(Situacao.PAGO).pagoComSobra(new BigDecimal("110.00"), AGORA, "de novo"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(pix().pagouACobranca()).as("sem nada a devolver").isFalse();
     }
 
     @Test

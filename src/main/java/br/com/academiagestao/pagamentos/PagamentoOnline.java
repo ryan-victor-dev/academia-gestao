@@ -23,7 +23,10 @@ class PagamentoOnline {
         EXPIRADO,
         /** Trocado por um novo (o valor do dia mudou) ou cancelado na empresa. */
         CANCELADO,
-        /** O dinheiro chegou, mas não pagou nada: a cobrança já não estava em aberto, ou veio outro valor. */
+        /**
+         * Há dinheiro para devolver: tudo (a cobrança já não estava em aberto, ou veio menos que o
+         * combinado), ou só o que passou do combinado, e a cobrança ficou paga (ADR 0035).
+         */
         A_DEVOLVER,
         DEVOLVIDO;
 
@@ -52,6 +55,7 @@ class PagamentoOnline {
     private BigDecimal recebido;
     private Instant recebidoEm;
     private String motivoDaDevolucao;
+    private BigDecimal valorADevolver;
     private Instant devolvidoEm;
     private UUID devolvidoPor;
 
@@ -59,7 +63,8 @@ class PagamentoOnline {
                             BigDecimal valor, BigDecimal acrescimo, BigDecimal juros, String pixCopiaECola,
                             String boletoLinhaDigitavel, String boletoUrl, Instant validoAte, Instant geradoEm,
                             UUID geradoPor, Situacao situacao, BigDecimal recebido, Instant recebidoEm,
-                            String motivoDaDevolucao, Instant devolvidoEm, UUID devolvidoPor) {
+                            String motivoDaDevolucao, BigDecimal valorADevolver, Instant devolvidoEm,
+                            UUID devolvidoPor) {
         this.id = id;
         this.cobrancaId = cobrancaId;
         this.alunoId = alunoId;
@@ -79,6 +84,7 @@ class PagamentoOnline {
         this.recebido = recebido;
         this.recebidoEm = recebidoEm;
         this.motivoDaDevolucao = motivoDaDevolucao;
+        this.valorADevolver = valorADevolver;
         this.devolvidoEm = devolvidoEm;
         this.devolvidoPor = devolvidoPor;
     }
@@ -94,7 +100,7 @@ class PagamentoOnline {
         return new PagamentoOnline(id, cobrancaId, alunoId, forma, provedor, gerado.idExterno(), valor, acrescimo,
                 juros, gerado.pixCopiaECola(), gerado.boletoLinhaDigitavel(), gerado.boletoUrl(), validoAte,
                 agora.truncatedTo(ChronoUnit.MICROS), Objects.requireNonNull(geradoPor), Situacao.AGUARDANDO,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     static PagamentoOnline restaurar(UUID id, UUID cobrancaId, UUID alunoId, Forma forma, String provedor,
@@ -102,10 +108,10 @@ class PagamentoOnline {
                                      String pixCopiaECola, String boletoLinhaDigitavel, String boletoUrl,
                                      Instant validoAte, Instant geradoEm, UUID geradoPor, Situacao situacao,
                                      BigDecimal recebido, Instant recebidoEm, String motivoDaDevolucao,
-                                     Instant devolvidoEm, UUID devolvidoPor) {
+                                     BigDecimal valorADevolver, Instant devolvidoEm, UUID devolvidoPor) {
         return new PagamentoOnline(id, cobrancaId, alunoId, forma, provedor, idExterno, valor, acrescimo, juros,
                 pixCopiaECola, boletoLinhaDigitavel, boletoUrl, validoAte, geradoEm, geradoPor, situacao, recebido,
-                recebidoEm, motivoDaDevolucao, devolvidoEm, devolvidoPor);
+                recebidoEm, motivoDaDevolucao, valorADevolver, devolvidoEm, devolvidoPor);
     }
 
     BigDecimal total() {
@@ -125,13 +131,32 @@ class PagamentoOnline {
         this.recebidoEm = em.truncatedTo(ChronoUnit.MICROS);
     }
 
-    /** O dinheiro chegou, mas não pagou nada: fica para o ADMIN devolver. */
+    /** O dinheiro chegou, mas não pagou nada: fica todo para o ADMIN devolver. */
     void aDevolver(BigDecimal valorRecebido, Instant em, String motivo) {
+        aDevolver(valorRecebido, valorRecebido, em, motivo);
+    }
+
+    /** Pago a mais (ADR 0035): a cobrança ficou paga com o combinado, e só a sobra volta. */
+    void pagoComSobra(BigDecimal valorRecebido, Instant em, String motivo) {
+        BigDecimal sobra = valorRecebido.subtract(total());
+        if (sobra.signum() <= 0) {
+            throw new IllegalArgumentException("sem sobra: recebido " + valorRecebido + ", combinado " + total());
+        }
+        aDevolver(valorRecebido, sobra, em, motivo);
+    }
+
+    private void aDevolver(BigDecimal valorRecebido, BigDecimal devolver, Instant em, String motivo) {
         conferir(Situacao.A_DEVOLVER, situacao.recebe());
         this.situacao = Situacao.A_DEVOLVER;
         this.recebido = Objects.requireNonNull(valorRecebido);
         this.recebidoEm = em.truncatedTo(ChronoUnit.MICROS);
         this.motivoDaDevolucao = Objects.requireNonNull(motivo);
+        this.valorADevolver = devolver;
+    }
+
+    /** Parte do dinheiro pagou a cobrança (o pago a mais); o resto volta. */
+    boolean pagouACobranca() {
+        return valorADevolver != null && valorADevolver.compareTo(recebido) < 0;
     }
 
     /** Passou do prazo sem pagamento (a empresa encerrou, ou a tolerância acabou). */
@@ -146,7 +171,7 @@ class PagamentoOnline {
         this.situacao = Situacao.CANCELADO;
     }
 
-    /** O ADMIN devolveu o dinheiro pelo painel da empresa. */
+    /** O dinheiro voltou ao aluno: pela empresa, a pedido do ADMIN, ou por fora, e o ADMIN marcou. */
     void devolver(UUID por, Instant agora) {
         conferir(Situacao.DEVOLVIDO, situacao == Situacao.A_DEVOLVER);
         this.situacao = Situacao.DEVOLVIDO;
@@ -179,6 +204,7 @@ class PagamentoOnline {
     BigDecimal getRecebido() { return recebido; }
     Instant getRecebidoEm() { return recebidoEm; }
     String getMotivoDaDevolucao() { return motivoDaDevolucao; }
+    BigDecimal getValorADevolver() { return valorADevolver; }
     Instant getDevolvidoEm() { return devolvidoEm; }
     UUID getDevolvidoPor() { return devolvidoPor; }
 }

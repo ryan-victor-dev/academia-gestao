@@ -20,7 +20,7 @@ class PagamentoOnlineRepository {
     private static final String COLUNAS = """
             id, cobranca_id, aluno_id, forma, provedor, id_externo, valor, acrescimo, juros, pix_copia_e_cola,
             boleto_linha_digitavel, boleto_url, valido_ate, gerado_em, gerado_por, situacao, recebido, recebido_em,
-            motivo_da_devolucao, devolvido_em, devolvido_por""";
+            motivo_da_devolucao, valor_a_devolver, devolvido_em, devolvido_por""";
 
     private final JdbcTemplate jdbc;
 
@@ -30,21 +30,22 @@ class PagamentoOnlineRepository {
 
     void inserir(PagamentoOnline p) {
         jdbc.update("INSERT INTO pagamentos_online (" + COLUNAS + ") VALUES "
-                        + "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 p.getId(), p.getCobrancaId(), p.getAlunoId(), p.getForma().name(), p.getProvedor(), p.getIdExterno(),
                 p.getValor(), p.getAcrescimo(), p.getJuros(), p.getPixCopiaECola(), p.getBoletoLinhaDigitavel(),
                 p.getBoletoUrl(), Timestamp.from(p.getValidoAte()), Timestamp.from(p.getGeradoEm()), p.getGeradoPor(),
                 p.getSituacao().name(), p.getRecebido(), quando(p.getRecebidoEm()), p.getMotivoDaDevolucao(),
-                quando(p.getDevolvidoEm()), p.getDevolvidoPor());
+                p.getValorADevolver(), quando(p.getDevolvidoEm()), p.getDevolvidoPor());
     }
 
     /** Só o que muda depois de gerado. */
     void atualizar(PagamentoOnline p) {
         jdbc.update("""
                 UPDATE pagamentos_online SET situacao = ?, recebido = ?, recebido_em = ?, motivo_da_devolucao = ?,
-                                             devolvido_em = ?, devolvido_por = ?
+                                             valor_a_devolver = ?, devolvido_em = ?, devolvido_por = ?
                 WHERE id = ?""", p.getSituacao().name(), p.getRecebido(), quando(p.getRecebidoEm()),
-                p.getMotivoDaDevolucao(), quando(p.getDevolvidoEm()), p.getDevolvidoPor(), p.getId());
+                p.getMotivoDaDevolucao(), p.getValorADevolver(), quando(p.getDevolvidoEm()), p.getDevolvidoPor(),
+                p.getId());
     }
 
     Optional<PagamentoOnline> buscar(UUID id) {
@@ -104,6 +105,7 @@ class PagamentoOnlineRepository {
                 rs.getString("boleto_url"), instante(rs, "valido_ate"), instante(rs, "gerado_em"),
                 rs.getObject("gerado_por", UUID.class), Situacao.valueOf(rs.getString("situacao")),
                 rs.getBigDecimal("recebido"), instante(rs, "recebido_em"), rs.getString("motivo_da_devolucao"),
-                instante(rs, "devolvido_em"), rs.getObject("devolvido_por", UUID.class));
+                rs.getBigDecimal("valor_a_devolver"), instante(rs, "devolvido_em"),
+                rs.getObject("devolvido_por", UUID.class));
     }
 }

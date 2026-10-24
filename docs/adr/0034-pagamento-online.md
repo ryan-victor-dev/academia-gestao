@@ -51,7 +51,8 @@ projetos. Para as regras, aceitou os valores iniciais propostos:
 - **Dinheiro que chega sem ter o que pagar**: a cobrança foi paga no balcão, cancelada, ou o
   valor recebido é diferente do gerado. O sistema não paga nada e marca o pagamento online como
   **a devolver**. O ADMIN vê a lista, devolve pelo painel da empresa e marca como devolvido (com
-  motivo, na trilha). A devolução automática fica para quando houver uma empresa de verdade.
+  motivo, na trilha). Desde o ADR 0035, o ADMIN confirma e o sistema devolve pela empresa, e
+  quem paga a mais fica com a cobrança paga e recebe a sobra.
 - **Estorno** de um pagamento online (ADMIN): como o balcão, mas sem caixa; o dinheiro volta pelo
   painel da empresa.
 - **Concorrência**: o aviso e a consulta periódica podem chegar juntos. A linha do pagamento

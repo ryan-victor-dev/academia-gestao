@@ -30,6 +30,20 @@ public interface ProvedorDePagamento {
     void cancelar(String idExterno);
 
     /**
+     * Se esta empresa devolve, pelo sistema, o dinheiro recebido nesta forma (ADR 0035). O Pix tem
+     * devolução no próprio arranjo; o boleto, na maioria das empresas, só por transferência.
+     */
+    boolean devolve(Forma forma);
+
+    /**
+     * Devolve ao pagador todo ou parte do dinheiro de um pagamento recebido (só se {@link #devolve}).
+     * Pedir de novo com a mesma {@code chave} não devolve duas vezes: a empresa precisa garantir
+     * isso (a devolução do Pix garante, pelo id que quem pede escolhe). Assim, um clique duplo ou
+     * uma resposta perdida na rede podem ser repetidos sem risco.
+     */
+    void devolver(Devolucao devolucao);
+
+    /**
      * Confere a autenticidade de um aviso da empresa (token, assinatura) e devolve os ids
      * externos que ele cita. O corpo não é confiável para mais nada: o sistema consulta cada id.
      *
@@ -54,6 +68,10 @@ public interface ProvedorDePagamento {
 
     /** O que mostrar ao aluno: o Pix copia e cola, ou a linha digitável e o link do boleto. */
     record Gerado(String idExterno, String pixCopiaECola, String boletoLinhaDigitavel, String boletoUrl) {
+    }
+
+    /** @param chave o que identifica esta devolução na empresa (o id do pagamento online aqui) */
+    record Devolucao(String idExterno, BigDecimal valor, UUID chave) {
     }
 
     enum Estado {

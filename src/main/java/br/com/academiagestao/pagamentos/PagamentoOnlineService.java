@@ -8,6 +8,7 @@ import br.com.academiagestao.cobranca.CobrancasParaPagamentoOnline.ResultadoDoRe
 import br.com.academiagestao.cobranca.CobrancasParaPagamentoOnline.ValorCombinado;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.Calendario;
+import br.com.academiagestao.pagamentos.ProvedorDePagamento.Devolucao;
 import br.com.academiagestao.pagamentos.ProvedorDePagamento.Forma;
 import br.com.academiagestao.pagamentos.ProvedorDePagamento.Gerado;
 import br.com.academiagestao.pagamentos.ProvedorDePagamento.Pagador;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -189,23 +191,33 @@ class PagamentoOnlineService {
             return;
         }
         Map<String, Object> antes = Auditoria.campos("situacao", pagamento.getSituacao().name());
+        BigDecimal pago = situacao.valorPago();
+        // Pago a mais (decisão do dono, ADR 0035): a cobrança recebe só o combinado, e a sobra volta.
+        boolean aMais = pago.compareTo(pagamento.total()) > 0;
         ResultadoDoRecebimento resultado = cobrancas.receber(pagamento.getCobrancaId(),
                 new ValorCombinado(pagamento.getValor(), pagamento.getAcrescimo(), pagamento.getJuros()),
-                situacao.valorPago(), pagamento.getForma() == Forma.PIX ? FormaOnline.PIX : FormaOnline.BOLETO,
+                aMais ? pagamento.total() : pago, pagamento.getForma() == Forma.PIX ? FormaOnline.PIX : FormaOnline.BOLETO,
                 pagamento.getGeradoPor());
         Instant em = situacao.pagoEm() == null ? relogio.instant() : situacao.pagoEm();
         switch (resultado) {
-            case RECEBIDO -> pagamento.receber(situacao.valorPago(), em);
-            case NAO_ESTA_EM_ABERTO -> pagamento.aDevolver(situacao.valorPago(), em,
+            case RECEBIDO -> {
+                if (aMais) {
+                    pagamento.pagoComSobra(pago, em, "Pago a mais: recebido " + pago + ", e o combinado era "
+                            + pagamento.total() + "; a cobrança ficou paga e a sobra volta");
+                } else {
+                    pagamento.receber(pago, em);
+                }
+            }
+            case NAO_ESTA_EM_ABERTO -> pagamento.aDevolver(pago, em,
                     "A cobrança já não estava em aberto (paga por outro meio ou cancelada)");
-            case VALOR_DIFERENTE -> pagamento.aDevolver(situacao.valorPago(), em,
-                    "Recebido " + situacao.valorPago() + ", e o combinado era " + pagamento.total());
+            case VALOR_DIFERENTE -> pagamento.aDevolver(pago, em,
+                    "Recebido " + pago + ", e o combinado era " + pagamento.total());
         }
         repository.atualizar(pagamento);
         auditoria.registrar(PAGAMENTO_ONLINE, pagamento.getId(), pagamento.getSituacao().name(), antes,
                 Auditoria.campos("situacao", pagamento.getSituacao().name(), "recebido", pagamento.getRecebido(),
                         "cobranca", pagamento.getCobrancaId().toString(),
-                        "motivo", pagamento.getMotivoDaDevolucao()));
+                        "motivo", pagamento.getMotivoDaDevolucao(), "aDevolver", pagamento.getValorADevolver()));
     }
 
     /** A consulta periódica: os aguardando, um por um; a falha de um não para os outros. */
@@ -243,7 +255,39 @@ class PagamentoOnlineService {
         return repository.aDevolver();
     }
 
-    /** O ADMIN devolveu pelo painel da empresa. */
+    /**
+     * O ADMIN confirma, e o sistema pede a devolução à empresa (decisão do dono, ADR 0035). A
+     * chamada fica fora de transação; a chave da devolução é o id do pagamento, então repetir
+     * (clique duplo, resposta perdida na rede) não devolve duas vezes.
+     */
+    PagamentoOnline devolverPelaEmpresa(UUID id, UUID usuarioId) {
+        ProvedorDePagamento empresa = ligado();
+        PagamentoOnline pagamento = repository.buscar(id)
+                .orElseThrow(() -> new PagamentoOnlineNaoEncontradoException("Pagamento online não encontrado"));
+        if (pagamento.getSituacao() != PagamentoOnline.Situacao.A_DEVOLVER) {
+            throw new PagamentoOnlineRecusadoException("Só o que está a devolver pode ser devolvido");
+        }
+        if (!pagamento.getProvedor().equals(empresa.nome())) {
+            throw new PagamentoOnlineRecusadoException("Recebido pela empresa " + pagamento.getProvedor()
+                    + ": devolva pelo painel dela e marque como devolvido");
+        }
+        if (!empresa.devolve(pagamento.getForma())) {
+            throw new PagamentoOnlineRecusadoException("A empresa de pagamentos não devolve "
+                    + (pagamento.getForma() == Forma.PIX ? "Pix" : "boleto")
+                    + " pelo sistema: devolva por transferência e marque como devolvido");
+        }
+        empresa.devolver(new Devolucao(pagamento.getIdExterno(), pagamento.getValorADevolver(), pagamento.getId()));
+        return transacao.execute(t -> {
+            PagamentoOnline travado = repository.travar(id).orElseThrow();
+            // Já devolvido: o outro pedido (mesma chave na empresa) chegou antes.
+            if (travado.getSituacao() == PagamentoOnline.Situacao.A_DEVOLVER) {
+                registrarDevolvido(travado, usuarioId, "PELA_EMPRESA");
+            }
+            return travado;
+        });
+    }
+
+    /** O ADMIN devolveu por fora (transferência, painel da empresa) e marca aqui. */
     PagamentoOnline marcarDevolvido(UUID id, UUID usuarioId) {
         return transacao.execute(t -> {
             PagamentoOnline pagamento = repository.travar(id)
@@ -251,12 +295,23 @@ class PagamentoOnlineService {
             if (pagamento.getSituacao() != PagamentoOnline.Situacao.A_DEVOLVER) {
                 throw new PagamentoOnlineRecusadoException("Só o que está a devolver pode ser marcado como devolvido");
             }
-            pagamento.devolver(usuarioId, relogio.instant());
-            repository.atualizar(pagamento);
-            auditoria.registrar(PAGAMENTO_ONLINE, id, "DEVOLVIDO", Auditoria.campos("situacao", "A_DEVOLVER"),
-                    Auditoria.campos("situacao", "DEVOLVIDO", "recebido", pagamento.getRecebido()));
+            registrarDevolvido(pagamento, usuarioId, "POR_FORA");
             return pagamento;
         });
+    }
+
+    private void registrarDevolvido(PagamentoOnline pagamento, UUID usuarioId, String como) {
+        pagamento.devolver(usuarioId, relogio.instant());
+        repository.atualizar(pagamento);
+        auditoria.registrar(PAGAMENTO_ONLINE, pagamento.getId(), "DEVOLVIDO", Auditoria.campos("situacao", "A_DEVOLVER"),
+                Auditoria.campos("situacao", "DEVOLVIDO", "recebido", pagamento.getRecebido(),
+                        "devolvido", pagamento.getValorADevolver(), "como", como));
+    }
+
+    /** Se a empresa ligada devolve, pelo sistema, este pagamento (para a tela do ADMIN). */
+    boolean devolvePeloSistema(PagamentoOnline pagamento) {
+        return provedor.filter(p -> p.nome().equals(pagamento.getProvedor()) && p.devolve(pagamento.getForma()))
+                .isPresent();
     }
 
     /** Só com o provedor simulado: o aluno "paga" o que gerou, e o resto é o caminho de verdade. */

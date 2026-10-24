@@ -33,6 +33,7 @@ class ProvedorSimulado implements ProvedorDePagamento {
     }
 
     private final Map<String, Registro> registros = new ConcurrentHashMap<>();
+    private final Map<UUID, Devolucao> devolucoes = new ConcurrentHashMap<>();
     private final byte[] tokenDoAviso;
     private final Clock relogio;
 
@@ -70,6 +71,31 @@ class ProvedorSimulado implements ProvedorDePagamento {
     public void cancelar(String idExterno) {
         registros.computeIfPresent(idExterno, (id, r) -> r.situacao().estado() == Estado.AGUARDANDO
                 ? new Registro(r.valor(), Situacao.ENCERRADO) : r);
+    }
+
+    /** Como a maioria das empresas: o Pix se devolve pelo sistema; o boleto, só por transferência. */
+    @Override
+    public boolean devolve(Forma forma) {
+        return forma == Forma.PIX;
+    }
+
+    @Override
+    public void devolver(Devolucao devolucao) {
+        Registro registro = registros.get(devolucao.idExterno());
+        if (registro == null || registro.situacao().estado() != Estado.PAGO) {
+            // Depois de reiniciar, o simulado esquece tudo (ver a classe).
+            throw new ProvedorIndisponivelException("o simulado não conhece este pagamento pago", null);
+        }
+        if (devolucao.valor().signum() <= 0 || devolucao.valor().compareTo(registro.situacao().valorPago()) > 0) {
+            throw new IllegalArgumentException("devolução fora do valor pago: " + devolucao.valor());
+        }
+        devolucoes.putIfAbsent(devolucao.chave(), devolucao);
+    }
+
+    /** Quanto já foi devolvido deste pagamento (para os testes). */
+    BigDecimal devolvido(String idExterno) {
+        return devolucoes.values().stream().filter(d -> d.idExterno().equals(idExterno))
+                .map(Devolucao::valor).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     /** O aviso de teste: o corpo é só o id externo, e o cabeçalho traz o token configurado. */

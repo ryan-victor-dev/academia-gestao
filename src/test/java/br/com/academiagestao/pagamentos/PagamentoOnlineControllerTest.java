@@ -34,6 +34,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -348,7 +349,14 @@ class PagamentoOnlineControllerTest {
                 .andExpect(jsonPath("$[?(@.id == '" + boleto.get("id") + "')].alunoNome", contains("Aluna Online")))
                 .andExpect(jsonPath("$[?(@.id == '" + boleto.get("id") + "')].recebido", contains(103.00)))
                 .andExpect(jsonPath("$[?(@.id == '" + boleto.get("id") + "')].motivoDaDevolucao",
-                        contains(containsString("já não estava em aberto"))));
+                        contains(containsString("já não estava em aberto"))))
+                .andExpect(jsonPath("$[?(@.id == '" + boleto.get("id") + "')].valorADevolver", contains(103.00)))
+                .andExpect(jsonPath("$[?(@.id == '" + boleto.get("id") + "')].pagouACobranca", contains(false)))
+                .andExpect(jsonPath("$[?(@.id == '" + boleto.get("id") + "')].devolvePeloSistema", contains(false)));
+        // Boleto: a empresa não devolve pelo sistema (ADR 0035); o ADMIN devolve por fora e marca.
+        mvc.perform(post("/api/pagamentos-online/" + boleto.get("id") + "/devolver").with(doAdmin()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("por transferência")));
 
         mvc.perform(post("/api/pagamentos-online/" + boleto.get("id") + "/devolvido").with(doAdmin()))
                 .andExpect(status().isOk())
@@ -361,8 +369,136 @@ class PagamentoOnlineControllerTest {
         mvc.perform(post("/api/pagamentos-online/" + UUID.randomUUID() + "/devolvido").with(doAdmin()))
                 .andExpect(status().isNotFound());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM auditoria WHERE entidade = 'PAGAMENTO_ONLINE' "
-                + "AND entidade_id = ?::uuid AND acao = 'DEVOLVIDO' AND autor = ?", Integer.class,
-                boleto.get("id").toString(), admin.toString())).isEqualTo(1);
+                + "AND entidade_id = ?::uuid AND acao = 'DEVOLVIDO' AND autor = ? AND alteracoes -> 'como' ->> 'depois' = 'POR_FORA'",
+                Integer.class, boleto.get("id").toString(), admin.toString())).isEqualTo(1);
+    }
+
+    /**
+     * Pago a mais (decisão do dono, ADR 0035): a cobrança fica paga com o combinado, e só a sobra
+     * volta. O ADMIN confirma, e o sistema devolve pela empresa.
+     */
+    @Test
+    void pagoAMaisPagaEDevolveASobraPelaEmpresa() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> pix = gerado(atrasada, "PIX");
+        String externo = idExterno(pix.get("id"));
+
+        simulado.simularPagamento(externo, new BigDecimal("110.00"));
+        aviso(TOKEN, externo).andExpect(status().isNoContent());
+
+        assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, atrasada))
+                .isEqualTo("PAGA");
+        assertThat(jdbc.queryForObject("SELECT total FROM lancamentos WHERE cobranca_id = ?", BigDecimal.class,
+                atrasada)).as("o lançamento é o combinado, e não o recebido").isEqualByComparingTo("103.00");
+        assertThat(situacao(pix.get("id"))).isEqualTo("A_DEVOLVER");
+        mvc.perform(get("/api/pagamentos-online/a-devolver").with(doAdmin()))
+                .andExpect(jsonPath("$[?(@.id == '" + pix.get("id") + "')].recebido", contains(110.00)))
+                .andExpect(jsonPath("$[?(@.id == '" + pix.get("id") + "')].valorADevolver", contains(7.00)))
+                .andExpect(jsonPath("$[?(@.id == '" + pix.get("id") + "')].pagouACobranca", contains(true)))
+                .andExpect(jsonPath("$[?(@.id == '" + pix.get("id") + "')].devolvePeloSistema", contains(true)))
+                .andExpect(jsonPath("$[?(@.id == '" + pix.get("id") + "')].motivoDaDevolucao",
+                        contains(containsString("Pago a mais"))));
+
+        mvc.perform(post("/api/pagamentos-online/" + pix.get("id") + "/devolver").with(doAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.situacao").value("DEVOLVIDO"))
+                .andExpect(jsonPath("$.devolvidoPor").value(admin.toString()));
+
+        assertThat(simulado.devolvido(externo)).isEqualByComparingTo("7.00");
+        assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, atrasada))
+                .as("devolver a sobra não mexe na cobrança").isEqualTo("PAGA");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM auditoria WHERE entidade = 'PAGAMENTO_ONLINE' "
+                + "AND entidade_id = ?::uuid AND acao = 'DEVOLVIDO' AND alteracoes -> 'como' ->> 'depois' = 'PELA_EMPRESA'",
+                Integer.class, pix.get("id").toString())).isEqualTo(1);
+        mvc.perform(post("/api/pagamentos-online/" + pix.get("id") + "/devolver").with(doAdmin()))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/pagamentos-online/" + UUID.randomUUID() + "/devolver").with(doAdmin()))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/pagamentos-online/" + pix.get("id") + "/devolver").with(doAluno()))
+                .andExpect(status().isForbidden());
+    }
+
+    /** Um pagamento que não está a devolver não se devolve (o pago certinho, por exemplo). */
+    @Test
+    void naoDevolveOQueNaoEstaADevolver() throws Exception {
+        Map<String, Object> pix = gerado(cobranca(1, 30), "PIX");
+        mvc.perform(post("/api/pagamentos-online/" + pix.get("id") + "/devolver").with(doAdmin()))
+                .andExpect(status().isConflict());
+        simular(pix.get("id")).andExpect(status().isNoContent());
+        mvc.perform(post("/api/pagamentos-online/" + pix.get("id") + "/devolver").with(doAdmin()))
+                .andExpect(status().isConflict());
+        assertThat(simulado.devolvido(idExterno(pix.get("id")))).isEqualByComparingTo("0");
+    }
+
+    /** Recebido por outra empresa (a academia trocou de empresa): devolve-se pelo painel dela. */
+    @Test
+    void naoDevolvePeloSistemaOQueOutraEmpresaRecebeu() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> pix = gerado(atrasada, "PIX");
+        String externo = idExterno(pix.get("id"));
+        simulado.simularPagamento(externo, new BigDecimal("110.00"));
+        service.confirmar(externo);
+        jdbc.update("UPDATE pagamentos_online SET provedor = 'outra' WHERE id = ?::uuid", pix.get("id").toString());
+
+        mvc.perform(get("/api/pagamentos-online/a-devolver").with(doAdmin()))
+                .andExpect(jsonPath("$[?(@.id == '" + pix.get("id") + "')].devolvePeloSistema", contains(false)));
+        mvc.perform(post("/api/pagamentos-online/" + pix.get("id") + "/devolver").with(doAdmin()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("empresa outra")));
+        assertThat(simulado.devolvido(externo)).isEqualByComparingTo("0");
+    }
+
+    /**
+     * Dois "Devolver" ao mesmo tempo (clique duplo, duas abas): os dois chegam à empresa, que
+     * devolve uma vez só (a chave é o id do pagamento), e só um registra. A barreira segura os
+     * dois na empresa; depois dela, um lado espera antes de registrar, alternando a cada rodada
+     * (cada lado é um ADMIN, para ver quem registrou).
+     */
+    @Test
+    void doisDevolverAoMesmoTempoDevolvemUmaVez() throws Exception {
+        UUID outroAdmin = UUID.randomUUID();
+        jdbc.update("INSERT INTO usuarios (id, nome, email, senha_hash, perfil) VALUES (?, 'Admin 2', ?, 'x', 'ADMIN')",
+                outroAdmin, outroAdmin + "@teste.local");
+        jdbc.update("UPDATE configuracao_pagamento_online SET adiantar = 'TODAS'");
+        CyclicBarrier barreira = new CyclicBarrier(2);
+        ThreadLocal<UUID> lado = new ThreadLocal<>();
+        AtomicReference<UUID> atrasado = new AtomicReference<>();
+        doAnswer(chamada -> {
+            barreira.await(10, TimeUnit.SECONDS);
+            Object resposta = chamada.callRealMethod();
+            if (lado.get().equals(atrasado.get())) {
+                Thread.sleep(100);
+            }
+            return resposta;
+        }).when(simulado).devolver(any());
+        try {
+            for (int rodada = 0; rodada < 10; rodada++) {
+                atrasado.set(rodada % 2 == 0 ? admin : outroAdmin);
+                Map<String, Object> pix = gerado(cobranca(10 + rodada, 0), "PIX");
+                String externo = idExterno(pix.get("id"));
+                simulado.simularPagamento(externo, new BigDecimal("150.00"));
+                service.confirmar(externo);
+                UUID id = UUID.fromString(pix.get("id").toString());
+                List<CompletableFuture<PagamentoOnline>> pedidos = List.of(admin, outroAdmin).stream()
+                        .map(quem -> CompletableFuture.supplyAsync(() -> {
+                            lado.set(quem);
+                            return service.devolverPelaEmpresa(id, quem);
+                        }))
+                        .toList();
+                pedidos.forEach(CompletableFuture::join);
+
+                assertThat(situacao(id)).as("rodada %d", rodada).isEqualTo("DEVOLVIDO");
+                assertThat(simulado.devolvido(externo)).as("rodada %d", rodada).isEqualByComparingTo("50.00");
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM auditoria WHERE entidade_id = ?::uuid "
+                        + "AND acao = 'DEVOLVIDO'", Integer.class, id.toString())).as("rodada %d", rodada).isEqualTo(1);
+                assertThat(jdbc.queryForObject("SELECT devolvido_por FROM pagamentos_online WHERE id = ?", UUID.class,
+                        id)).as("rodada %d: registra quem não esperou", rodada)
+                        .isEqualTo(atrasado.get().equals(admin) ? outroAdmin : admin);
+            }
+        } finally {
+            jdbc.update("UPDATE pagamentos_online SET devolvido_por = ? WHERE devolvido_por = ?", admin, outroAdmin);
+            limpeza.apagar("usuarios", outroAdmin);
+        }
     }
 
     /** O aviso da empresa só dispara a consulta: sem o token, nada; com ele, vale o que a empresa diz. */
@@ -401,6 +537,8 @@ class PagamentoOnlineControllerTest {
                 String.class, pix.get("id").toString())).contains("50.00").contains("103.00");
         assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, atrasada))
                 .isEqualTo("PENDENTE");
+        assertThat(jdbc.queryForObject("SELECT valor_a_devolver FROM pagamentos_online WHERE id = ?::uuid",
+                BigDecimal.class, pix.get("id").toString())).as("pago a menos: volta tudo").isEqualByComparingTo("50.00");
     }
 
     /** A consulta periódica acha o pago sem aviso, e expira o que passou do prazo e da tolerância (1 h no Pix). */

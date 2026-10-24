@@ -99,10 +99,18 @@ class PagamentoOnlineController {
     List<ADevolverResponse> aDevolver() {
         List<PagamentoOnline> lista = service.aDevolver();
         Map<UUID, String> nomes = alunos.nomes(lista.stream().map(PagamentoOnline::getAlunoId).collect(Collectors.toSet()));
-        return lista.stream().map(p -> new ADevolverResponse(PagamentoOnlineResponse.de(p), nomes.get(p.getAlunoId())))
-                .toList();
+        return lista.stream().map(p -> new ADevolverResponse(PagamentoOnlineResponse.de(p), nomes.get(p.getAlunoId()),
+                service.devolvePeloSistema(p))).toList();
     }
 
+    /** O ADMIN confirma, e o sistema devolve pela empresa (ADR 0035). */
+    @PostMapping("/{id}/devolver")
+    @PreAuthorize("hasRole('ADMIN')")
+    PagamentoOnlineResponse devolver(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return PagamentoOnlineResponse.de(service.devolverPelaEmpresa(id, UUID.fromString(jwt.getSubject())));
+    }
+
+    /** Devolvido por fora (a empresa não devolve boleto pelo sistema, por exemplo). */
     @PostMapping("/{id}/devolvido")
     @PreAuthorize("hasRole('ADMIN')")
     PagamentoOnlineResponse devolvido(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
@@ -125,18 +133,19 @@ class PagamentoOnlineController {
                                    BigDecimal acrescimo, BigDecimal juros, BigDecimal total, String pixCopiaECola,
                                    String boletoLinhaDigitavel, String boletoUrl, Instant validoAte,
                                    Instant geradoEm, PagamentoOnline.Situacao situacao, BigDecimal recebido,
-                                   Instant recebidoEm, String motivoDaDevolucao, Instant devolvidoEm,
-                                   UUID devolvidoPor) {
+                                   Instant recebidoEm, String motivoDaDevolucao, BigDecimal valorADevolver,
+                                   boolean pagouACobranca, Instant devolvidoEm, UUID devolvidoPor) {
         static PagamentoOnlineResponse de(PagamentoOnline p) {
             return new PagamentoOnlineResponse(p.getId(), p.getCobrancaId(), p.getAlunoId(), p.getForma(),
                     p.getValor(), p.getAcrescimo(), p.getJuros(), p.total(), p.getPixCopiaECola(),
                     p.getBoletoLinhaDigitavel(), p.getBoletoUrl(), p.getValidoAte(), p.getGeradoEm(),
                     p.getSituacao(), p.getRecebido(), p.getRecebidoEm(), p.getMotivoDaDevolucao(),
-                    p.getDevolvidoEm(), p.getDevolvidoPor());
+                    p.getValorADevolver(), p.pagouACobranca(), p.getDevolvidoEm(), p.getDevolvidoPor());
         }
     }
 
-    record ADevolverResponse(@JsonUnwrapped PagamentoOnlineResponse pagamento, String alunoNome) {
+    record ADevolverResponse(@JsonUnwrapped PagamentoOnlineResponse pagamento, String alunoNome,
+                             boolean devolvePeloSistema) {
     }
 
     record PagavelResponse(UUID cobrancaId, String tipo, int parcela, LocalDate vencimento, BigDecimal valor,

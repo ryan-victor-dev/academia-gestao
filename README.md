@@ -214,7 +214,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/pagamentos-online/me` (`cobrancaId` e `forma`: `PIX` ou `BOLETO`; devolve o que ainda vale ou gera outro) | ALUNO |
 | `POST /api/pagamentos-online/me/{id}/simular-pagamento` (só com o provedor `simulado`: finge que o aluno pagou) | ALUNO (os próprios) |
 | `POST /api/pagamentos-online/aviso` (o aviso da empresa de pagamentos; só dispara a consulta a ela) | sem login (a empresa prova quem é no aviso) |
-| `GET /api/pagamentos-online/a-devolver`, `POST /api/pagamentos-online/{id}/devolvido` (dinheiro que chegou sem ter o que pagar) | ADMIN |
+| `GET /api/pagamentos-online/a-devolver` (dinheiro que chegou sem ter o que pagar, ou a sobra de quem pagou a mais) | ADMIN |
+| `POST /api/pagamentos-online/{id}/devolver` (o sistema devolve pela empresa¹²), `POST /api/pagamentos-online/{id}/devolvido` (devolvido por fora) | ADMIN |
 | `GET /api/pagamentos-online/configuracao`, `PUT` (exige `If-Match`²; Pix e boleto ligados, até onde adiantar, dias do boleto) | ADMIN |
 | `POST /api/caixas` (`troco`; abre o caixa de hoje¹⁰) | ADMIN, RECEPCAO |
 | `POST /api/caixas/{dia}/fechar` (`contado`, o dinheiro da gaveta; `justificativa` se houver diferença) | ADMIN, RECEPCAO |
@@ -308,7 +309,9 @@ isso a lista de alunos traz só o resumo: os dados pessoais saem só pelo cadast
 ¹² Pagamento online (ADR 0034): desligado por padrão (`PAGAMENTOS_PROVEDOR` no `.env`). O valor é
 o do dia em que o aluno gerou; o Pix vale até o fim do dia, e o boleto até o vencimento (de uma
 cobrança vencida, 3 dias, configurável). Entra fora do caixa da recepção, como "Pix pelo app" ou
-"Boleto pelo app". O sistema confirma consultando a empresa (no aviso dela e a cada 2 minutos).
+"Boleto pelo app". O sistema confirma consultando a empresa (no aviso dela e a cada 2 minutos). Pago a
+mais, a cobrança fica paga e a sobra vai para a devolver; o ADMIN confirma, e o sistema devolve o Pix
+pela empresa (o boleto, por fora). Um Pix e um boleto aguardando por cobrança, no máximo (ADR 0035).
 
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
