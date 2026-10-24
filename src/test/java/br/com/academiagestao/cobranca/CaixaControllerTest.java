@@ -629,18 +629,20 @@ class CaixaControllerTest {
 
     /**
      * Grava um lançamento sem caixa, como os de antes da V35. A trava da V35 vale só para as
-     * linhas novas; aqui ela sai e volta na mesma transação.
+     * linhas novas; aqui ela sai e volta na mesma transação, com a definição que estava no banco
+     * (escrita à mão, ficava para trás a cada migração que a muda, como a V47).
      */
     private void lancamentoSemCaixa(UUID cobranca, java.time.Instant registradoEm) {
         new TransactionTemplate(transacoes).executeWithoutResult(t -> {
+            String definicao = jdbc.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    + "WHERE conname = 'ck_lancamentos_no_caixa'", String.class);
             jdbc.execute("ALTER TABLE lancamentos DROP CONSTRAINT ck_lancamentos_no_caixa");
             jdbc.update("""
                     INSERT INTO lancamentos (id, cobranca_id, tipo, valor, acrescimo, juros, total, meio_de_pagamento,
                                              registrado_em, registrado_por)
                     VALUES (?, ?, 'PAGAMENTO', 100, 0, 0, 100, 'PIX', ?, ?)""", UUID.randomUUID(), cobranca,
                     java.sql.Timestamp.from(registradoEm), recepcao);
-            jdbc.execute("ALTER TABLE lancamentos ADD CONSTRAINT ck_lancamentos_no_caixa "
-                    + "CHECK ((caixa_id IS NOT NULL) = (meio_de_pagamento NOT IN ('PIX_ONLINE', 'BOLETO'))) NOT VALID");
+            jdbc.execute("ALTER TABLE lancamentos ADD CONSTRAINT ck_lancamentos_no_caixa " + definicao);
         });
     }
 

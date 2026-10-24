@@ -154,6 +154,9 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   `fireEvent.change`); valor negativo em reais sai "-R$ 10,00". Mutação no front:
   `revisao-local/ferramentas/mutantes_web.py` (desliga a regra de variável não usada, que faria o
   mutante falhar por estilo, e não por lógica).
+- Teste que tira e recoloca uma restrição do banco (para gravar um dado "de antes") lê a definição
+  atual com `pg_get_constraintdef` e recoloca a mesma: escrita à mão, fica para trás na próxima
+  migração que a muda, e só quebra em ordem aleatória (aconteceu com a V47).
 - Grade com campos (`display: grid`): sem `min-width: 0`, o campo não encolhe e passa por cima da
   coluna vizinha; tabela com texto longo precisa de `table-layout: fixed` e `overflow-wrap`.
 

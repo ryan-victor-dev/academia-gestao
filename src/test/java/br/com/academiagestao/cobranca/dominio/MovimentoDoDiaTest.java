@@ -9,6 +9,8 @@ import static br.com.academiagestao.cobranca.dominio.Lancamento.Tipo.ESTORNO;
 import static br.com.academiagestao.cobranca.dominio.Lancamento.Tipo.PAGAMENTO;
 import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.CARTAO_CREDITO;
 import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.CARTAO_DEBITO;
+import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.CREDITO_ONLINE;
+import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.DEBITO_ONLINE;
 import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.DINHEIRO;
 import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.BOLETO;
 import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.PIX;
@@ -25,7 +27,7 @@ class MovimentoDoDiaTest {
     @Test
     void todaFormaApareceNaOrdemComZero() {
         assertThat(MovimentoDoDia.VAZIO.porForma().keySet()).containsExactly(DINHEIRO, PIX, CARTAO_DEBITO,
-                CARTAO_CREDITO, PIX_ONLINE, BOLETO);
+                CARTAO_CREDITO, PIX_ONLINE, BOLETO, CREDITO_ONLINE, DEBITO_ONLINE);
         assertThat(MovimentoDoDia.VAZIO.porForma().values()).containsOnly(Movimento.ZERO);
         assertThat(Movimento.ZERO.liquido()).isEqualByComparingTo("0");
     }

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -740,8 +741,24 @@ class CobrancaControllerTest {
         assertThat(estorno.get("meio_de_pagamento")).isEqualTo("PIX_ONLINE");
     }
 
+    /** Cada forma online vira o seu meio (ADR 0037: crédito e débito pelo app), sempre sem caixa. */
     @ParameterizedTest
-    @ValueSource(strings = {"PIX_ONLINE", "BOLETO"})
+    @CsvSource({"PIX, PIX_ONLINE", "BOLETO, BOLETO", "CREDITO, CREDITO_ONLINE", "DEBITO, DEBITO_ONLINE"})
+    void cadaFormaOnlineViraOSeuMeio(CobrancasParaPagamentoOnline.FormaOnline forma, String meio) {
+        UUID id = cobranca(1, 0);
+
+        assertThat(online.receber(id, combinado("100", "0", "0"), new BigDecimal("100"), forma, recepcao))
+                .isEqualTo(CobrancasParaPagamentoOnline.ResultadoDoRecebimento.RECEBIDO);
+
+        Map<String, Object> lancamento = jdbc.queryForMap("SELECT * FROM lancamentos WHERE cobranca_id = ?", id);
+        assertThat(lancamento.get("meio_de_pagamento")).isEqualTo(meio);
+        assertThat(lancamento.get("caixa_id")).isNull();
+        assertThat(jdbc.queryForObject("SELECT meio_de_pagamento FROM cobrancas WHERE id = ?", String.class, id))
+                .isEqualTo(meio);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PIX_ONLINE", "BOLETO", "CREDITO_ONLINE", "DEBITO_ONLINE"})
     void balcaoNaoRegistraMeioOnline(String meio) throws Exception {
         UUID id = cobranca(1, 0);
         mvc.perform(post("/api/cobrancas/" + id + "/pagar").with(recepcao()).contentType(MediaType.APPLICATION_JSON)

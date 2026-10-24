@@ -35,6 +35,17 @@ describe('meus pagamentos', () => {
     expect(document.querySelectorAll('.cartoes .cartao-item')).toHaveLength(2);
   });
 
+  it('histórico: o cartão pelo app com o nome certo (ADR 0037)', async () => {
+    apiFalsa({ 'GET /api/pagamentos-online/me': json(200, desligado), 'GET /api/cobrancas/me': json(200, [
+      { ...base, id: 'c1', parcela: 1, vencimento: '2026-09-01', situacao: 'PAGA', pagaEm: '2026-09-01T15:00:00Z', meioDePagamento: 'CREDITO_ONLINE', pagoTotal: 100 },
+      { ...base, id: 'c2', parcela: 2, vencimento: '2026-10-01', situacao: 'PAGA', pagaEm: '2026-10-01T15:00:00Z', meioDePagamento: 'DEBITO_ONLINE', pagoTotal: 100 },
+    ]) });
+    renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });
+
+    expect(await screen.findByText(/\(Crédito pelo app\)/)).toBeInTheDocument();
+    expect(screen.getByText(/\(Débito pelo app\)/)).toBeInTheDocument();
+  });
+
   it('nada em aberto: diz isso', async () => {
     apiFalsa({ 'GET /api/cobrancas/me': json(200, []), 'GET /api/pagamentos-online/me': json(200, desligado) });
     renderizar(<MeusPagamentos />, { perfil: 'ALUNO' });

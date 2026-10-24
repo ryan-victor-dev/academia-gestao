@@ -19,7 +19,7 @@ import java.util.UUID;
 @Service
 public class CobrancasParaPagamentoOnline {
 
-    public enum FormaOnline { PIX, BOLETO }
+    public enum FormaOnline { PIX, BOLETO, CREDITO, DEBITO }
 
     public enum ResultadoDoRecebimento {
         /** A cobrança ficou paga. */
@@ -75,7 +75,12 @@ public class CobrancasParaPagamentoOnline {
     public ResultadoDoRecebimento receber(UUID cobrancaId, ValorCombinado combinado, BigDecimal recebido,
                                           FormaOnline forma, UUID por) {
         ValorDevido devido = new ValorDevido(combinado.valor(), combinado.acrescimo(), combinado.juros(), 0);
-        MeioDePagamento meio = forma == FormaOnline.PIX ? MeioDePagamento.PIX_ONLINE : MeioDePagamento.BOLETO;
+        MeioDePagamento meio = switch (forma) {
+            case PIX -> MeioDePagamento.PIX_ONLINE;
+            case BOLETO -> MeioDePagamento.BOLETO;
+            case CREDITO -> MeioDePagamento.CREDITO_ONLINE;
+            case DEBITO -> MeioDePagamento.DEBITO_ONLINE;
+        };
         return switch (service.receberOnline(cobrancaId, devido, recebido, meio, por)) {
             case RECEBIDO -> ResultadoDoRecebimento.RECEBIDO;
             case NAO_ESTA_EM_ABERTO -> ResultadoDoRecebimento.NAO_ESTA_EM_ABERTO;
