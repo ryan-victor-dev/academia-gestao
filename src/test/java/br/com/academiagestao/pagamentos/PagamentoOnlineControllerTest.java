@@ -708,8 +708,9 @@ class PagamentoOnlineControllerTest {
             List<PagamentoOnline> devolvidos = pedidos.stream().map(CompletableFuture::join).toList();
 
             assertThat(devolvidos.get(0).getId()).as("rodada %d", rodada).isEqualTo(devolvidos.get(1).getId());
-            assertThat(jdbc.queryForList("SELECT situacao FROM pagamentos_online WHERE cobranca_id = ?", String.class,
-                    id)).as("rodada %d", rodada).containsExactly("AGUARDANDO");
+            assertThat(jdbc.queryForList("SELECT situacao FROM pagamentos_online WHERE cobranca_id = ? ORDER BY situacao",
+                    String.class, id)).as("rodada %d: o perdedor fica gravado como cancelado", rodada)
+                    .containsExactly("AGUARDANDO", "CANCELADO");
             String vencedor = devolvidos.get(0).getIdExterno();
             assertThat(geradoPorLado.values()).as("rodada %d: os dois geraram na empresa", rodada)
                     .hasSize(2).contains(vencedor);
@@ -719,7 +720,47 @@ class PagamentoOnlineControllerTest {
                     .isEqualTo(ProvedorDePagamento.Estado.AGUARDANDO);
             assertThat(simulado.consultar(geradoPorLado.get(atrasado.get())).estado()).as("rodada %d", rodada)
                     .isEqualTo(ProvedorDePagamento.Estado.ENCERRADO);
+            assertThat(jdbc.queryForObject("SELECT situacao FROM pagamentos_online WHERE id_externo = ?", String.class,
+                    geradoPorLado.get(atrasado.get()))).as("rodada %d", rodada).isEqualTo("CANCELADO");
         }
+    }
+
+    /**
+     * O Pix órfão (ADR 0036): o perdedor da corrida não sai da empresa (o cancelamento falhou), e
+     * alguém o paga. Gravado como cancelado, ele é reconhecido e paga a cobrança.
+     */
+    @Test
+    void pixPerdedorPagoEReconhecido() throws Exception {
+        CyclicBarrier barreira = new CyclicBarrier(2);
+        ThreadLocal<Integer> lado = new ThreadLocal<>();
+        Map<Integer, String> geradoPorLado = new ConcurrentHashMap<>();
+        doAnswer(chamada -> {
+            barreira.await(10, TimeUnit.SECONDS);
+            ProvedorDePagamento.Gerado gerado = (ProvedorDePagamento.Gerado) chamada.callRealMethod();
+            geradoPorLado.put(lado.get(), gerado.idExterno());
+            if (lado.get() == 2) {
+                Thread.sleep(100);
+            }
+            return gerado;
+        }).when(simulado).gerar(any());
+        doThrow(new ProvedorIndisponivelException("fora do ar", null)).when(simulado).cancelar(any());
+        UUID cobrancaId = cobranca(1, 30);
+
+        List.of(1, 2).stream().map(i -> CompletableFuture.supplyAsync(() -> {
+            lado.set(i);
+            return service.gerar(aluno, usuarioDoAluno, cobrancaId, ProvedorDePagamento.Forma.PIX);
+        })).toList().forEach(CompletableFuture::join);
+        String perdedor = geradoPorLado.get(2);
+        assertThat(simulado.consultar(perdedor).estado()).as("o cancelamento falhou")
+                .isEqualTo(ProvedorDePagamento.Estado.AGUARDANDO);
+
+        simulado.simularPagamento(perdedor, null);
+        aviso(TOKEN, perdedor).andExpect(status().isNoContent());
+
+        assertThat(jdbc.queryForObject("SELECT situacao FROM pagamentos_online WHERE id_externo = ?", String.class,
+                perdedor)).isEqualTo("PAGO");
+        assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, cobrancaId))
+                .isEqualTo("PAGA");
     }
 
     @Test

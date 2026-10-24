@@ -57,10 +57,8 @@ resolvê-las, menos a ligação com uma empresa de verdade, que fica para depois
 ## Consequências
 
 - Na corrida, a empresa recebe um pedido a mais, cancelado logo em seguida. Se o cancelamento
-  falhar (empresa fora do ar), fica um Pix na empresa que o sistema conhece só pelo id externo
-  dela: se for pago, a consulta não o acha e o aviso é registrado no log como id desconhecido.
-  Com o simulado, isso não acontece; com uma empresa de verdade, o cancelamento que falhou fica
-  no log para conferir no painel dela.
+  falhasse e alguém pagasse aquele Pix, o sistema não o reconhecia. Resolvido no ADR 0036: o
+  perdedor fica gravado como cancelado.
 - Teste que insere pagamentos online à mão: só um `AGUARDANDO` por cobrança e forma.
 - Uma empresa de verdade só serve se tiver devolução com chave (idempotente). Sem isso, a classe
   dela deve responder `devolve = false`, e a devolução fica manual.

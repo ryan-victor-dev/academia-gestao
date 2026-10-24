@@ -11,6 +11,9 @@ pediu (2026-10-24) para fechar os casos raros que o próprio ADR 0035 deixou reg
 
 1. **Devolução em dobro.** O ADMIN pede "Devolver" numa aba e marca "Já devolvi por fora" em
    outra, ao mesmo tempo: o dinheiro voltava duas vezes.
+2. **Pix órfão.** Na corrida de dois pedidos (ADR 0035), o perdedor era cancelado na empresa e
+   esquecido aqui. Se o cancelamento falhasse e alguém pagasse aquele Pix, o dinheiro chegava, e
+   o sistema não o reconhecia (o aviso virava "id desconhecido" no log).
 
 ## Decisões
 
@@ -25,6 +28,14 @@ pediu (2026-10-24) para fechar os casos raros que o próprio ADR 0035 deixou reg
   vezes (ADR 0035). "Por fora" continua recusado até a devolução terminar.
 - Alternativa descartada: travar a linha durante a chamada à empresa. Seguraria uma conexão do
   banco enquanto a rede responde (ADRs 0020 e 0034).
+
+### O perdedor da corrida fica gravado como CANCELADO (decisão técnica)
+- Quem perde a corrida cancela o seu na empresa e grava a linha como `CANCELADO` (o índice único
+  só vale para os `AGUARDANDO`, ADR 0035). Cancelado ainda recebe: se o cancelamento lá falhou e
+  alguém pagar, o aviso e a consulta acham o pagamento, e o dinheiro paga a cobrança ou fica a
+  devolver, como qualquer outro.
+- Se nem essa gravação der certo (banco fora do ar), o id da empresa vai para o log como "ficou
+  fora do sistema", para conferir no painel dela.
 
 ## Consequências
 

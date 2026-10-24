@@ -142,8 +142,16 @@ class PagamentoOnlineService {
             transacao.executeWithoutResult(t -> repository.inserir(novo));
         } catch (DuplicateKeyException e) {
             // Dois pedidos ao mesmo tempo (ADR 0035): o outro gravou primeiro. O deste sai da
-            // empresa, e o aluno recebe o que ficou.
+            // empresa, e o aluno recebe o que ficou. E fica gravado como CANCELADO (ADR 0036): se
+            // o cancelamento lá falhou e alguém pagar, o dinheiro é reconhecido (paga ou fica a devolver).
             cancelarNaEmpresa(empresa, gerado.idExterno());
+            novo.cancelar();
+            try {
+                transacao.executeWithoutResult(t -> repository.inserir(novo));
+            } catch (RuntimeException naoGravou) {
+                log.warn("O pagamento {} da empresa {} ficou fora do sistema: {}", gerado.idExterno(), empresa.nome(),
+                        naoGravou.getMessage());
+            }
             return valendo(repository.aguardandoDaCobranca(cobrancaId), forma, agora).orElseThrow(() -> e);
         } catch (RuntimeException e) {
             // Gerado na empresa e não gravado aqui: cancela lá para ninguém pagar o que o sistema não conhece.
