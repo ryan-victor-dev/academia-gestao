@@ -82,9 +82,9 @@ class PagamentoOnlineRepository {
                 + "AND provedor = ? ORDER BY valido_ate LIMIT ?", this::mapear, provedor, limite);
     }
 
-    /** O dinheiro a devolver, do mais antigo para o mais novo. */
+    /** O dinheiro a devolver, e o que está sendo devolvido, do mais antigo para o mais novo. */
     List<PagamentoOnline> aDevolver() {
-        return jdbc.query("SELECT " + COLUNAS + " FROM pagamentos_online WHERE situacao = 'A_DEVOLVER' "
+        return jdbc.query("SELECT " + COLUNAS + " FROM pagamentos_online WHERE situacao IN ('A_DEVOLVER', 'DEVOLVENDO') "
                 + "ORDER BY recebido_em", this::mapear);
     }
 

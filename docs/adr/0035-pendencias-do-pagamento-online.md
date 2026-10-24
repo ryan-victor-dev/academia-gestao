@@ -64,9 +64,7 @@ resolvê-las, menos a ligação com uma empresa de verdade, que fica para depois
 - Teste que insere pagamentos online à mão: só um `AGUARDANDO` por cobrança e forma.
 - Uma empresa de verdade só serve se tiver devolução com chave (idempotente). Sem isso, a classe
   dela deve responder `devolve = false`, e a devolução fica manual.
-- Se o ADMIN marcar "devolvido por fora" numa aba enquanto pede a devolução pela empresa em
-  outra, o dinheiro pode voltar duas vezes: o sistema não impede esse caso, e a trilha mostra os
-  dois pedidos. A tela só oferece "por fora" quando a empresa não devolve ou recusou a
-  devolução.
+- Se o ADMIN marcasse "devolvido por fora" numa aba enquanto pedia a devolução pela empresa em
+  outra, o dinheiro podia voltar duas vezes. Resolvido no ADR 0036 (`DEVOLVENDO`).
 - A devolução do Pix tem prazo no arranjo (90 dias): passado isso, a empresa recusa, e o ADMIN
   devolve por transferência.

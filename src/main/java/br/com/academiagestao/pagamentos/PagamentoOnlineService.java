@@ -258,13 +258,15 @@ class PagamentoOnlineService {
     /**
      * O ADMIN confirma, e o sistema pede a devolução à empresa (decisão do dono, ADR 0035). A
      * chamada fica fora de transação; a chave da devolução é o id do pagamento, então repetir
-     * (clique duplo, resposta perdida na rede) não devolve duas vezes.
+     * (clique duplo, resposta perdida na rede, DEVOLVENDO parado) não devolve duas vezes. Antes
+     * da chamada, o pagamento vira DEVOLVENDO, e "por fora" é recusado (ADR 0036).
      */
     PagamentoOnline devolverPelaEmpresa(UUID id, UUID usuarioId) {
         ProvedorDePagamento empresa = ligado();
         PagamentoOnline pagamento = repository.buscar(id)
                 .orElseThrow(() -> new PagamentoOnlineNaoEncontradoException("Pagamento online não encontrado"));
-        if (pagamento.getSituacao() != PagamentoOnline.Situacao.A_DEVOLVER) {
+        if (pagamento.getSituacao() != PagamentoOnline.Situacao.A_DEVOLVER
+                && pagamento.getSituacao() != PagamentoOnline.Situacao.DEVOLVENDO) {
             throw new PagamentoOnlineRecusadoException("Só o que está a devolver pode ser devolvido");
         }
         if (!pagamento.getProvedor().equals(empresa.nome())) {
@@ -276,11 +278,32 @@ class PagamentoOnlineService {
                     + (pagamento.getForma() == Forma.PIX ? "Pix" : "boleto")
                     + " pelo sistema: devolva por transferência e marque como devolvido");
         }
-        empresa.devolver(new Devolucao(pagamento.getIdExterno(), pagamento.getValorADevolver(), pagamento.getId()));
+        transacao.executeWithoutResult(t -> {
+            PagamentoOnline travado = repository.travar(id).orElseThrow();
+            if (travado.getSituacao() == PagamentoOnline.Situacao.A_DEVOLVER) {
+                travado.iniciarDevolucao();
+                repository.atualizar(travado);
+            } else if (travado.getSituacao() != PagamentoOnline.Situacao.DEVOLVENDO) {
+                throw new PagamentoOnlineRecusadoException("Só o que está a devolver pode ser devolvido");
+            }
+        });
+        try {
+            empresa.devolver(new Devolucao(pagamento.getIdExterno(), pagamento.getValorADevolver(), pagamento.getId()));
+        } catch (RuntimeException e) {
+            // A empresa recusou ou não respondeu: volta a ficar a devolver (de novo, ou por fora).
+            transacao.executeWithoutResult(t -> repository.travar(id)
+                    .filter(p -> p.getSituacao() == PagamentoOnline.Situacao.DEVOLVENDO)
+                    .ifPresent(p -> {
+                        p.desistirDaDevolucao();
+                        repository.atualizar(p);
+                    }));
+            throw e;
+        }
         return transacao.execute(t -> {
             PagamentoOnline travado = repository.travar(id).orElseThrow();
             // Já devolvido: o outro pedido (mesma chave na empresa) chegou antes.
-            if (travado.getSituacao() == PagamentoOnline.Situacao.A_DEVOLVER) {
+            if (travado.getSituacao() == PagamentoOnline.Situacao.DEVOLVENDO
+                    || travado.getSituacao() == PagamentoOnline.Situacao.A_DEVOLVER) {
                 registrarDevolvido(travado, usuarioId, "PELA_EMPRESA");
             }
             return travado;
@@ -292,6 +315,10 @@ class PagamentoOnlineService {
         return transacao.execute(t -> {
             PagamentoOnline pagamento = repository.travar(id)
                     .orElseThrow(() -> new PagamentoOnlineNaoEncontradoException("Pagamento online não encontrado"));
+            if (pagamento.getSituacao() == PagamentoOnline.Situacao.DEVOLVENDO) {
+                throw new PagamentoOnlineRecusadoException("A devolução pela empresa está em andamento: espere ou "
+                        + "tente devolver de novo pelo sistema");
+            }
             if (pagamento.getSituacao() != PagamentoOnline.Situacao.A_DEVOLVER) {
                 throw new PagamentoOnlineRecusadoException("Só o que está a devolver pode ser marcado como devolvido");
             }
@@ -301,9 +328,10 @@ class PagamentoOnlineService {
     }
 
     private void registrarDevolvido(PagamentoOnline pagamento, UUID usuarioId, String como) {
+        Map<String, Object> antes = Auditoria.campos("situacao", pagamento.getSituacao().name());
         pagamento.devolver(usuarioId, relogio.instant());
         repository.atualizar(pagamento);
-        auditoria.registrar(PAGAMENTO_ONLINE, pagamento.getId(), "DEVOLVIDO", Auditoria.campos("situacao", "A_DEVOLVER"),
+        auditoria.registrar(PAGAMENTO_ONLINE, pagamento.getId(), "DEVOLVIDO", antes,
                 Auditoria.campos("situacao", "DEVOLVIDO", "recebido", pagamento.getRecebido(),
                         "devolvido", pagamento.getValorADevolver(), "como", como));
     }

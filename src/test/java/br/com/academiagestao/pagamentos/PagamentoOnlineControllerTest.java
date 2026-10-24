@@ -40,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -416,6 +417,71 @@ class PagamentoOnlineControllerTest {
                 .andExpect(status().isNotFound());
         mvc.perform(post("/api/pagamentos-online/" + pix.get("id") + "/devolver").with(doAluno()))
                 .andExpect(status().isForbidden());
+    }
+
+    /** Um Pix pago a mais (110,00 de 103,00): a cobrança paga, e 7,00 a devolver pela empresa. Devolve o id. */
+    private UUID pixComSobra() throws Exception {
+        Map<String, Object> pix = gerado(cobranca(1, 30), "PIX");
+        String externo = idExterno(pix.get("id"));
+        simulado.simularPagamento(externo, new BigDecimal("110.00"));
+        service.confirmar(externo);
+        return UUID.fromString(pix.get("id").toString());
+    }
+
+    /**
+     * "Devolvido por fora" no meio da devolução pela empresa (outra aba, ADR 0036): recusado, e o
+     * dinheiro volta uma vez só. O "por fora" é pedido de dentro da chamada à empresa: a ordem é
+     * certa, sem depender de threads.
+     */
+    @Test
+    void porForaDuranteADevolucaoPelaEmpresaERecusado() throws Exception {
+        UUID id = pixComSobra();
+        List<Integer> porFora = new java.util.ArrayList<>();
+        doAnswer(chamada -> {
+            porFora.add(mvc.perform(post("/api/pagamentos-online/" + id + "/devolvido").with(doAdmin()))
+                    .andReturn().getResponse().getStatus());
+            return chamada.callRealMethod();
+        }).when(simulado).devolver(any());
+
+        service.devolverPelaEmpresa(id, admin);
+
+        assertThat(porFora).containsExactly(409);
+        assertThat(situacao(id)).isEqualTo("DEVOLVIDO");
+        assertThat(jdbc.queryForObject("SELECT alteracoes -> 'como' ->> 'depois' FROM auditoria WHERE entidade_id = ?::uuid "
+                + "AND acao = 'DEVOLVIDO'", String.class, id.toString())).isEqualTo("PELA_EMPRESA");
+        assertThat(simulado.devolvido(idExterno(id))).isEqualByComparingTo("7.00");
+    }
+
+    /** A empresa recusou ou não respondeu: volta a ficar a devolver, e dá para devolver por fora. */
+    @Test
+    void empresaFalhaEVoltaAFicarADevolver() throws Exception {
+        UUID id = pixComSobra();
+        doThrow(new ProvedorIndisponivelException("fora do ar", null)).when(simulado).devolver(any());
+
+        mvc.perform(post("/api/pagamentos-online/" + id + "/devolver").with(doAdmin()))
+                .andExpect(status().isServiceUnavailable());
+
+        assertThat(situacao(id)).isEqualTo("A_DEVOLVER");
+        mvc.perform(post("/api/pagamentos-online/" + id + "/devolvido").with(doAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.situacao").value("DEVOLVIDO"));
+    }
+
+    /** O sistema caiu no meio da devolução: o DEVOLVENDO aparece na lista, não vai por fora, e repetir devolve uma vez. */
+    @Test
+    void devolvendoParadoPodeSerRepetido() throws Exception {
+        UUID id = pixComSobra();
+        jdbc.update("UPDATE pagamentos_online SET situacao = 'DEVOLVENDO' WHERE id = ?", id);
+
+        mvc.perform(get("/api/pagamentos-online/a-devolver").with(doAdmin()))
+                .andExpect(jsonPath("$[?(@.id == '" + id + "')].situacao", contains("DEVOLVENDO")));
+        mvc.perform(post("/api/pagamentos-online/" + id + "/devolvido").with(doAdmin()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("em andamento")));
+        mvc.perform(post("/api/pagamentos-online/" + id + "/devolver").with(doAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.situacao").value("DEVOLVIDO"));
+        assertThat(simulado.devolvido(idExterno(id))).isEqualByComparingTo("7.00");
     }
 
     /** Um pagamento que não está a devolver não se devolve (o pago certinho, por exemplo). */

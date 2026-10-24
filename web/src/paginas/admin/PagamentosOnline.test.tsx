@@ -7,7 +7,7 @@ import { PagamentosOnline } from './PagamentosOnline';
 const atual = { provedor: 'simulado', simulado: true, pixLigado: true, boletoLigado: true, adiantar: 'PROXIMA', diasDoBoleto: 3 };
 const aDevolver = { id: 'p9', forma: 'BOLETO', alunoNome: 'Maria', total: 103, recebido: 103, recebidoEm: '2026-10-04T15:00:00Z',
   motivoDaDevolucao: 'A cobrança já não estava em aberto (paga por outro meio ou cancelada)', valorADevolver: 103,
-  pagouACobranca: false, devolvePeloSistema: false };
+  pagouACobranca: false, devolvePeloSistema: false, situacao: 'A_DEVOLVER' };
 const sobra = { ...aDevolver, id: 'p8', forma: 'PIX', recebido: 110, valorADevolver: 7, pagouACobranca: true, devolvePeloSistema: true,
   motivoDaDevolucao: 'Pago a mais: recebido 110.00, e o combinado era 103.00; a cobrança ficou paga e a sobra volta' };
 
@@ -84,6 +84,25 @@ describe('pagamento online (ADMIN)', () => {
     expect(api.de('POST /api/pagamentos-online/p8/devolver')).toHaveLength(1);
   });
 
+  it('devolvendo (parado no meio): avisa, deixa tentar de novo, e não oferece "por fora"', async () => {
+    apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
+      'GET /api/pagamentos-online/a-devolver': json(200, [{ ...sobra, situacao: 'DEVOLVENDO' }]) });
+    renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
+
+    expect(await screen.findByText(/Devolução pela empresa em andamento/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar devolver de novo' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Já devolvi por fora' })).not.toBeInTheDocument();
+  });
+
+  it('boleto devolvendo (outra empresa que devolve boleto, por exemplo): também sem "por fora"', async () => {
+    apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
+      'GET /api/pagamentos-online/a-devolver': json(200, [{ ...aDevolver, situacao: 'DEVOLVENDO' }]) });
+    renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
+
+    expect(await screen.findByText(/Devolução pela empresa em andamento/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Já devolvi por fora' })).not.toBeInTheDocument();
+  });
+
   it('a empresa recusou: mostra o erro, deixa tentar de novo ou devolver por fora', async () => {
     apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
       'GET /api/pagamentos-online/a-devolver': json(200, [sobra]),
@@ -96,5 +115,6 @@ describe('pagamento online (ADMIN)', () => {
     expect(await screen.findByText(/não respondeu/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tentar devolver de novo' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Já devolvi por fora' })).toBeInTheDocument();
+    expect(screen.getByText(/Antes de devolver por fora, tente de novo pelo sistema/)).toBeInTheDocument();
   });
 });

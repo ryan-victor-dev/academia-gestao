@@ -25,6 +25,7 @@ interface ADevolver {
   valorADevolver: number;
   pagouACobranca: boolean;
   devolvePeloSistema: boolean;
+  situacao: 'A_DEVOLVER' | 'DEVOLVENDO';
 }
 
 const NOME_DO_ADIANTAR: Record<Adiantar, string> = {
@@ -164,6 +165,16 @@ export function PagamentosOnline() {
                 {p.pagouACobranca && <> · a cobrança ficou paga com {dinheiro(p.total)}</>}
               </p>
               <p className="suave">{p.motivoDaDevolucao}</p>
+              {p.situacao === 'DEVOLVENDO' && (
+                <p className="aviso" role="note">
+                  Devolução pela empresa em andamento. Se não concluir, tente de novo: a empresa não devolve duas vezes.
+                </p>
+              )}
+              {recusadas.has(p.id) && p.devolvePeloSistema && (
+                <p className="suave">
+                  Antes de devolver por fora, tente de novo pelo sistema: se a empresa já devolveu, ela não devolve outra vez.
+                </p>
+              )}
               {confirmando === p.id ? (
                 <div role="group" aria-label="Confirmar a devolução">
                   <p><strong>Devolver {dinheiro(p.valorADevolver)} para {p.alunoNome ?? 'o aluno'} pela empresa de pagamentos?</strong></p>
@@ -178,10 +189,10 @@ export function PagamentosOnline() {
                 <div className="acoes">
                   {p.devolvePeloSistema && (
                     <button type="button" onClick={() => setConfirmando(p.id)}>
-                      {recusadas.has(p.id) ? 'Tentar devolver de novo' : `Devolver ${dinheiro(p.valorADevolver)}`}
+                      {recusadas.has(p.id) || p.situacao === 'DEVOLVENDO' ? 'Tentar devolver de novo' : `Devolver ${dinheiro(p.valorADevolver)}`}
                     </button>
                   )}
-                  {(!p.devolvePeloSistema || recusadas.has(p.id)) && (
+                  {(!p.devolvePeloSistema || recusadas.has(p.id)) && p.situacao !== 'DEVOLVENDO' && (
                     <button type="button" className="secundario" onClick={() => devolvido(p.id)}>Já devolvi por fora</button>
                   )}
                 </div>

@@ -89,7 +89,7 @@ class PagamentoOnlineTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = Situacao.class, names = {"PAGO", "A_DEVOLVER", "DEVOLVIDO"})
+    @EnumSource(value = Situacao.class, names = {"PAGO", "A_DEVOLVER", "DEVOLVENDO", "DEVOLVIDO"})
     void naoRecebeDuasVezes(Situacao situacao) {
         assertThatThrownBy(() -> em(situacao).receber(BigDecimal.TEN, AGORA)).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> em(situacao).aDevolver(BigDecimal.TEN, AGORA, "x"))
@@ -97,7 +97,7 @@ class PagamentoOnlineTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = Situacao.class, names = {"PAGO", "EXPIRADO", "CANCELADO", "A_DEVOLVER", "DEVOLVIDO"})
+    @EnumSource(value = Situacao.class, names = {"PAGO", "EXPIRADO", "CANCELADO", "A_DEVOLVER", "DEVOLVENDO", "DEVOLVIDO"})
     void soAguardandoExpiraOuCancela(Situacao situacao) {
         assertThatThrownBy(() -> em(situacao).expirar()).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> em(situacao).cancelar()).isInstanceOf(IllegalStateException.class);
@@ -127,6 +127,24 @@ class PagamentoOnlineTest {
         assertThatThrownBy(() -> em(Situacao.PAGO).pagoComSobra(new BigDecimal("110.00"), AGORA, "de novo"))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(pix().pagouACobranca()).as("sem nada a devolver").isFalse();
+    }
+
+    /** A devolução pela empresa (ADR 0036): A_DEVOLVER → DEVOLVENDO → DEVOLVIDO, ou de volta a A_DEVOLVER. */
+    @Test
+    void devolucaoPelaEmpresa() {
+        UUID admin = UUID.randomUUID();
+        PagamentoOnline p = em(Situacao.A_DEVOLVER);
+        p.iniciarDevolucao();
+        assertThat(p.getSituacao()).isEqualTo(Situacao.DEVOLVENDO);
+        assertThatThrownBy(p::iniciarDevolucao).isInstanceOf(IllegalStateException.class);
+        p.desistirDaDevolucao();
+        assertThat(p.getSituacao()).isEqualTo(Situacao.A_DEVOLVER);
+        assertThatThrownBy(p::desistirDaDevolucao).isInstanceOf(IllegalStateException.class);
+        p.iniciarDevolucao();
+        p.devolver(admin, AGORA);
+        assertThat(p.getSituacao()).isEqualTo(Situacao.DEVOLVIDO);
+        assertThatThrownBy(() -> pix().iniciarDevolucao()).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> em(Situacao.PAGO).iniciarDevolucao()).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

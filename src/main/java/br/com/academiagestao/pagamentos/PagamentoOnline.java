@@ -28,6 +28,11 @@ class PagamentoOnline {
          * combinado), ou só o que passou do combinado, e a cobrança ficou paga (ADR 0035).
          */
         A_DEVOLVER,
+        /**
+         * A devolução pela empresa em andamento (ADR 0036): enquanto isso, não se marca "devolvido
+         * por fora". Parado aqui (o sistema caiu no meio), pode ser repetido com a mesma chave.
+         */
+        DEVOLVENDO,
         DEVOLVIDO;
 
         /** Ainda pode chegar dinheiro: o aluno pode ter pago no último segundo. */
@@ -171,9 +176,24 @@ class PagamentoOnline {
         this.situacao = Situacao.CANCELADO;
     }
 
-    /** O dinheiro voltou ao aluno: pela empresa, a pedido do ADMIN, ou por fora, e o ADMIN marcou. */
+    /** Antes de pedir a devolução à empresa: daqui em diante, "por fora" é recusado. */
+    void iniciarDevolucao() {
+        conferir(Situacao.DEVOLVENDO, situacao == Situacao.A_DEVOLVER);
+        this.situacao = Situacao.DEVOLVENDO;
+    }
+
+    /** A empresa recusou ou não respondeu: volta a ficar a devolver (de novo, ou por fora). */
+    void desistirDaDevolucao() {
+        conferir(Situacao.A_DEVOLVER, situacao == Situacao.DEVOLVENDO);
+        this.situacao = Situacao.A_DEVOLVER;
+    }
+
+    /**
+     * O dinheiro voltou ao aluno: pela empresa, a pedido do ADMIN (de DEVOLVENDO, ou de A_DEVOLVER
+     * se outro pedido já desistiu), ou por fora, e o ADMIN marcou (só de A_DEVOLVER: quem chama confere).
+     */
     void devolver(UUID por, Instant agora) {
-        conferir(Situacao.DEVOLVIDO, situacao == Situacao.A_DEVOLVER);
+        conferir(Situacao.DEVOLVIDO, situacao == Situacao.A_DEVOLVER || situacao == Situacao.DEVOLVENDO);
         this.situacao = Situacao.DEVOLVIDO;
         this.devolvidoPor = Objects.requireNonNull(por);
         this.devolvidoEm = agora.truncatedTo(ChronoUnit.MICROS);

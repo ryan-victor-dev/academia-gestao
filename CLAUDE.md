@@ -144,6 +144,7 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   empresa nunca dentro de transação. O lançamento online não tem caixa (V41): teste que insere um à mão
   usa `PIX_ONLINE`/`BOLETO` com `caixa_id` nulo, e os do balcão continuam com caixa.
   Só um pagamento online `AGUARDANDO` por cobrança e forma (V43, ADR 0035).
+  `DEVOLVENDO` (V45, ADR 0036) exige recebido, motivo e valor a devolver, como `A_DEVOLVER`.
 - Telas (`web/`): validar no Chromium (Playwright) pelo Caddy, e não só no Vitest; os roteiros
   de validação de cada parte ficam em `revisao-local/ferramentas/navegador/` (fora do Git). No
   Playwright, `getByLabel('Nome')` acha por trecho ("Buscar por nome" também): use `exact: true`.
@@ -158,6 +159,6 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
 
 ## Segurança
 
-Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029, 0031 (registro de acessos), 0033 (sessão renovável) e 0034 (pagamento online); dinheiro, nos 0024, 0025, 0026, 0034 e 0035. Segredos só no `.env` (fora do Git,
+Revisões e decisões nos ADRs 0007, 0010, 0012, 0014, 0020, 0021, 0022, 0028, 0029, 0031 (registro de acessos), 0033 (sessão renovável) e 0034 (pagamento online); dinheiro, nos 0024, 0025, 0026, 0034, 0035 e 0036. Segredos só no `.env` (fora do Git,
 modelo em `.env.example`); nunca imprima senhas, tokens ou o conteúdo do `.env`. Senhas
 temporárias aparecem só na resposta (`Cache-Control: no-store`) e nunca no log.
