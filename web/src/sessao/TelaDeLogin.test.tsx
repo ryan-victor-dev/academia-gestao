@@ -22,7 +22,8 @@ describe('tela de login', () => {
     await preencher();
 
     expect(aoEntrar).toHaveBeenCalledOnce();
-    expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toEqual({ email: 'ana@academia.com', senha: 'senha-certa' });
+    const doLogin = fetch.mock.calls.find((c) => c[0] === '/api/auth/login')!;
+    expect(JSON.parse(doLogin[1].body as string)).toEqual({ email: 'ana@academia.com', senha: 'senha-certa' });
   });
 
   it('senha errada: mostra o erro e não entra', async () => {

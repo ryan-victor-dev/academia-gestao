@@ -84,6 +84,13 @@ class FluxoDeAutenticacaoTest {
         mvc.perform(get("/api/planos").header("Authorization", "Bearer " + token)).andExpect(status().isOk());
         mvc.perform(post("/api/auth/email/codigo").header("Authorization", "Bearer " + token))
                 .andExpect(status().isConflict());
+        // E o "esqueci a senha" não aparece nem funciona.
+        mvc.perform(get("/api/auth/opcoes")).andExpect(jsonPath("$.esqueciSenha").value(false));
+        mvc.perform(post("/api/auth/esqueci-senha").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\": \"recepcao@academia.com\"}")).andExpect(status().isConflict());
+        mvc.perform(post("/api/auth/redefinir-senha").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\": \"recepcao@academia.com\", \"codigo\": \"123456\", \"novaSenha\": \"senha-nova-bem-forte\"}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

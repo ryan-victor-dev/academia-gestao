@@ -323,6 +323,11 @@ dependa dele é exigido. Para testar sem mandar nada para fora: `EMAIL_HOST=mail
 EMAIL_TLS=false EMAIL_REMETENTE=teste@academia.local docker compose --profile email-de-teste up -d`,
 e os e-mails aparecem em http://localhost:8025.
 
+Esqueceu a senha (com o e-mail ligado¹³; aluno e equipe com o e-mail confirmado, não o ADMIN): `POST
+/api/auth/esqueci-senha` (`email`; sempre 202, sem revelar se o e-mail existe) manda um código de 6
+dígitos, e `POST /api/auth/redefinir-senha` (`email`, `codigo`, `novaSenha`) troca a senha e derruba as
+sessões abertas. Sem login, com os limites do login. `GET /api/auth/opcoes` diz se a tela oferece.
+
 Com o e-mail ligado¹³, aluno e equipe (não o ADMIN) confirmam o e-mail no primeiro acesso: até lá, só
 `GET /api/me`, `POST /api/auth/email/codigo` (manda o código de 6 dígitos), `POST /api/auth/email/confirmar`
 (`codigo`) e `PUT /api/auth/email` (`email`: corrige e manda o código para o novo). Confirmado, a tela

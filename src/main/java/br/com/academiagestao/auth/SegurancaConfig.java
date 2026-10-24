@@ -88,6 +88,9 @@ class SegurancaConfig {
                         // Sessão renovável (ADR 0033): quem chega aqui é quem tem o token vencido.
                         .requestMatchers(HttpMethod.POST, "/api/auth/renovar", "/api/auth/sair").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        // "Esqueci a senha" (ADR 0038): sem login, com os limites do login.
+                        .requestMatchers(HttpMethod.GET, "/api/auth/opcoes").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/esqueci-senha", "/api/auth/redefinir-senha").permitAll()
                         // Quem avisa é a empresa de pagamentos, sem login: ela prova quem é no
                         // próprio aviso, e o sistema só consulta a empresa (ADR 0034).
                         .requestMatchers(HttpMethod.POST, "/api/pagamentos-online/aviso").permitAll()

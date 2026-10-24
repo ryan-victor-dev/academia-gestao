@@ -75,6 +75,36 @@ export async function entrar(email: string, senha: string): Promise<void> {
   token = ((await resposta.json()) as RespostaDeLogin).token;
 }
 
+/** POST sem login (o "esqueci a senha", ADR 0038): nem token nem renovação. */
+async function publico(caminho: string, corpo: unknown): Promise<void> {
+  const resposta = await buscar(caminho, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
+  });
+  if (!resposta.ok) {
+    throw await erroDe(resposta);
+  }
+}
+
+/** O que a tela de login oferece: o "esqueci a senha" só com o e-mail ligado. Falhou, nada a mais. */
+export async function opcoesDoLogin(): Promise<{ esqueciSenha: boolean }> {
+  try {
+    const resposta = await buscar('/api/auth/opcoes', { method: 'GET' });
+    return resposta.ok ? await resposta.json() : { esqueciSenha: false };
+  } catch {
+    return { esqueciSenha: false };
+  }
+}
+
+/** Pede o código da nova senha. A resposta é sempre a mesma, exista o e-mail ou não. */
+export function pedirCodigoDeSenha(email: string): Promise<void> {
+  return publico('/api/auth/esqueci-senha', { email });
+}
+
+/** Com o código do e-mail, cria a senha nova (as sessões abertas caem). */
+export function redefinirSenha(email: string, codigo: string, novaSenha: string): Promise<void> {
+  return publico('/api/auth/redefinir-senha', { email, codigo, novaSenha });
+}
+
 /**
  * Troca o cookie da sessão por um token novo. Chamadas simultâneas (várias requisições que
  * receberam 401 juntas) compartilham uma renovação só: cada renovação troca o segredo do

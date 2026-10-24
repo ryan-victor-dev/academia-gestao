@@ -52,3 +52,29 @@ confirmação do e-mail. Decisões dele:
   (compartilhado), e o módulo de alunos atualiza o cadastro na mesma transação (o auth não depende
   de outros módulos, ADR 0015). As duas trilhas registram.
 - Servidor de e-mail fora do ar: 503 ("tente de novo em alguns minutos").
+
+### "Esqueci a senha" (parte 17)
+- Na tela de login, só com o e-mail ligado (`GET /api/auth/opcoes`). `POST /api/auth/esqueci-senha`
+  (`email`) manda o código; `POST /api/auth/redefinir-senha` (`email`, `codigo`, `novaSenha`) troca a
+  senha. Rotas sem login.
+- Só para quem está ativo, tem o **e-mail confirmado** (decisão técnica: um e-mail digitado errado
+  não entrega a conta a um estranho) e não é ADMIN (decisão do dono).
+- **Nada revela se o e-mail está cadastrado**: a resposta do pedido é sempre 202, igual para quem
+  pode e quem não pode; quem não pode gasta o mesmo BCrypt; o e-mail sai em segundo plano (uma
+  thread virtual), para o tempo do envio não denunciar a conta; "muitos códigos" e servidor de
+  e-mail fora do ar ficam no log, sem mudar a resposta.
+- Os limites são os do login (ADR 0022), pelo e-mail digitado: 20 por minuto por IP e, para o
+  código errado, as mesmas falhas da senha errada (10 por conta e IP em 15 minutos, 100 no total).
+  Mais o limite do próprio código (5 tentativas, 15 minutos).
+- A senha nova segue a política (12 caracteres) e derruba as sessões abertas (versão do token,
+  ADR 0010), como a troca de senha. A trilha registra `SENHA_RECUPERADA`.
+
+## Consequências
+
+- Sem um serviço de e-mail configurado, nada disso aparece: a recepção e o ADMIN continuam
+  redefinindo senhas como antes.
+- Quem não confirmou o e-mail (ou digitou errado e não percebeu) não recupera a senha sozinho:
+  pede à recepção, como antes.
+- O servidor de e-mail fora do ar no "esqueci a senha" não é avisado à pessoa (avisar revelaria
+  a conta): o código simplesmente não chega, e o log registra.
+- A escolha do serviço de e-mail, e do remetente, fica para quando o site for para a internet.

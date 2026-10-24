@@ -1,11 +1,21 @@
-import { useState, type FormEvent } from 'react';
-import { entrar, ErroDaApi } from './api';
+import { useEffect, useState, type FormEvent } from 'react';
+import { entrar, ErroDaApi, opcoesDoLogin } from './api';
+import { EsqueciASenha } from './EsqueciASenha';
 
 export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [esqueciSenha, setEsqueciSenha] = useState(false);
+  const [recuperando, setRecuperando] = useState(false);
+  const [senhaCriada, setSenhaCriada] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+    opcoesDoLogin().then((o) => { if (ativo) setEsqueciSenha(o.esqueciSenha); });
+    return () => { ativo = false; };
+  }, []);
 
   async function enviar(evento: FormEvent) {
     evento.preventDefault();
@@ -21,10 +31,23 @@ export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
     }
   }
 
+  if (recuperando) {
+    return (
+      <main className="pagina login">
+        <EsqueciASenha emailInicial={email} aoVoltar={(pronta) => {
+          setRecuperando(false);
+          setSenhaCriada(pronta);
+          setSenha('');
+        }} />
+      </main>
+    );
+  }
+
   return (
     <main className="pagina login">
       <form onSubmit={enviar} className="cartao" noValidate>
         <h1>Entrar</h1>
+        {senhaCriada && <p className="sucesso" role="status">Senha nova criada. Entre com ela.</p>}
         <label>
           E-mail
           <input type="email" autoComplete="username" required value={email}
@@ -39,6 +62,9 @@ export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
         <button type="submit" disabled={enviando || !email || !senha}>
           {enviando ? 'Entrando…' : 'Entrar'}
         </button>
+        {esqueciSenha && (
+          <button type="button" className="secundario" onClick={() => { setErro(null); setRecuperando(true); }}>Esqueci a senha</button>
+        )}
       </form>
     </main>
   );
