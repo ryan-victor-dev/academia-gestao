@@ -6,7 +6,10 @@ import { PagamentosOnline } from './PagamentosOnline';
 
 const atual = { provedor: 'simulado', simulado: true, pixLigado: true, boletoLigado: true, adiantar: 'PROXIMA', diasDoBoleto: 3 };
 const aDevolver = { id: 'p9', forma: 'BOLETO', alunoNome: 'Maria', total: 103, recebido: 103, recebidoEm: '2026-10-04T15:00:00Z',
-  motivoDaDevolucao: 'A cobrança já não estava em aberto (paga por outro meio ou cancelada)' };
+  motivoDaDevolucao: 'A cobrança já não estava em aberto (paga por outro meio ou cancelada)', valorADevolver: 103,
+  pagouACobranca: false, devolvePeloSistema: false };
+const sobra = { ...aDevolver, id: 'p8', forma: 'PIX', recebido: 110, valorADevolver: 7, pagouACobranca: true, devolvePeloSistema: true,
+  motivoDaDevolucao: 'Pago a mais: recebido 110.00, e o combinado era 103.00; a cobrança ficou paga e a sobra volta' };
 
 describe('pagamento online (ADMIN)', () => {
   it('mostra a empresa e salva com a versão lida', async () => {
@@ -39,7 +42,7 @@ describe('pagamento online (ADMIN)', () => {
     expect(screen.queryByText(/Modo de teste/)).not.toBeInTheDocument();
   });
 
-  it('a devolver: com o nome e o motivo; marcar como devolvido recarrega', async () => {
+  it('boleto (a empresa não devolve): com o nome e o motivo; só "devolvi por fora", que recarrega', async () => {
     let devolvido = false;
     const api = apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
       'GET /api/pagamentos-online/a-devolver': () => json(200, devolvido ? [] : [aDevolver]),
@@ -48,10 +51,50 @@ describe('pagamento online (ADMIN)', () => {
 
     expect(await screen.findByText('Maria')).toBeInTheDocument();
     expect(screen.getByText(/já não estava em aberto/)).toBeInTheDocument();
-    expect(screen.getByText(/Boleto recebido em/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Marcar como devolvido' }));
+    expect(screen.getByText(/Boleto de R\$\s103,00 recebido em/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Devolver/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Já devolvi por fora' }));
 
     expect(await screen.findByText('Nada a devolver.')).toBeInTheDocument();
     expect(api.de('POST /api/pagamentos-online/p9/devolvido')).toHaveLength(1);
+  });
+
+  it('pago a mais: mostra a sobra; devolver pede confirmação, e só então chama a empresa', async () => {
+    let devolvido = false;
+    const api = apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
+      'GET /api/pagamentos-online/a-devolver': () => json(200, devolvido ? [] : [sobra]),
+      'POST /api/pagamentos-online/p8/devolver': () => { devolvido = true; return json(200, { ...sobra, situacao: 'DEVOLVIDO' }); } });
+    renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
+
+    expect(await screen.findByText(/a cobrança ficou paga com R\$\s103,00/)).toBeInTheDocument();
+    expect(screen.getByText(/Pix de R\$\s110,00 recebido em/)).toBeInTheDocument();
+    // O valor em destaque é o que volta (a sobra), e não o que chegou.
+    expect(screen.getByText(/^R\$\s7,00$/)).toHaveClass('valor');
+    expect(screen.queryByRole('button', { name: 'Já devolvi por fora' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Devolver R\$\s7,00/ }));
+    expect(screen.getByText(/Devolver R\$\s7,00 para Maria pela empresa de pagamentos\?/)).toBeInTheDocument();
+    expect(api.de('POST /api/pagamentos-online/p8/devolver')).toHaveLength(0);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(api.de('POST /api/pagamentos-online/p8/devolver')).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: /Devolver R\$\s7,00/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar devolução' }));
+
+    expect(await screen.findByText('Nada a devolver.')).toBeInTheDocument();
+    expect(api.de('POST /api/pagamentos-online/p8/devolver')).toHaveLength(1);
+  });
+
+  it('a empresa recusou: mostra o erro, deixa tentar de novo ou devolver por fora', async () => {
+    apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
+      'GET /api/pagamentos-online/a-devolver': json(200, [sobra]),
+      'POST /api/pagamentos-online/p8/devolver': json(503, { detail: 'A empresa de pagamentos não respondeu. Tente de novo em alguns minutos.' }) });
+    renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
+
+    await userEvent.click(await screen.findByRole('button', { name: /Devolver R\$\s7,00/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar devolução' }));
+
+    expect(await screen.findByText(/não respondeu/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar devolver de novo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Já devolvi por fora' })).toBeInTheDocument();
   });
 });

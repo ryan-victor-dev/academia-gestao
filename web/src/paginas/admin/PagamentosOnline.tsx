@@ -22,6 +22,9 @@ interface ADevolver {
   recebido: number;
   recebidoEm: string;
   motivoDaDevolucao: string;
+  valorADevolver: number;
+  pagouACobranca: boolean;
+  devolvePeloSistema: boolean;
 }
 
 const NOME_DO_ADIANTAR: Record<Adiantar, string> = {
@@ -31,8 +34,9 @@ const NOME_DO_ADIANTAR: Record<Adiantar, string> = {
 };
 
 /**
- * Pagamento online (ADMIN; ADR 0034): o que o app oferece ao aluno e o dinheiro que chegou sem
- * ter o que pagar (a devolver pelo painel da empresa). A empresa em si vem do .env.
+ * Pagamento online (ADMIN; ADRs 0034 e 0035): o que o app oferece ao aluno e o dinheiro a
+ * devolver. O ADMIN confirma, e o sistema devolve pela empresa; o que a empresa não devolve
+ * (boleto) volta por fora, e o ADMIN marca. A empresa em si vem do .env.
  */
 export function PagamentosOnline() {
   const [atual, setAtual] = useState<Configuracao | null>(null);
@@ -43,6 +47,9 @@ export function PagamentosOnline() {
   const [enviando, setEnviando] = useState(false);
   const [aDevolver, setADevolver] = useState<ADevolver[] | null>(null);
   const [erroDaLista, setErroDaLista] = useState<unknown>(null);
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [recusadas, setRecusadas] = useState<Set<string>>(new Set());
+  const [devolvendo, setDevolvendo] = useState(false);
 
   function mostrar(dados: Configuracao, v: string | null) {
     setAtual(dados);
@@ -74,6 +81,23 @@ export function PagamentosOnline() {
         ? new ErroDaApi(412, 'Outra pessoa alterou a configuração. Recarregue a página para ver a atual.') : e);
     } finally {
       setEnviando(false);
+    }
+  }
+
+  async function devolver(id: string) {
+    setErroDaLista(null);
+    setDevolvendo(true);
+    try {
+      await chamar(`/api/pagamentos-online/${id}/devolver`, { metodo: 'POST' });
+      setConfirmando(null);
+      carregarLista();
+    } catch (e) {
+      // A empresa recusou ou não respondeu: fica a opção de devolver por fora (o Pix tem prazo de 90 dias).
+      setRecusadas((r) => new Set(r).add(id));
+      setConfirmando(null);
+      setErroDaLista(e);
+    } finally {
+      setDevolvendo(false);
     }
   }
 
@@ -122,8 +146,9 @@ export function PagamentosOnline() {
       <section className="secao" aria-labelledby="titulo-a-devolver">
         <h2 id="titulo-a-devolver">Dinheiro a devolver</h2>
         <p className="suave">
-          Chegou pelo app, mas não pagou nada: a cobrança já tinha sido paga (por exemplo, no balcão e pelo app) ou veio outro
-          valor. Devolva pelo painel da empresa de pagamentos e marque aqui.
+          Chegou pelo app e sobrou: a cobrança já tinha sido paga (por exemplo, no balcão e pelo app), veio menos que o combinado
+          (volta tudo), ou veio mais (a cobrança fica paga e volta a sobra). Confirme, e o sistema devolve pela empresa de
+          pagamentos; o que ela não devolve (boleto), devolva por transferência e marque aqui.
         </p>
         <MensagemDeErro erro={erroDaLista} />
         {aDevolver?.length === 0 && <p>Nada a devolver.</p>}
@@ -132,13 +157,35 @@ export function PagamentosOnline() {
             <li key={p.id} className="cartao-item">
               <div className="cabecalho">
                 <strong>{p.alunoNome ?? 'Aluno'}</strong>
-                <span className="valor">{dinheiro(p.recebido)}</span>
+                <span className="valor">{dinheiro(p.valorADevolver)}</span>
               </div>
-              <p>{p.forma === 'PIX' ? 'Pix' : 'Boleto'} recebido em {dataHora(p.recebidoEm)}</p>
+              <p>
+                {p.forma === 'PIX' ? 'Pix' : 'Boleto'} de {dinheiro(p.recebido)} recebido em {dataHora(p.recebidoEm)}
+                {p.pagouACobranca && <> · a cobrança ficou paga com {dinheiro(p.total)}</>}
+              </p>
               <p className="suave">{p.motivoDaDevolucao}</p>
-              <div className="acoes">
-                <button type="button" onClick={() => devolvido(p.id)}>Marcar como devolvido</button>
-              </div>
+              {confirmando === p.id ? (
+                <div role="group" aria-label="Confirmar a devolução">
+                  <p><strong>Devolver {dinheiro(p.valorADevolver)} para {p.alunoNome ?? 'o aluno'} pela empresa de pagamentos?</strong></p>
+                  <div className="acoes">
+                    <button type="button" disabled={devolvendo} onClick={() => devolver(p.id)}>
+                      {devolvendo ? 'Devolvendo…' : 'Confirmar devolução'}
+                    </button>
+                    <button type="button" className="secundario" disabled={devolvendo} onClick={() => setConfirmando(null)}>Voltar</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="acoes">
+                  {p.devolvePeloSistema && (
+                    <button type="button" onClick={() => setConfirmando(p.id)}>
+                      {recusadas.has(p.id) ? 'Tentar devolver de novo' : `Devolver ${dinheiro(p.valorADevolver)}`}
+                    </button>
+                  )}
+                  {(!p.devolvePeloSistema || recusadas.has(p.id)) && (
+                    <button type="button" className="secundario" onClick={() => devolvido(p.id)}>Já devolvi por fora</button>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
