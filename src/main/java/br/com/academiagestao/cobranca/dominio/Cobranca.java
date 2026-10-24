@@ -80,6 +80,9 @@ public class Cobranca {
         if (meio == null) {
             throw new CobrancaInvalidaException("meio de pagamento é obrigatório");
         }
+        if (meio.online()) {
+            throw new CobrancaInvalidaException("Pix online e boleto só se recebem pelo app (empresa de pagamentos)");
+        }
         Objects.requireNonNull(por, "quem registrou é obrigatório");
         ValorDevido devido = regras.devido(this, hoje);
         if (informado == null || informado.compareTo(devido.total()) != 0) {
@@ -87,6 +90,27 @@ public class Cobranca {
         }
         this.status = StatusCobranca.PAGA;
         this.pagamento = new Pagamento(devido.acrescimo(), devido.juros(), devido.total(), meio,
+                agora.truncatedTo(ChronoUnit.MICROS), por);
+    }
+
+    /**
+     * Registra um pagamento online (ADR 0034) com o valor combinado no dia em que o aluno gerou
+     * o Pix ou o boleto, e não com o de hoje: o boleto tem valor fixo, e o aluno pagou o que viu.
+     * Quem chama confere antes se a cobrança ainda está em aberto e se o recebido é o combinado;
+     * aqui, as duas coisas são recusadas de novo.
+     */
+    public void pagarOnline(ValorDevido combinado, BigDecimal recebido, MeioDePagamento meio, UUID por,
+                            Instant agora) {
+        conferirTransicao(StatusCobranca.PAGA);
+        if (meio == null || !meio.online()) {
+            throw new CobrancaInvalidaException("o pagamento online é por Pix online ou boleto");
+        }
+        Objects.requireNonNull(por, "quem gerou o pagamento é obrigatório");
+        if (combinado.valor().compareTo(valor) != 0 || recebido == null || recebido.compareTo(combinado.total()) != 0) {
+            throw new PagamentoRecusadoException(combinado);
+        }
+        this.status = StatusCobranca.PAGA;
+        this.pagamento = new Pagamento(combinado.acrescimo(), combinado.juros(), combinado.total(), meio,
                 agora.truncatedTo(ChronoUnit.MICROS), por);
     }
 

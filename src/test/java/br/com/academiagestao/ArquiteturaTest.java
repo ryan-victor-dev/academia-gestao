@@ -73,7 +73,8 @@ class ArquiteturaTest {
     @ArchTest
     static final ArchRule cobrancaSoPelaPortaPublica = soPelaPortaPublica("cobranca",
             Set.of("CobrancasDasMatriculas", "MatriculaParaCobranca", "Pausa", "Encerramento", "Tipo",
-                    "Continuacao"));
+                    "Continuacao", "CobrancasParaPagamentoOnline", "CobrancaEmAberto", "ValorCombinado",
+                    "FormaOnline", "ResultadoDoRecebimento"));
 
     @ArchTest
     static final ArchRule cobrancaEmJavaPuro = classes()

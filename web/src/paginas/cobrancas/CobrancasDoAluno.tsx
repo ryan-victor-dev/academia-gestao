@@ -5,7 +5,7 @@ import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { data, dataHora, dinheiro } from '../../formato';
 import { chamar } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
-import { descricao, NOME_DA_SITUACAO, NOME_DO_MEIO, type Cobranca, type Lancamento, type Meio } from './tipos';
+import { descricao, NOME_DA_SITUACAO, NOME_DO_MEIO, NOME_DO_MEIO_DO_BALCAO, type Cobranca, type Lancamento, type MeioDoBalcao } from './tipos';
 
 type Acao = { tipo: 'receber' | 'estornar' | 'cancelar' | 'historico'; id: string };
 
@@ -94,11 +94,11 @@ export function CobrancasDoAluno({ alunoId, atualizar }: { alunoId: string; atua
             {acao?.id === c.id && acao.tipo === 'receber' && c.devidoHoje && (
               <FormularioDeAcao titulo="Receber" rotulo={`Receber ${dinheiro(c.devidoHoje.total)}`} aoCancelar={() => setAcao(null)}
                                 aoEnviar={(f) => executar(`/api/cobrancas/${c.id}/pagar`,
-                                  { valor: c.devidoHoje!.total, meioDePagamento: f.get('meio') as Meio })}>
+                                  { valor: c.devidoHoje!.total, meioDePagamento: f.get('meio') as MeioDoBalcao })}>
                 <label>Forma de pagamento
                   <select name="meio" required defaultValue="" aria-label="Forma de pagamento">
                     <option value="" disabled>Escolha…</option>
-                    {Object.entries(NOME_DO_MEIO).map(([meio, nome]) => <option key={meio} value={meio}>{nome}</option>)}
+                    {Object.entries(NOME_DO_MEIO_DO_BALCAO).map(([meio, nome]) => <option key={meio} value={meio}>{nome}</option>)}
                   </select>
                 </label>
                 <p>Valor exato de hoje: <strong>{dinheiro(c.devidoHoje.total)}</strong></p>

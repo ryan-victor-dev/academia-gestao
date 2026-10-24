@@ -137,7 +137,7 @@ class CaixaController {
                          List<FechamentoResponse> fechamentos, List<ReaberturaResponse> reaberturas) {
 
         static CaixaResponse completo(Consulta consulta) {
-            return de(consulta, false, consulta.movimento().porForma(), consulta.fechamentos());
+            return de(consulta, false, consulta.movimento().doBalcao(), consulta.fechamentos());
         }
 
         static CaixaResponse asCegas(Consulta consulta) {

@@ -19,6 +19,7 @@ class CobrancaTest {
     private static final LocalDate VENCIMENTO = LocalDate.of(2026, 11, 10);
     private static final Instant AGORA = Instant.parse("2026-11-12T15:00:00.123456789Z");
     private static final UUID RECEPCAO = UUID.randomUUID();
+    private static final UUID ALUNO = UUID.randomUUID();
 
     private static Cobranca cobranca() {
         return RegrasDeAtrasoTest.cobranca("100");
@@ -127,6 +128,82 @@ class CobrancaTest {
         assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, BigDecimal.valueOf(100),
                 MeioDePagamento.PIX, null, AGORA)).isInstanceOf(NullPointerException.class);
         assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
+    }
+
+    /** Pix online e boleto só chegam pela empresa de pagamentos (ADR 0034), nunca pelo balcão. */
+    @ParameterizedTest
+    @EnumSource(value = MeioDePagamento.class, names = {"PIX_ONLINE", "BOLETO"})
+    void balcaoNaoRegistraMeioOnline(MeioDePagamento meio) {
+        Cobranca cobranca = cobranca();
+        assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), meio,
+                RECEPCAO, AGORA)).isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("pelo app");
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
+    }
+
+    /**
+     * O online paga com o valor combinado no dia em que foi gerado, mesmo que hoje o devido
+     * seja outro (o boleto tem valor fixo).
+     */
+    @Test
+    void onlinePagaComOValorCombinado() {
+        Cobranca cobranca = cobranca();
+        ValorDevido combinado = new ValorDevido(new BigDecimal("100"), new BigDecimal("2.00"), new BigDecimal("0.50"), 15);
+
+        cobranca.pagarOnline(combinado, new BigDecimal("102.50"), MeioDePagamento.PIX_ONLINE, ALUNO, AGORA);
+
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PAGA);
+        Pagamento pagamento = cobranca.getPagamento();
+        assertThat(pagamento.acrescimo()).isEqualByComparingTo("2.00");
+        assertThat(pagamento.juros()).isEqualByComparingTo("0.50");
+        assertThat(pagamento.total()).isEqualByComparingTo("102.50");
+        assertThat(pagamento.meio()).isEqualTo(MeioDePagamento.PIX_ONLINE);
+        assertThat(pagamento.por()).isEqualTo(ALUNO);
+        assertThat(pagamento.em()).isEqualTo(Instant.parse("2026-11-12T15:00:00.123456Z"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"102.49", "102.51", "100"})
+    void onlineComOutroValorEhRecusado(String recebido) {
+        Cobranca cobranca = cobranca();
+        ValorDevido combinado = new ValorDevido(new BigDecimal("100"), new BigDecimal("2.00"), new BigDecimal("0.50"), 15);
+
+        assertThatThrownBy(() -> cobranca.pagarOnline(combinado, new BigDecimal(recebido), MeioDePagamento.BOLETO,
+                ALUNO, AGORA)).isInstanceOf(PagamentoRecusadoException.class);
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
+    }
+
+    /** O combinado precisa ser desta cobrança: o valor dela não muda. */
+    @Test
+    void onlineCombinadoDeOutroValorEhRecusado() {
+        Cobranca cobranca = cobranca();
+        ValorDevido deOutra = new ValorDevido(new BigDecimal("90"), BigDecimal.ZERO, BigDecimal.ZERO, 0);
+
+        assertThatThrownBy(() -> cobranca.pagarOnline(deOutra, new BigDecimal("90"), MeioDePagamento.BOLETO, ALUNO,
+                AGORA)).isInstanceOf(PagamentoRecusadoException.class);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MeioDePagamento.class, names = {"DINHEIRO", "PIX", "CARTAO_DEBITO", "CARTAO_CREDITO"})
+    void onlineSoComMeioOnline(MeioDePagamento meio) {
+        Cobranca cobranca = cobranca();
+        ValorDevido combinado = new ValorDevido(new BigDecimal("100"), BigDecimal.ZERO, BigDecimal.ZERO, 0);
+        assertThatThrownBy(() -> cobranca.pagarOnline(combinado, new BigDecimal("100"), meio, ALUNO, AGORA))
+                .isInstanceOf(CobrancaInvalidaException.class);
+        assertThatThrownBy(() -> cobranca.pagarOnline(combinado, new BigDecimal("100"), null, ALUNO, AGORA))
+                .isInstanceOf(CobrancaInvalidaException.class);
+        assertThatThrownBy(() -> cobranca.pagarOnline(combinado, new BigDecimal("100"), MeioDePagamento.BOLETO, null,
+                AGORA)).isInstanceOf(NullPointerException.class);
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
+    }
+
+    @Test
+    void onlineNaoPagaOQueJaFoiPago() {
+        Cobranca cobranca = cobranca();
+        pagarEmDia(cobranca);
+        ValorDevido combinado = new ValorDevido(new BigDecimal("100"), BigDecimal.ZERO, BigDecimal.ZERO, 0);
+        assertThatThrownBy(() -> cobranca.pagarOnline(combinado, new BigDecimal("100"), MeioDePagamento.BOLETO, ALUNO,
+                AGORA)).isInstanceOf(TransicaoInvalidaException.class);
+        assertThat(cobranca.getPagamento().meio()).isEqualTo(MeioDePagamento.DINHEIRO);
     }
 
     @Test

@@ -105,24 +105,57 @@ class CobrancaService {
         return paga;
     }
 
+    /** O que aconteceu com um pagamento online que chegou (ADR 0034). */
+    enum ResultadoOnline { RECEBIDO, NAO_ESTA_EM_ABERTO, VALOR_DIFERENTE }
+
+    /**
+     * Um pagamento online confirmado pela empresa: paga com o valor combinado no dia em que foi
+     * gerado, sem caixa (ADR 0034). Cobrança que já não está em aberto, ou valor diferente do
+     * combinado, não paga nada: quem chama marca o dinheiro como a devolver.
+     */
+    @Transactional
+    ResultadoOnline receberOnline(UUID id, ValorDevido combinado, BigDecimal recebido, MeioDePagamento meio,
+                                  UUID por) {
+        Cobranca cobranca = travar(id);
+        if (cobranca.getStatus() != StatusCobranca.PENDENTE) {
+            return ResultadoOnline.NAO_ESTA_EM_ABERTO;
+        }
+        if (combinado.valor().compareTo(cobranca.getValor()) != 0 || recebido.compareTo(combinado.total()) != 0) {
+            return ResultadoOnline.VALOR_DIFERENTE;
+        }
+        Instant agora = relogio.instant();
+        Map<String, Object> antes = retrato(cobranca);
+        cobranca.pagarOnline(combinado, recebido, meio, por, agora);
+        gravar(cobranca, "PAGA", antes, null, configuracao.ler().regras(), Calendario.hoje(agora));
+        lancamentos.inserir(Lancamento.doPagamento(cobranca, null));
+        return ResultadoOnline.RECEBIDO;
+    }
+
     /**
      * Só o ADMIN: a cobrança volta a ficar em aberto (ou cancelada, se já saiu do cronograma,
      * ADR 0026), e o pagamento continua no registro, com um lançamento de estorno ao lado (ADR 0025).
-     * O dinheiro sai do caixa de hoje, que precisa estar aberto (ADR 0031).
+     * O dinheiro sai do caixa de hoje, que precisa estar aberto (ADR 0031); o de um pagamento
+     * online volta pela empresa, sem caixa (ADR 0034).
      */
     @Transactional
     Consulta estornar(UUID id, String motivo, UUID usuarioId) {
         String motivoLimpo = Cobranca.motivoValido(motivo);
-        existe(id);
+        Cobranca lida = repository.buscar(id).orElseThrow(() -> new CobrancaNaoEncontradaException(id));
+        boolean online = lida.getPagamento() != null && lida.getPagamento().meio().online();
         Instant agora = relogio.instant();
         LocalDate hoje = Calendario.hoje(agora);
-        Caixa caixa = caixaQueRecebe(hoje);
+        Caixa caixa = online ? null : caixaQueRecebe(hoje);
         Cobranca cobranca = travar(id);
+        // Entre a leitura e a trava, outro estorno e um pagamento no outro canal: o caixa
+        // decidido acima não serve mais.
+        if (cobranca.getPagamento() != null && cobranca.getPagamento().meio().online() != online) {
+            throw new OperacaoDeCaixaRecusadaException("A cobrança mudou enquanto era estornada: tente de novo");
+        }
         Map<String, Object> antes = retrato(cobranca);
         cobranca.estornar(hoje, usuarioId, agora);
         Lancamento estorno = lancamentos.pagamentoEmVigor(id)
                 .orElseThrow(() -> new IllegalStateException("cobrança paga sem o lançamento do pagamento: " + id))
-                .estornar(motivoLimpo, usuarioId, agora, caixa.getId());
+                .estornar(motivoLimpo, usuarioId, agora, online ? null : caixa.getId());
         Consulta estornada = gravar(cobranca, "ESTORNADA", antes, motivoLimpo, configuracao.ler().regras(), hoje);
         lancamentos.inserir(estorno);
         return estornada;

@@ -41,9 +41,16 @@ public record MovimentoDoDia(Map<MeioDePagamento, Movimento> porForma) {
         return new MovimentoDoDia(soma);
     }
 
-    /** As formas que não passam pela gaveta: PIX e cartões. */
+    /** As formas do balcão: o online (ADR 0034) não passa pelo caixa. */
+    public Map<MeioDePagamento, Movimento> doBalcao() {
+        Map<MeioDePagamento, Movimento> balcao = new EnumMap<>(porForma);
+        balcao.keySet().removeIf(MeioDePagamento::online);
+        return Collections.unmodifiableMap(balcao);
+    }
+
+    /** As formas do balcão que não passam pela gaveta: PIX e cartões. */
     public Map<MeioDePagamento, Movimento> semDinheiro() {
-        Map<MeioDePagamento, Movimento> semDinheiro = new EnumMap<>(porForma);
+        Map<MeioDePagamento, Movimento> semDinheiro = new EnumMap<>(doBalcao());
         semDinheiro.remove(MeioDePagamento.DINHEIRO);
         return Collections.unmodifiableMap(semDinheiro);
     }

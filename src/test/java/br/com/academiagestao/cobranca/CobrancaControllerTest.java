@@ -37,7 +37,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -65,6 +67,9 @@ class CobrancaControllerTest {
 
     @Autowired
     CobrancasDasMatriculas cobrancas;
+
+    @Autowired
+    CobrancasParaPagamentoOnline online;
 
     private final UUID aluno = UUID.randomUUID();
     private final UUID plano = UUID.randomUUID();
@@ -622,5 +627,126 @@ class CobrancaControllerTest {
         }
         largada.countDown();
         return lados.stream().map(CompletableFuture::join).sorted().toList();
+    }
+
+    // Pagamento online (ADR 0034), pela porta pública do módulo de pagamentos.
+
+    private static CobrancasParaPagamentoOnline.ValorCombinado combinado(String valor, String acrescimo, String juros) {
+        return new CobrancasParaPagamentoOnline.ValorCombinado(new BigDecimal(valor), new BigDecimal(acrescimo),
+                new BigDecimal(juros));
+    }
+
+    private void fecharOCaixa() {
+        jdbc.update("UPDATE caixas SET situacao = 'FECHADO' WHERE id = ?", caixa);
+    }
+
+    @Test
+    void emAbertoTrazAsPendentesComODevidoDeHoje() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        UUID aVencer = cobranca(2, -5);
+        UUID paga = cobranca(3, -35);
+        pagar(paga, "100", recepcao()).andExpect(status().isOk());
+
+        List<CobrancasParaPagamentoOnline.CobrancaEmAberto> emAberto = online.emAberto(aluno);
+
+        assertThat(emAberto).extracting(CobrancasParaPagamentoOnline.CobrancaEmAberto::id).containsExactly(atrasada, aVencer);
+        assertThat(emAberto.get(0).devido().total()).isEqualByComparingTo("103.00");
+        assertThat(emAberto.get(0).diasDeAtraso()).isEqualTo(30);
+        assertThat(emAberto.get(0).vencimento()).isEqualTo(hoje.minusDays(30));
+        assertThat(emAberto.get(0).tipo()).isEqualTo("MENSALIDADE");
+        assertThat(emAberto.get(1).devido().total()).isEqualByComparingTo("100.00");
+        assertThat(emAberto.get(1).parcela()).isEqualTo(2);
+    }
+
+    /**
+     * Pago online com o valor combinado, mesmo com o caixa fechado: sem caixa, com a forma
+     * online, por quem gerou, e na trilha.
+     */
+    @Test
+    void recebidoOnlineSemCaixa() throws Exception {
+        UUID id = cobranca(1, 30);
+        fecharOCaixa();
+
+        assertThat(online.receber(id, combinado("100", "2.00", "0.50"), new BigDecimal("102.50"),
+                CobrancasParaPagamentoOnline.FormaOnline.BOLETO, recepcao))
+                .isEqualTo(CobrancasParaPagamentoOnline.ResultadoDoRecebimento.RECEBIDO);
+
+        mvc.perform(get("/api/cobrancas/" + id).with(admin()))
+                .andExpect(jsonPath("$.situacao").value("PAGA"))
+                .andExpect(jsonPath("$.pagamento.total").value(102.50))
+                .andExpect(jsonPath("$.pagamento.juros").value(0.50))
+                .andExpect(jsonPath("$.pagamento.meio").value("BOLETO"));
+        Map<String, Object> lancamento = jdbc.queryForMap("SELECT * FROM lancamentos WHERE cobranca_id = ?", id);
+        assertThat(lancamento.get("caixa_id")).isNull();
+        assertThat(lancamento.get("meio_de_pagamento")).isEqualTo("BOLETO");
+        assertThat(lancamento.get("registrado_por")).isEqualTo(recepcao);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM auditoria WHERE entidade_id = ? AND acao = 'PAGA'",
+                Integer.class, id)).isEqualTo(1);
+
+        // Fora da visão do caixa (reaberto só no banco: fechado, a consulta pede o fechamento);
+        // no relatório do ADMIN, à parte.
+        jdbc.update("UPDATE caixas SET situacao = 'ABERTO' WHERE id = ?", caixa);
+        mvc.perform(get("/api/caixas/" + hoje).with(admin()))
+                .andExpect(jsonPath("$.movimento.formas[?(@.forma == 'BOLETO')]", empty()))
+                .andExpect(jsonPath("$.movimento.total.recebido").value(0.0));
+        mvc.perform(get("/api/caixas/relatorio").param("de", hoje.toString()).param("ate", hoje.toString())
+                        .with(admin()))
+                .andExpect(jsonPath("$.dias[0].movimento.formas[?(@.forma == 'BOLETO')].recebido", contains(102.50)));
+    }
+
+    @Test
+    void pagaNoBalcaoNaoRecebeDeNovoOnline() throws Exception {
+        UUID id = cobranca(1, 0);
+        pagar(id, "100", recepcao()).andExpect(status().isOk());
+
+        assertThat(online.receber(id, combinado("100", "0", "0"), new BigDecimal("100"),
+                CobrancasParaPagamentoOnline.FormaOnline.PIX, recepcao))
+                .isEqualTo(CobrancasParaPagamentoOnline.ResultadoDoRecebimento.NAO_ESTA_EM_ABERTO);
+        assertThat(jdbc.queryForList("SELECT meio_de_pagamento FROM lancamentos WHERE cobranca_id = ?", String.class, id))
+                .containsExactly("PIX");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"99.99", "100.01"})
+    void valorDiferenteDoCombinadoNaoPaga(String recebido) {
+        UUID id = cobranca(1, 0);
+
+        assertThat(online.receber(id, combinado("100", "0", "0"), new BigDecimal(recebido),
+                CobrancasParaPagamentoOnline.FormaOnline.PIX, recepcao))
+                .isEqualTo(CobrancasParaPagamentoOnline.ResultadoDoRecebimento.VALOR_DIFERENTE);
+        assertThat(online.receber(id, combinado("90", "10", "0"), new BigDecimal("100"),
+                CobrancasParaPagamentoOnline.FormaOnline.PIX, recepcao))
+                .isEqualTo(CobrancasParaPagamentoOnline.ResultadoDoRecebimento.VALOR_DIFERENTE);
+        assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, id)).isEqualTo("PENDENTE");
+    }
+
+    /** O estorno do online volta pela empresa: sem caixa, mesmo fechado. O do balcão ainda precisa dele. */
+    @Test
+    void estornoDoOnlineSemCaixa() throws Exception {
+        UUID id = cobranca(1, 0);
+        UUID noBalcao = cobranca(2, 0);
+        pagar(noBalcao, "100", recepcao()).andExpect(status().isOk());
+        online.receber(id, combinado("100", "0", "0"), new BigDecimal("100"),
+                CobrancasParaPagamentoOnline.FormaOnline.PIX, recepcao);
+        fecharOCaixa();
+
+        acao(id, "estornar", "Pagou em dobro", admin()).andExpect(status().isOk())
+                .andExpect(jsonPath("$.situacao").value("PENDENTE"));
+        acao(noBalcao, "estornar", "Engano", admin()).andExpect(status().isConflict());
+
+        Map<String, Object> estorno = jdbc.queryForMap(
+                "SELECT * FROM lancamentos WHERE cobranca_id = ? AND tipo = 'ESTORNO'", id);
+        assertThat(estorno.get("caixa_id")).isNull();
+        assertThat(estorno.get("meio_de_pagamento")).isEqualTo("PIX_ONLINE");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PIX_ONLINE", "BOLETO"})
+    void balcaoNaoRegistraMeioOnline(String meio) throws Exception {
+        UUID id = cobranca(1, 0);
+        mvc.perform(post("/api/cobrancas/" + id + "/pagar").with(recepcao()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"valor\": 100, \"meioDePagamento\": \"" + meio + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail", containsString("pelo app")));
     }
 }

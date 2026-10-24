@@ -53,11 +53,30 @@ class LancamentoTest {
     }
 
     @Test
-    void lancamentoSemCaixaNaoExiste() {
-        assertThatThrownBy(() -> Lancamento.doPagamento(paga(), null)).isInstanceOf(NullPointerException.class);
+    void lancamentoDoBalcaoSemCaixaNaoExiste() {
+        assertThatThrownBy(() -> Lancamento.doPagamento(paga(), null)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("caixa do dia");
         Lancamento pagamento = Lancamento.doPagamento(paga(), CAIXA);
         assertThatThrownBy(() -> pagamento.estornar("Engano", ADMIN, Instant.now(), null))
-                .isInstanceOf(NullPointerException.class);
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("caixa do dia");
+    }
+
+    /** O online (ADR 0034) é o contrário: o dinheiro entra e sai pela conta, nunca pelo caixa. */
+    @Test
+    void lancamentoOnlineNuncaTemCaixa() {
+        Cobranca cobranca = emAberto();
+        cobranca.pagarOnline(new ValorDevido(new BigDecimal("100"), new BigDecimal("2.00"), new BigDecimal("0.50"), 15),
+                new BigDecimal("102.50"), MeioDePagamento.BOLETO, RECEPCAO, Instant.parse("2026-10-25T13:00:00Z"));
+
+        assertThatThrownBy(() -> Lancamento.doPagamento(cobranca, CAIXA)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("não entra no caixa");
+        Lancamento pagamento = Lancamento.doPagamento(cobranca, null);
+        assertThat(pagamento.caixaId()).isNull();
+        assertThat(pagamento.meio()).isEqualTo(MeioDePagamento.BOLETO);
+        assertThat(pagamento.total()).isEqualByComparingTo("102.50");
+        assertThatThrownBy(() -> pagamento.estornar("Engano", ADMIN, Instant.now(), CAIXA))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("não entra no caixa");
+        assertThat(pagamento.estornar("Engano", ADMIN, Instant.now(), null).caixaId()).isNull();
     }
 
     @Test

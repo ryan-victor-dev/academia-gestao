@@ -640,7 +640,7 @@ class CaixaControllerTest {
                     VALUES (?, ?, 'PAGAMENTO', 100, 0, 0, 100, 'PIX', ?, ?)""", UUID.randomUUID(), cobranca,
                     java.sql.Timestamp.from(registradoEm), recepcao);
             jdbc.execute("ALTER TABLE lancamentos ADD CONSTRAINT ck_lancamentos_no_caixa "
-                    + "CHECK (caixa_id IS NOT NULL) NOT VALID");
+                    + "CHECK ((caixa_id IS NOT NULL) = (meio_de_pagamento NOT IN ('PIX_ONLINE', 'BOLETO'))) NOT VALID");
         });
     }
 
@@ -658,6 +658,9 @@ class CaixaControllerTest {
 
         assertThatThrownBy(() -> jdbc.update(insere, UUID.randomUUID(), id, meioDia, recepcao, null))
                 .isInstanceOf(DataAccessException.class).hasMessageContaining("ck_lancamentos_no_caixa");
+        // O online (ADR 0034) é o contrário: nunca entra no caixa.
+        assertThatThrownBy(() -> jdbc.update(insere.replace("'PIX'", "'PIX_ONLINE'"), UUID.randomUUID(), id, meioDia,
+                recepcao, caixa)).isInstanceOf(DataAccessException.class).hasMessageContaining("ck_lancamentos_no_caixa");
         assertThatThrownBy(() -> jdbc.update(insere, UUID.randomUUID(), id, dia.plusDays(1) + "T12:00:00-03:00",
                 recepcao, caixa)).isInstanceOf(DataAccessException.class).hasMessageContaining("caixa do dia");
         // 00:30 em São Paulo é 03:30 UTC: o dia é o da academia, não o do servidor.

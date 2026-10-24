@@ -10,7 +10,9 @@ import static br.com.academiagestao.cobranca.dominio.Lancamento.Tipo.PAGAMENTO;
 import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.CARTAO_CREDITO;
 import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.CARTAO_DEBITO;
 import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.DINHEIRO;
+import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.BOLETO;
 import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.PIX;
+import static br.com.academiagestao.cobranca.dominio.MeioDePagamento.PIX_ONLINE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** O movimento do dia por forma (ADR 0031): pagamentos menos estornos. */
@@ -22,9 +24,8 @@ class MovimentoDoDiaTest {
 
     @Test
     void todaFormaApareceNaOrdemComZero() {
-        assertThat(MovimentoDoDia.VAZIO.porForma()).containsOnlyKeys(DINHEIRO, PIX, CARTAO_DEBITO, CARTAO_CREDITO);
         assertThat(MovimentoDoDia.VAZIO.porForma().keySet()).containsExactly(DINHEIRO, PIX, CARTAO_DEBITO,
-                CARTAO_CREDITO);
+                CARTAO_CREDITO, PIX_ONLINE, BOLETO);
         assertThat(MovimentoDoDia.VAZIO.porForma().values()).containsOnly(Movimento.ZERO);
         assertThat(Movimento.ZERO.liquido()).isEqualByComparingTo("0");
     }
@@ -72,5 +73,17 @@ class MovimentoDoDiaTest {
         assertThat(dia.semDinheiro().keySet()).containsExactly(PIX, CARTAO_DEBITO, CARTAO_CREDITO);
         assertThat(dia.semDinheiro().get(PIX).recebido()).isEqualByComparingTo("40");
         assertThat(dia.porForma()).containsKey(DINHEIRO);
+    }
+
+    /** O online (ADR 0034) não passa pelo caixa: some da visão do caixa, mas fica no total do dia. */
+    @Test
+    void doBalcaoTiraOOnline() {
+        MovimentoDoDia dia = MovimentoDoDia.VAZIO.com(PIX, PAGAMENTO, reais("40"), 1)
+                .com(PIX_ONLINE, PAGAMENTO, reais("90"), 1).com(BOLETO, PAGAMENTO, reais("80"), 1);
+
+        assertThat(dia.doBalcao().keySet()).containsExactly(DINHEIRO, PIX, CARTAO_DEBITO, CARTAO_CREDITO);
+        assertThat(dia.semDinheiro().keySet()).containsExactly(PIX, CARTAO_DEBITO, CARTAO_CREDITO);
+        assertThat(dia.porForma().get(PIX_ONLINE).recebido()).isEqualByComparingTo("90");
+        assertThat(dia.porForma().get(BOLETO).recebido()).isEqualByComparingTo("80");
     }
 }

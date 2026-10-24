@@ -1,4 +1,6 @@
-export type Meio = 'DINHEIRO' | 'PIX' | 'CARTAO_DEBITO' | 'CARTAO_CREDITO';
+export type MeioDoBalcao = 'DINHEIRO' | 'PIX' | 'CARTAO_DEBITO' | 'CARTAO_CREDITO';
+// O online (Pix online e boleto) chega pela empresa de pagamentos, nunca pelo balcão (ADR 0034).
+export type Meio = MeioDoBalcao | 'PIX_ONLINE' | 'BOLETO';
 export type SituacaoDaCobranca = 'PENDENTE' | 'ATRASADA' | 'PAGA' | 'CANCELADA';
 
 export interface Devido { valor: number; acrescimo: number; juros: number; total: number }
@@ -31,8 +33,12 @@ export interface Lancamento {
   motivo: string | null;
 }
 
-export const NOME_DO_MEIO: Record<Meio, string> = {
+export const NOME_DO_MEIO_DO_BALCAO: Record<MeioDoBalcao, string> = {
   DINHEIRO: 'Dinheiro', PIX: 'Pix', CARTAO_DEBITO: 'Cartão de débito', CARTAO_CREDITO: 'Cartão de crédito',
+};
+
+export const NOME_DO_MEIO: Record<Meio, string> = {
+  ...NOME_DO_MEIO_DO_BALCAO, PIX_ONLINE: 'Pix pelo app', BOLETO: 'Boleto pelo app',
 };
 
 export const NOME_DA_SITUACAO: Record<SituacaoDaCobranca, string> = {
