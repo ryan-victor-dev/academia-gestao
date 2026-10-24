@@ -225,6 +225,7 @@ label.marcar { display: flex; align-items: center; gap: 8px; font-weight: 400; }
 
 .credenciais { padding: 16px; border: 2px solid var(--aviso); border-radius: 12px; background: var(--superficie); }
 .credenciais p { margin: 0 0 8px; }
+.qr-code { display: block; width: 100%; max-width: 220px; margin: 0 0 12px; border-radius: 4px; }
 code { font-family: ui-monospace, 'Cascadia Mono', Menlo, monospace; font-size: 1.05em; overflow-wrap: anywhere; }
 
 .cartoes { list-style: none; padding: 0; display: grid; gap: 12px; }

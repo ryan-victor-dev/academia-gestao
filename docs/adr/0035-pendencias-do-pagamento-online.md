@@ -11,6 +11,8 @@ resolvê-las, menos a ligação com uma empresa de verdade, que fica para depois
 1. **Dois pedidos ao mesmo tempo geravam dois Pix.** Duas abas, ou dois toques no botão: os dois
    pedidos viam que não havia Pix valendo e geravam um cada. Os dois podiam ser pagos, e o
    segundo ficava a devolver.
+2. **O Pix não tinha QR code**, só o copia e cola. Quem abre o app no computador (ou no celular
+   de outra pessoa) precisa de um QR para ler com o app do banco.
 
 ## Decisões
 
@@ -23,6 +25,13 @@ resolvê-las, menos a ligação com uma empresa de verdade, que fica para depois
   alguém pagar, o dinheiro paga a cobrança ou fica a devolver, como antes.
 - Alternativa descartada: travar a cobrança durante a chamada à empresa. Seguraria uma conexão do
   banco enquanto a rede responde, o que o ADR 0034 evita (ADR 0020: o pool esgota sob carga).
+
+### QR code desenhado na tela (decisão técnica)
+- O QR do Pix é o próprio copia e cola (o "BR Code" do Banco Central): a tela desenha o QR a
+  partir dele, e a empresa de pagamentos não precisa mandar imagem. Serve para qualquer empresa.
+- Biblioteca `qrcode-generator` (MIT, sem dependências), desenhada em SVG direto na página (sem
+  imagem nem script de fora, então a CSP não muda), com correção M e 4 módulos de margem; preto no branco
+  também no tema escuro, que é o que os leitores esperam. O boleto não tem QR.
 
 ## Consequências
 

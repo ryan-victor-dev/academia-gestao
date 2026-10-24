@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
+import { QrCode } from '../../componentes/QrCode';
 import { data, dataHora, dinheiro } from '../../formato';
 import { chamar } from '../../sessao/api';
 import { descricao, NOME_DA_SITUACAO, NOME_DO_MEIO, type Devido, type Meio, type SituacaoDaCobranca } from '../cobrancas/tipos';
@@ -147,8 +148,8 @@ function PagarPeloApp({ pagavel, opcoes, aoMudar }: { pagavel: Pagavel; opcoes: 
         {opcoes.boleto && !gerados.BOLETO && <button type="button" className="secundario" disabled={ocupado} onClick={() => gerar('BOLETO')}>Gerar boleto</button>}
       </div>
       {gerados.PIX && (
-        <Gerado titulo="Pix copia e cola" codigo={gerados.PIX.pixCopiaECola ?? ''} pagamento={gerados.PIX}
-                aviso={`Vale até ${ultimoMinuto(gerados.PIX.validoAte)}. No app do banco, escolha Pix copia e cola.`} />
+        <Gerado titulo="Pix copia e cola" codigo={gerados.PIX.pixCopiaECola ?? ''} pagamento={gerados.PIX} qr
+                aviso={`Vale até ${ultimoMinuto(gerados.PIX.validoAte)}. No app do banco, leia o QR code (de outro aparelho) ou escolha Pix copia e cola.`} />
       )}
       {gerados.BOLETO && (
         <Gerado titulo="Linha digitável do boleto" codigo={gerados.BOLETO.boletoLinhaDigitavel ?? ''} pagamento={gerados.BOLETO}
@@ -172,7 +173,7 @@ function PagarPeloApp({ pagavel, opcoes, aoMudar }: { pagavel: Pagavel; opcoes: 
 /** O prazo vem como o início do dia seguinte: mostra o último minuto do dia em que vale (23:59). */
 const ultimoMinuto = (validoAte: string) => dataHora(new Date(Date.parse(validoAte) - 60_000).toISOString());
 
-function Gerado({ titulo, codigo, pagamento, aviso }: { titulo: string; codigo: string; pagamento: PagamentoOnline; aviso: string }) {
+function Gerado({ titulo, codigo, pagamento, aviso, qr = false }: { titulo: string; codigo: string; pagamento: PagamentoOnline; aviso: string; qr?: boolean }) {
   const [copiado, setCopiado] = useState(false);
 
   async function copiar() {
@@ -187,6 +188,7 @@ function Gerado({ titulo, codigo, pagamento, aviso }: { titulo: string; codigo: 
   return (
     <div className="credenciais">
       <p><strong>{titulo}</strong> · {dinheiro(pagamento.total)}</p>
+      {qr && codigo && <QrCode texto={codigo} rotulo="QR code do Pix" />}
       <textarea readOnly aria-label={titulo} value={codigo} rows={3} onFocus={(e) => e.currentTarget.select()} />
       <div className="acoes">
         <button type="button" onClick={copiar}>Copiar</button>

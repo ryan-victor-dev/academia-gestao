@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
+import { desenhoDoQr } from '../../componentes/QrCode';
 import { apiFalsa, json, renderizar } from '../../testes/ajudantes';
 import { MeusPagamentos } from './MeusPagamentos';
 
@@ -65,6 +66,9 @@ describe('meus pagamentos', () => {
     expect(screen.queryByRole('button', { name: 'Pagar com Pix' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Gerar boleto' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Simular/ })).not.toBeInTheDocument();
+    // O QR code é o do copia e cola (ADR 0035).
+    expect(screen.getByRole('img', { name: 'QR code do Pix' }).querySelector('path')?.getAttribute('d'))
+      .toBe(desenhoDoQr('PIX-COPIA-E-COLA').caminho);
   });
 
   it('só a forma ligada aparece; o já gerado aparece sem pedir de novo', async () => {
@@ -113,6 +117,7 @@ describe('meus pagamentos', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Gerar boleto' }));
     expect(await screen.findByLabelText('Linha digitável do boleto')).toHaveValue('1'.repeat(47));
+    expect(screen.queryByRole('img', { name: /QR code/ })).not.toBeInTheDocument();
     expect(api.de('POST /api/pagamentos-online/me')[0].corpo).toEqual({ cobrancaId: 'c1', forma: 'BOLETO' });
   });
 
