@@ -10,6 +10,7 @@ import { CaixaDoDia } from './paginas/caixa/CaixaDoDia';
 import { CobrancasAtrasadas } from './paginas/cobrancas/CobrancasAtrasadas';
 import { Auditoria } from './paginas/admin/Auditoria';
 import { ConfiguracaoDaCobranca } from './paginas/admin/ConfiguracaoDaCobranca';
+import { PagamentosOnline } from './paginas/admin/PagamentosOnline';
 import { Equipe } from './paginas/admin/Equipe';
 import { InicioDoAluno } from './paginas/aluno/InicioDoAluno';
 import { MeusPagamentos } from './paginas/aluno/MeusPagamentos';
@@ -100,6 +101,7 @@ function AreaLogada({ aoSair, aoTrocarSenha }: { aoSair: () => void; aoTrocarSen
     '/planos': <ListaDePlanos />,
     '/equipe': <Equipe />,
     '/configuracao': <ConfiguracaoDaCobranca />,
+    '/pagamento-online': <PagamentosOnline />,
     '/auditoria': <Auditoria />,
     '/revisoes': <RevisoesVencidas />,
     '/senha': <TrocarSenha obrigatoria={false} aoTrocar={aoTrocarSenha} />,
