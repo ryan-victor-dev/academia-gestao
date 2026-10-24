@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -470,8 +471,9 @@ class PagamentoOnlineControllerTest {
      * Dois pedidos do mesmo Pix ao mesmo tempo (ADR 0035): os dois passam pela checagem e geram na
      * empresa; o índice único deixa um gravar, e o outro cancela o seu lá e devolve o que ficou.
      * A barreira segura os dois em {@code gerar} até ambos chegarem: sem ela, quase sempre um
-     * terminaria antes de o outro começar, e a corrida não seria testada. Várias rodadas, e cada
-     * lado precisa ganhar em parte delas.
+     * terminaria antes de o outro começar, e a corrida não seria testada. Depois dela, um lado
+     * espera um pouco antes de gravar, alternando a cada rodada: deixado ao acaso, o agendamento
+     * das threads às vezes dava as 10 rodadas ao mesmo lado.
      */
     @Test
     void doisPedidosAoMesmoTempoFicamComUmPix() throws Exception {
@@ -479,15 +481,19 @@ class PagamentoOnlineControllerTest {
         CyclicBarrier barreira = new CyclicBarrier(2);
         ThreadLocal<Integer> lado = new ThreadLocal<>();
         Map<Integer, String> geradoPorLado = new ConcurrentHashMap<>();
+        AtomicInteger atrasado = new AtomicInteger();
         doAnswer(chamada -> {
             barreira.await(10, TimeUnit.SECONDS);
             ProvedorDePagamento.Gerado gerado = (ProvedorDePagamento.Gerado) chamada.callRealMethod();
             geradoPorLado.put(lado.get(), gerado.idExterno());
+            if (lado.get() == atrasado.get()) {
+                Thread.sleep(100);
+            }
             return gerado;
         }).when(simulado).gerar(any());
-        Map<Integer, Integer> vitorias = new ConcurrentHashMap<>();
 
         for (int rodada = 0; rodada < 10; rodada++) {
+            atrasado.set(rodada % 2 == 0 ? 1 : 2);
             UUID id = cobranca(10 + rodada, 0);
             geradoPorLado.clear();
             List<CompletableFuture<PagamentoOnline>> pedidos = List.of(1, 2).stream()
@@ -503,17 +509,13 @@ class PagamentoOnlineControllerTest {
             String vencedor = devolvidos.get(0).getIdExterno();
             assertThat(geradoPorLado.values()).as("rodada %d: os dois geraram na empresa", rodada)
                     .hasSize(2).contains(vencedor);
-            int r = rodada;
-            geradoPorLado.forEach((i, externo) -> {
-                boolean ganhou = externo.equals(vencedor);
-                assertThat(simulado.consultar(externo).estado()).as("rodada %d, lado %d", r, i)
-                        .isEqualTo(ganhou ? ProvedorDePagamento.Estado.AGUARDANDO : ProvedorDePagamento.Estado.ENCERRADO);
-                if (ganhou) {
-                    vitorias.merge(i, 1, Integer::sum);
-                }
-            });
+            int ganhador = 3 - atrasado.get();
+            assertThat(vencedor).as("rodada %d: ganha quem não esperou", rodada).isEqualTo(geradoPorLado.get(ganhador));
+            assertThat(simulado.consultar(geradoPorLado.get(ganhador)).estado()).as("rodada %d", rodada)
+                    .isEqualTo(ProvedorDePagamento.Estado.AGUARDANDO);
+            assertThat(simulado.consultar(geradoPorLado.get(atrasado.get())).estado()).as("rodada %d", rodada)
+                    .isEqualTo(ProvedorDePagamento.Estado.ENCERRADO);
         }
-        assertThat(vitorias).as("cada lado ganha em parte das rodadas").containsOnlyKeys(1, 2);
     }
 
     @Test
