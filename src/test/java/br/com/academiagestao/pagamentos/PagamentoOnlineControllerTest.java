@@ -9,10 +9,13 @@ import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -37,9 +40,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.contains;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -126,7 +131,7 @@ class PagamentoOnlineControllerTest {
         limpeza.apagar("usuarios", usuarioDoAluno);
         limpeza.apagar("usuarios", admin);
         jdbc.update("UPDATE configuracao_pagamento_online SET pix_ligado = true, boleto_ligado = true, "
-                + "adiantar = 'PROXIMA', dias_do_boleto = 3");
+                + "credito_ligado = true, debito_ligado = true, adiantar = 'PROXIMA', dias_do_boleto = 3");
     }
 
     private void irPara(java.time.LocalDateTime quando) {
@@ -207,6 +212,8 @@ class PagamentoOnlineControllerTest {
                 .andExpect(jsonPath("$.simulado").value(true))
                 .andExpect(jsonPath("$.pix").value(true))
                 .andExpect(jsonPath("$.boleto").value(true))
+                .andExpect(jsonPath("$.credito").value(true))
+                .andExpect(jsonPath("$.debito").value(true))
                 .andExpect(jsonPath("$.pagaveis[*].cobrancaId", contains(atrasada.toString(), proxima.toString())))
                 .andExpect(jsonPath("$.pagaveis[0].total").value(103.00))
                 .andExpect(jsonPath("$.pagaveis[0].diasDeAtraso").value(30))
@@ -837,8 +844,12 @@ class PagamentoOnlineControllerTest {
                 .andExpect(jsonPath("$.simulado").value(true))
                 .andExpect(jsonPath("$.adiantar").value("PROXIMA"))
                 .andExpect(jsonPath("$.diasDoBoleto").value(3))
+                .andExpect(jsonPath("$.creditoLigado").value(true))
+                .andExpect(jsonPath("$.debitoLigado").value(true))
+                .andExpect(jsonPath("$.formasDaEmpresa", contains("PIX", "BOLETO", "CREDITO", "DEBITO")))
                 .andReturn().getResponse().getHeader("ETag");
-        String corpo = "{\"pixLigado\": true, \"boletoLigado\": false, \"adiantar\": \"TODAS\", \"diasDoBoleto\": 5}";
+        String corpo = "{\"pixLigado\": true, \"boletoLigado\": false, \"creditoLigado\": true, "
+                + "\"debitoLigado\": false, \"adiantar\": \"TODAS\", \"diasDoBoleto\": 5}";
 
         mvc.perform(put("/api/pagamentos-online/configuracao").with(doAdmin()).contentType(MediaType.APPLICATION_JSON)
                 .content(corpo)).andExpect(status().isPreconditionRequired());
@@ -850,6 +861,8 @@ class PagamentoOnlineControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(corpo))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.boletoLigado").value(false))
+                .andExpect(jsonPath("$.creditoLigado").value(true))
+                .andExpect(jsonPath("$.debitoLigado").value(false))
                 .andExpect(jsonPath("$.adiantar").value("TODAS"))
                 .andExpect(header().string("ETag", not(etag)));
         mvc.perform(put("/api/pagamentos-online/configuracao").with(doAdmin()).header("If-Match", etag)
@@ -858,11 +871,101 @@ class PagamentoOnlineControllerTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM auditoria WHERE entidade = 'CONFIGURACAO' "
                 + "AND entidade_id = ?", Integer.class, ConfiguracaoDoPagamentoOnlineController.ID_NA_TRILHA))
                 .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT alteracoes -> 'debitoLigado' ->> 'depois' FROM auditoria "
+                + "WHERE entidade = 'CONFIGURACAO' AND entidade_id = ?", String.class,
+                ConfiguracaoDoPagamentoOnlineController.ID_NA_TRILHA)).isEqualTo("false");
 
         // Com TODAS, a terceira (que vence daqui a 35 dias) também se paga.
         cobranca(1, -5);
         UUID depois = cobranca(2, -35);
         gerar(depois, "PIX").andExpect(status().isCreated());
         gerar(depois, "BOLETO").andExpect(status().isConflict());
+        gerar(depois, "CREDITO").andExpect(status().isCreated());
+        gerar(depois, "DEBITO").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("O cartão de débito não está disponível no app"));
+        mvc.perform(get("/api/pagamentos-online/me").with(doAluno()))
+                .andExpect(jsonPath("$.credito").value(true))
+                .andExpect(jsonPath("$.debito").value(false));
+    }
+
+    /**
+     * Cartão pelo app (ADR 0037): gera o link da página da empresa, que vale até o fim do dia
+     * (como o Pix); pedir de novo devolve o mesmo; pago, a cobrança fica paga como "crédito pelo
+     * app" ou "débito pelo app", sem caixa. Nenhum dado de cartão passa por aqui.
+     */
+    @ParameterizedTest
+    @CsvSource({"CREDITO, CREDITO_ONLINE", "DEBITO, DEBITO_ONLINE"})
+    void pagaComCartaoNaPaginaDaEmpresa(String forma, String meio) throws Exception {
+        UUID atrasada = cobranca(1, 30);
+
+        Map<String, Object> cartao = gerado(atrasada, forma);
+
+        assertThat((String) cartao.get("linkDePagamento")).startsWith("/cartao-simulado/" + cartao.get("id"));
+        assertThat(cartao.get("pixCopiaECola")).isNull();
+        assertThat(cartao.get("total")).isEqualTo(103.0);
+        assertThat(Instant.parse((String) cartao.get("validoAte"))).isEqualTo(inicioDo(hoje.plusDays(1)));
+        gerar(atrasada, forma).andExpect(jsonPath("$.id").value(cartao.get("id")));
+        mvc.perform(get("/api/pagamentos-online/me").with(doAluno()))
+                .andExpect(jsonPath("$.pagaveis[0]." + forma.toLowerCase() + ".id").value(cartao.get("id")));
+
+        simular(cartao.get("id")).andExpect(status().isNoContent());
+
+        assertThat(situacao(cartao.get("id"))).isEqualTo("PAGO");
+        Map<String, Object> lancamento = jdbc.queryForMap("SELECT * FROM lancamentos WHERE cobranca_id = ?", atrasada);
+        assertThat(lancamento.get("meio_de_pagamento")).isEqualTo(meio);
+        assertThat(lancamento.get("caixa_id")).isNull();
+    }
+
+    /** O banco também exige o link do cartão (V48): quem grava sem passar pelo Java não salva um cartão sem página. */
+    @Test
+    void bancoExigeOLinkDoCartao() throws Exception {
+        Map<String, Object> cartao = gerado(cobranca(1, 30), "CREDITO");
+
+        assertThatThrownBy(() -> jdbc.update("UPDATE pagamentos_online SET link_de_pagamento = NULL WHERE id = ?::uuid",
+                cartao.get("id").toString())).isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("ck_pagamentos_online_dados");
+    }
+
+    /** O cartão segue a tolerância do Pix (1 h depois do fim do dia), e não a do boleto. */
+    @Test
+    void cartaoExpiraComoOPix() throws Exception {
+        Map<String, Object> cartao = gerado(cobranca(1, 30), "CREDITO");
+
+        irPara(hoje.plusDays(1).atTime(1, 1));
+        service.consultarAguardando();
+
+        assertThat(situacao(cartao.get("id"))).isEqualTo("EXPIRADO");
+    }
+
+    /** O cartão pago a mais, ou sem ter o que pagar, se devolve pela empresa (estorno na fatura). */
+    @Test
+    void cartaoSeDevolvePelaEmpresa() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        Map<String, Object> pix = gerado(atrasada, "PIX");
+        Map<String, Object> cartao = gerado(atrasada, "CREDITO");
+        simular(pix.get("id")).andExpect(status().isNoContent());
+        simular(cartao.get("id")).andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/pagamentos-online/a-devolver").with(doAdmin()))
+                .andExpect(jsonPath("$[?(@.id == '" + cartao.get("id") + "')].devolvePeloSistema", contains(true)));
+        mvc.perform(post("/api/pagamentos-online/" + cartao.get("id") + "/devolver").with(doAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.situacao").value("DEVOLVIDO"));
+        assertThat(simulado.devolvido(idExterno(cartao.get("id")))).isEqualByComparingTo("103.00");
+    }
+
+    /** A empresa que não oferece uma forma: ligada pelo ADMIN, mesmo assim não aparece nem se gera. */
+    @Test
+    void formaQueAEmpresaNaoOfereceNaoAparece() throws Exception {
+        UUID atrasada = cobranca(1, 30);
+        doReturn(false).when(simulado).oferece(ProvedorDePagamento.Forma.DEBITO);
+
+        mvc.perform(get("/api/pagamentos-online/me").with(doAluno()))
+                .andExpect(jsonPath("$.credito").value(true))
+                .andExpect(jsonPath("$.debito").value(false));
+        gerar(atrasada, "DEBITO").andExpect(status().isConflict());
+        mvc.perform(get("/api/pagamentos-online/configuracao").with(doAdmin()))
+                .andExpect(jsonPath("$.debitoLigado").value(true))
+                .andExpect(jsonPath("$.formasDaEmpresa", contains("PIX", "BOLETO", "CREDITO")));
     }
 }

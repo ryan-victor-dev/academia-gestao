@@ -131,14 +131,15 @@ class PagamentoOnlineController {
 
     record PagamentoOnlineResponse(UUID id, UUID cobrancaId, UUID alunoId, Forma forma, BigDecimal valor,
                                    BigDecimal acrescimo, BigDecimal juros, BigDecimal total, String pixCopiaECola,
-                                   String boletoLinhaDigitavel, String boletoUrl, Instant validoAte,
-                                   Instant geradoEm, PagamentoOnline.Situacao situacao, BigDecimal recebido,
+                                   String boletoLinhaDigitavel, String boletoUrl, String linkDePagamento,
+                                   Instant validoAte, Instant geradoEm, PagamentoOnline.Situacao situacao, BigDecimal recebido,
                                    Instant recebidoEm, String motivoDaDevolucao, BigDecimal valorADevolver,
                                    boolean pagouACobranca, Instant devolvidoEm, UUID devolvidoPor) {
         static PagamentoOnlineResponse de(PagamentoOnline p) {
             return new PagamentoOnlineResponse(p.getId(), p.getCobrancaId(), p.getAlunoId(), p.getForma(),
                     p.getValor(), p.getAcrescimo(), p.getJuros(), p.total(), p.getPixCopiaECola(),
-                    p.getBoletoLinhaDigitavel(), p.getBoletoUrl(), p.getValidoAte(), p.getGeradoEm(),
+                    p.getBoletoLinhaDigitavel(), p.getBoletoUrl(), p.getLinkDePagamento(), p.getValidoAte(),
+                    p.getGeradoEm(),
                     p.getSituacao(), p.getRecebido(), p.getRecebidoEm(), p.getMotivoDaDevolucao(),
                     p.getValorADevolver(), p.pagouACobranca(), p.getDevolvidoEm(), p.getDevolvidoPor());
         }
@@ -150,12 +151,13 @@ class PagamentoOnlineController {
 
     record PagavelResponse(UUID cobrancaId, String tipo, int parcela, LocalDate vencimento, BigDecimal valor,
                            BigDecimal acrescimo, BigDecimal juros, BigDecimal total, long diasDeAtraso,
-                           PagamentoOnlineResponse pix, PagamentoOnlineResponse boleto) {
+                           PagamentoOnlineResponse pix, PagamentoOnlineResponse boleto,
+                           PagamentoOnlineResponse credito, PagamentoOnlineResponse debito) {
         static PagavelResponse de(PagamentoOnlineService.Pagavel p) {
             CobrancaEmAberto c = p.cobranca();
             return new PagavelResponse(c.id(), c.tipo(), c.parcela(), c.vencimento(), c.devido().valor(),
                     c.devido().acrescimo(), c.devido().juros(), c.devido().total(), c.diasDeAtraso(),
-                    resposta(p.pix()), resposta(p.boleto()));
+                    resposta(p.pix()), resposta(p.boleto()), resposta(p.credito()), resposta(p.debito()));
         }
 
         private static PagamentoOnlineResponse resposta(Optional<PagamentoOnline> p) {
@@ -163,10 +165,10 @@ class PagamentoOnlineController {
         }
     }
 
-    record OpcoesResponse(boolean ligado, boolean simulado, boolean pix, boolean boleto,
-                          List<PagavelResponse> pagaveis) {
+    record OpcoesResponse(boolean ligado, boolean simulado, boolean pix, boolean boleto, boolean credito,
+                          boolean debito, List<PagavelResponse> pagaveis) {
         static OpcoesResponse de(Opcoes o) {
-            return new OpcoesResponse(o.ligado(), o.simulado(), o.pix(), o.boleto(),
+            return new OpcoesResponse(o.ligado(), o.simulado(), o.pix(), o.boleto(), o.credito(), o.debito(),
                     o.pagaveis().stream().map(PagavelResponse::de).toList());
         }
     }

@@ -8,11 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * O que o ADMIN decide do pagamento online (V42, ADR 0034): quais formas o app oferece, até
- * onde o aluno adianta e quantos dias vale o boleto de uma cobrança vencida.
+ * O que o ADMIN decide do pagamento online (V42, ADRs 0034 e 0037): quais formas o app oferece,
+ * até onde o aluno adianta e quantos dias vale o boleto de uma cobrança vencida.
  */
-record ConfiguracaoDoPagamentoOnline(boolean pixLigado, boolean boletoLigado, Adiantar adiantar, int diasDoBoleto,
-                                     long versao) {
+record ConfiguracaoDoPagamentoOnline(boolean pixLigado, boolean boletoLigado, boolean creditoLigado,
+                                     boolean debitoLigado, Adiantar adiantar, int diasDoBoleto, long versao) {
 
     static final int DIAS_DO_BOLETO_MAXIMO = 30;
 
@@ -35,7 +35,12 @@ record ConfiguracaoDoPagamentoOnline(boolean pixLigado, boolean boletoLigado, Ad
     }
 
     boolean ligada(Forma forma) {
-        return forma == Forma.PIX ? pixLigado : boletoLigado;
+        return switch (forma) {
+            case PIX -> pixLigado;
+            case BOLETO -> boletoLigado;
+            case CREDITO -> creditoLigado;
+            case DEBITO -> debitoLigado;
+        };
     }
 
     /**

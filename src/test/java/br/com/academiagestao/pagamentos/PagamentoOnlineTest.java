@@ -22,14 +22,14 @@ class PagamentoOnlineTest {
 
     private static PagamentoOnline pix() {
         return PagamentoOnline.novo(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), Forma.PIX, "simulado",
-                new Gerado("sim_1", "copia-e-cola", null, null), new BigDecimal("100"), new BigDecimal("2.00"),
+                new Gerado("sim_1", "copia-e-cola", null, null, null), new BigDecimal("100"), new BigDecimal("2.00"),
                 new BigDecimal("0.50"), VALIDO_ATE, UUID.randomUUID(), AGORA);
     }
 
     private static PagamentoOnline em(Situacao situacao) {
         PagamentoOnline p = pix();
         return PagamentoOnline.restaurar(p.getId(), p.getCobrancaId(), p.getAlunoId(), p.getForma(), p.getProvedor(),
-                p.getIdExterno(), p.getValor(), p.getAcrescimo(), p.getJuros(), p.getPixCopiaECola(), null, null,
+                p.getIdExterno(), p.getValor(), p.getAcrescimo(), p.getJuros(), p.getPixCopiaECola(), null, null, null,
                 p.getValidoAte(), p.getGeradoEm(), p.getGeradoPor(), situacao,
                 situacao == Situacao.A_DEVOLVER ? new BigDecimal("102.50") : null,
                 situacao == Situacao.A_DEVOLVER ? AGORA : null, situacao == Situacao.A_DEVOLVER ? "motivo" : null,
@@ -47,14 +47,27 @@ class PagamentoOnlineTest {
     @Test
     void empresaPrecisaDevolverOQueGerou() {
         assertThatThrownBy(() -> PagamentoOnline.novo(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                Forma.BOLETO, "simulado", new Gerado("sim_1", "pix", null, null), BigDecimal.TEN, BigDecimal.ZERO,
+                Forma.BOLETO, "simulado", new Gerado("sim_1", "pix", null, null, null), BigDecimal.TEN, BigDecimal.ZERO,
                 BigDecimal.ZERO, VALIDO_ATE, UUID.randomUUID(), AGORA)).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> PagamentoOnline.novo(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                Forma.PIX, "simulado", new Gerado("sim_1", null, "123", null), BigDecimal.TEN, BigDecimal.ZERO,
+                Forma.PIX, "simulado", new Gerado("sim_1", null, "123", null, null), BigDecimal.TEN, BigDecimal.ZERO,
                 BigDecimal.ZERO, VALIDO_ATE, UUID.randomUUID(), AGORA)).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> PagamentoOnline.novo(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                Forma.PIX, "simulado", new Gerado(null, "pix", null, null), BigDecimal.TEN, BigDecimal.ZERO,
+                Forma.PIX, "simulado", new Gerado(null, "pix", null, null, null), BigDecimal.TEN, BigDecimal.ZERO,
                 BigDecimal.ZERO, VALIDO_ATE, UUID.randomUUID(), AGORA)).isInstanceOf(NullPointerException.class);
+    }
+
+    /** O cartão precisa do link da página da empresa (ADR 0037). */
+    @Test
+    void cartaoPrecisaDoLink() {
+        assertThatThrownBy(() -> PagamentoOnline.novo(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                Forma.CREDITO, "simulado", new Gerado("sim_1", "pix", "123", null, null), BigDecimal.TEN, BigDecimal.ZERO,
+                BigDecimal.ZERO, VALIDO_ATE, UUID.randomUUID(), AGORA)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cartão de crédito");
+        PagamentoOnline debito = PagamentoOnline.novo(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                Forma.DEBITO, "simulado", new Gerado("sim_1", null, null, null, "https://empresa/pagar/1"), BigDecimal.TEN,
+                BigDecimal.ZERO, BigDecimal.ZERO, VALIDO_ATE, UUID.randomUUID(), AGORA);
+        assertThat(debito.getLinkDePagamento()).isEqualTo("https://empresa/pagar/1");
     }
 
     @Test

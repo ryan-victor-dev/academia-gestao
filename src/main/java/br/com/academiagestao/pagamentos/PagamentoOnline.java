@@ -53,6 +53,7 @@ class PagamentoOnline {
     private final String pixCopiaECola;
     private final String boletoLinhaDigitavel;
     private final String boletoUrl;
+    private final String linkDePagamento;
     private final Instant validoAte;
     private final Instant geradoEm;
     private final UUID geradoPor;
@@ -66,8 +67,8 @@ class PagamentoOnline {
 
     private PagamentoOnline(UUID id, UUID cobrancaId, UUID alunoId, Forma forma, String provedor, String idExterno,
                             BigDecimal valor, BigDecimal acrescimo, BigDecimal juros, String pixCopiaECola,
-                            String boletoLinhaDigitavel, String boletoUrl, Instant validoAte, Instant geradoEm,
-                            UUID geradoPor, Situacao situacao, BigDecimal recebido, Instant recebidoEm,
+                            String boletoLinhaDigitavel, String boletoUrl, String linkDePagamento, Instant validoAte,
+                            Instant geradoEm, UUID geradoPor, Situacao situacao, BigDecimal recebido, Instant recebidoEm,
                             String motivoDaDevolucao, BigDecimal valorADevolver, Instant devolvidoEm,
                             UUID devolvidoPor) {
         this.id = id;
@@ -82,6 +83,7 @@ class PagamentoOnline {
         this.pixCopiaECola = pixCopiaECola;
         this.boletoLinhaDigitavel = boletoLinhaDigitavel;
         this.boletoUrl = boletoUrl;
+        this.linkDePagamento = linkDePagamento;
         this.validoAte = validoAte;
         this.geradoEm = geradoEm;
         this.geradoPor = geradoPor;
@@ -99,11 +101,17 @@ class PagamentoOnline {
                                 ProvedorDePagamento.Gerado gerado, BigDecimal valor, BigDecimal acrescimo,
                                 BigDecimal juros, Instant validoAte, UUID geradoPor, Instant agora) {
         Objects.requireNonNull(gerado.idExterno(), "a empresa não devolveu o id do pagamento");
-        if (forma == Forma.PIX ? gerado.pixCopiaECola() == null : gerado.boletoLinhaDigitavel() == null) {
-            throw new IllegalStateException("a empresa não devolveu o " + (forma == Forma.PIX ? "Pix" : "boleto"));
+        String obrigatorio = switch (forma) {
+            case PIX -> gerado.pixCopiaECola();
+            case BOLETO -> gerado.boletoLinhaDigitavel();
+            case CREDITO, DEBITO -> gerado.linkDePagamento();
+        };
+        if (obrigatorio == null) {
+            throw new IllegalStateException("a empresa não devolveu " + forma.nome());
         }
         return new PagamentoOnline(id, cobrancaId, alunoId, forma, provedor, gerado.idExterno(), valor, acrescimo,
-                juros, gerado.pixCopiaECola(), gerado.boletoLinhaDigitavel(), gerado.boletoUrl(), validoAte,
+                juros, gerado.pixCopiaECola(), gerado.boletoLinhaDigitavel(), gerado.boletoUrl(),
+                gerado.linkDePagamento(), validoAte,
                 agora.truncatedTo(ChronoUnit.MICROS), Objects.requireNonNull(geradoPor), Situacao.AGUARDANDO,
                 null, null, null, null, null, null);
     }
@@ -111,11 +119,12 @@ class PagamentoOnline {
     static PagamentoOnline restaurar(UUID id, UUID cobrancaId, UUID alunoId, Forma forma, String provedor,
                                      String idExterno, BigDecimal valor, BigDecimal acrescimo, BigDecimal juros,
                                      String pixCopiaECola, String boletoLinhaDigitavel, String boletoUrl,
-                                     Instant validoAte, Instant geradoEm, UUID geradoPor, Situacao situacao,
+                                     String linkDePagamento, Instant validoAte, Instant geradoEm, UUID geradoPor, Situacao situacao,
                                      BigDecimal recebido, Instant recebidoEm, String motivoDaDevolucao,
                                      BigDecimal valorADevolver, Instant devolvidoEm, UUID devolvidoPor) {
         return new PagamentoOnline(id, cobrancaId, alunoId, forma, provedor, idExterno, valor, acrescimo, juros,
-                pixCopiaECola, boletoLinhaDigitavel, boletoUrl, validoAte, geradoEm, geradoPor, situacao, recebido,
+                pixCopiaECola, boletoLinhaDigitavel, boletoUrl, linkDePagamento, validoAte, geradoEm, geradoPor,
+                situacao, recebido,
                 recebidoEm, motivoDaDevolucao, valorADevolver, devolvidoEm, devolvidoPor);
     }
 
@@ -217,6 +226,7 @@ class PagamentoOnline {
     String getPixCopiaECola() { return pixCopiaECola; }
     String getBoletoLinhaDigitavel() { return boletoLinhaDigitavel; }
     String getBoletoUrl() { return boletoUrl; }
+    String getLinkDePagamento() { return linkDePagamento; }
     Instant getValidoAte() { return validoAte; }
     Instant getGeradoEm() { return geradoEm; }
     UUID getGeradoPor() { return geradoPor; }

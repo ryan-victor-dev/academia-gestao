@@ -27,3 +27,16 @@ ou de débito, além do Pix e do boleto (ADR 0034). Decisões do dono:
 - `CREDITO_ONLINE` e `DEBITO_ONLINE` ("Crédito pelo app" e "Débito pelo app"), separados dos
   cartões do balcão (`CARTAO_CREDITO`, `CARTAO_DEBITO`): como o Pix online e o boleto, o dinheiro
   cai na conta pela empresa, **sem caixa** (V47). O balcão não registra esses meios.
+
+### Formas de cartão no pagamento online (parte 12)
+- `ProvedorDePagamento` ganha as formas `CREDITO` e `DEBITO`, `oferece(forma)` (cada empresa diz o
+  que tem) e, no que ela gera, o `linkDePagamento`: a página onde o aluno digita o cartão. O
+  aluno vai até ela e volta; a confirmação vem como a do Pix (aviso e consulta, ADR 0034).
+- O link vale até o fim do dia, como o Pix, com o valor do dia, e segue a tolerância do Pix
+  (1 h): a resposta do cartão chega em minutos, ao contrário da compensação do boleto.
+- O ADMIN liga e desliga crédito e débito (V48, ligados de início, como o Pix e o boleto). Uma
+  forma só aparece ao aluno se estiver ligada **e** a empresa oferecer; a tela do ADMIN avisa ao
+  lado da chave quando a empresa não oferece.
+- Devolução de cartão pelo sistema (estorno na fatura), como o Pix (ADR 0035), se a empresa
+  devolver. O simulado oferece todas as formas e devolve tudo, menos boleto; a "página da
+  empresa" dele é uma tela do próprio app, que não pede cartão nenhum.

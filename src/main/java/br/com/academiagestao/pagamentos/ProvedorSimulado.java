@@ -28,6 +28,7 @@ class ProvedorSimulado implements ProvedorDePagamento {
 
     private static final Logger log = LoggerFactory.getLogger(ProvedorSimulado.class);
     static final String CABECALHO_DO_TOKEN = "x-aviso-token";
+    static final String LINK_DO_CARTAO = "/cartao-simulado/";
 
     private record Registro(BigDecimal valor, Situacao situacao) {
     }
@@ -49,16 +50,26 @@ class ProvedorSimulado implements ProvedorDePagamento {
         return PagamentosProperties.SIMULADO;
     }
 
+    /** Todas: serve para testar qualquer forma. */
+    @Override
+    public boolean oferece(Forma forma) {
+        return true;
+    }
+
     @Override
     public Gerado gerar(Pedido pedido) {
         String id = "sim_" + UUID.randomUUID();
         registros.put(id, new Registro(pedido.valor(), Situacao.AGUARDANDO));
         if (pedido.forma() == Forma.PIX) {
-            return new Gerado(id, "PIX-SIMULADO|" + pedido.referencia() + "|" + pedido.valor(), null, null);
+            return new Gerado(id, "PIX-SIMULADO|" + pedido.referencia() + "|" + pedido.valor(), null, null, null);
+        }
+        if (pedido.forma().cartao()) {
+            // A "página da empresa" é uma tela do próprio app, só no simulado: não pede cartão nenhum.
+            return new Gerado(id, null, null, null, LINK_DO_CARTAO + pedido.referencia());
         }
         // 47 dígitos, como uma linha digitável de verdade, mas começando com zeros.
         String digitos = String.format("%047d", Math.abs(pedido.referencia().getMostSignificantBits() % 1_000_000_000L));
-        return new Gerado(id, null, digitos, null);
+        return new Gerado(id, null, digitos, null, null);
     }
 
     @Override
@@ -73,10 +84,13 @@ class ProvedorSimulado implements ProvedorDePagamento {
                 ? new Registro(r.valor(), Situacao.ENCERRADO) : r);
     }
 
-    /** Como a maioria das empresas: o Pix se devolve pelo sistema; o boleto, só por transferência. */
+    /**
+     * Como a maioria das empresas: o Pix e o cartão (estorno na fatura) se devolvem pelo sistema;
+     * o boleto, só por transferência.
+     */
     @Override
     public boolean devolve(Forma forma) {
-        return forma == Forma.PIX;
+        return forma != Forma.BOLETO;
     }
 
     @Override

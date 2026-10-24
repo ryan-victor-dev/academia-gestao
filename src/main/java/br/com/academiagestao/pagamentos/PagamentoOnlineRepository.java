@@ -19,8 +19,8 @@ class PagamentoOnlineRepository {
 
     private static final String COLUNAS = """
             id, cobranca_id, aluno_id, forma, provedor, id_externo, valor, acrescimo, juros, pix_copia_e_cola,
-            boleto_linha_digitavel, boleto_url, valido_ate, gerado_em, gerado_por, situacao, recebido, recebido_em,
-            motivo_da_devolucao, valor_a_devolver, devolvido_em, devolvido_por""";
+            boleto_linha_digitavel, boleto_url, link_de_pagamento, valido_ate, gerado_em, gerado_por, situacao,
+            recebido, recebido_em, motivo_da_devolucao, valor_a_devolver, devolvido_em, devolvido_por""";
 
     private final JdbcTemplate jdbc;
 
@@ -30,10 +30,10 @@ class PagamentoOnlineRepository {
 
     void inserir(PagamentoOnline p) {
         jdbc.update("INSERT INTO pagamentos_online (" + COLUNAS + ") VALUES "
-                        + "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 p.getId(), p.getCobrancaId(), p.getAlunoId(), p.getForma().name(), p.getProvedor(), p.getIdExterno(),
                 p.getValor(), p.getAcrescimo(), p.getJuros(), p.getPixCopiaECola(), p.getBoletoLinhaDigitavel(),
-                p.getBoletoUrl(), Timestamp.from(p.getValidoAte()), Timestamp.from(p.getGeradoEm()), p.getGeradoPor(),
+                p.getBoletoUrl(), p.getLinkDePagamento(), Timestamp.from(p.getValidoAte()), Timestamp.from(p.getGeradoEm()), p.getGeradoPor(),
                 p.getSituacao().name(), p.getRecebido(), quando(p.getRecebidoEm()), p.getMotivoDaDevolucao(),
                 p.getValorADevolver(), quando(p.getDevolvidoEm()), p.getDevolvidoPor());
     }
@@ -112,7 +112,7 @@ class PagamentoOnlineRepository {
                 rs.getObject("aluno_id", UUID.class), Forma.valueOf(rs.getString("forma")), rs.getString("provedor"),
                 rs.getString("id_externo"), rs.getBigDecimal("valor"), rs.getBigDecimal("acrescimo"),
                 rs.getBigDecimal("juros"), rs.getString("pix_copia_e_cola"), rs.getString("boleto_linha_digitavel"),
-                rs.getString("boleto_url"), instante(rs, "valido_ate"), instante(rs, "gerado_em"),
+                rs.getString("boleto_url"), rs.getString("link_de_pagamento"), instante(rs, "valido_ate"), instante(rs, "gerado_em"),
                 rs.getObject("gerado_por", UUID.class), Situacao.valueOf(rs.getString("situacao")),
                 rs.getBigDecimal("recebido"), instante(rs, "recebido_em"), rs.getString("motivo_da_devolucao"),
                 rs.getBigDecimal("valor_a_devolver"), instante(rs, "devolvido_em"),

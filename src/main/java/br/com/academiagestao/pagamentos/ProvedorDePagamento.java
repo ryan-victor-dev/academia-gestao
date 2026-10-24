@@ -20,7 +20,10 @@ public interface ProvedorDePagamento {
     /** O nome no {@code .env} e na coluna {@code provedor}: muda a empresa, muda o nome. */
     String nome();
 
-    /** Gera o Pix ou o boleto na empresa. */
+    /** Se esta empresa oferece esta forma (o débito online, por exemplo, nem todas têm; ADR 0037). */
+    boolean oferece(Forma forma);
+
+    /** Gera o Pix, o boleto ou a página do cartão na empresa. */
     Gerado gerar(Pedido pedido);
 
     /** O que a empresa diz deste pagamento agora: é a única fonte de "foi pago". */
@@ -51,7 +54,25 @@ public interface ProvedorDePagamento {
      */
     List<String> lerAviso(Map<String, String> cabecalhos, byte[] corpo);
 
-    enum Forma { PIX, BOLETO }
+    enum Forma {
+        PIX("o Pix"), BOLETO("o boleto"), CREDITO("o cartão de crédito"), DEBITO("o cartão de débito");
+
+        private final String nome;
+
+        Forma(String nome) {
+            this.nome = nome;
+        }
+
+        /** Para as mensagens: "o Pix", "o cartão de crédito". */
+        public String nome() {
+            return nome;
+        }
+
+        /** O cartão é pago na página da empresa (ADR 0037): o aluno vai até ela pelo link. */
+        public boolean cartao() {
+            return this == CREDITO || this == DEBITO;
+        }
+    }
 
     /** Quem paga: o boleto exige nome e CPF. */
     record Pagador(String nome, String cpf, String email) {
@@ -66,8 +87,12 @@ public interface ProvedorDePagamento {
                   String descricao, Pagador pagador) {
     }
 
-    /** O que mostrar ao aluno: o Pix copia e cola, ou a linha digitável e o link do boleto. */
-    record Gerado(String idExterno, String pixCopiaECola, String boletoLinhaDigitavel, String boletoUrl) {
+    /**
+     * O que mostrar ao aluno: o Pix copia e cola, a linha digitável e o link do boleto, ou, no
+     * cartão, o link da página da empresa onde ele digita o cartão (nada de cartão passa por aqui).
+     */
+    record Gerado(String idExterno, String pixCopiaECola, String boletoLinhaDigitavel, String boletoUrl,
+                  String linkDePagamento) {
     }
 
     /** @param chave o que identifica esta devolução na empresa (o id do pagamento online aqui) */

@@ -27,7 +27,7 @@ class ConfiguracaoDoPagamentoOnlineTest {
     }
 
     private static ConfiguracaoDoPagamentoOnline config(Adiantar adiantar) {
-        return new ConfiguracaoDoPagamentoOnline(true, false, adiantar, 3, 0);
+        return new ConfiguracaoDoPagamentoOnline(true, false, true, true, adiantar, 3, 0);
     }
 
     private final CobrancaEmAberto atrasada = vencendo(HOJE.minusDays(20));
@@ -61,15 +61,30 @@ class ConfiguracaoDoPagamentoOnlineTest {
     @ParameterizedTest
     @ValueSource(ints = {0, 31, -1})
     void diasDoBoletoDe1A30(int dias) {
-        assertThatThrownBy(() -> new ConfiguracaoDoPagamentoOnline(true, true, Adiantar.PROXIMA, dias, 0))
+        assertThatThrownBy(() -> new ConfiguracaoDoPagamentoOnline(true, true, true, true, Adiantar.PROXIMA, dias, 0))
                 .isInstanceOf(PagamentoOnlineInvalidoException.class).hasMessageContaining("1 a 30");
-        assertThat(new ConfiguracaoDoPagamentoOnline(true, true, Adiantar.PROXIMA, 30, 0).diasDoBoleto()).isEqualTo(30);
-        assertThat(new ConfiguracaoDoPagamentoOnline(true, true, Adiantar.PROXIMA, 1, 0).diasDoBoleto()).isEqualTo(1);
+        assertThat(new ConfiguracaoDoPagamentoOnline(true, true, true, true, Adiantar.PROXIMA, 30, 0).diasDoBoleto()).isEqualTo(30);
+        assertThat(new ConfiguracaoDoPagamentoOnline(true, true, true, true, Adiantar.PROXIMA, 1, 0).diasDoBoleto()).isEqualTo(1);
     }
 
     @Test
     void adiantarObrigatorio() {
-        assertThatThrownBy(() -> new ConfiguracaoDoPagamentoOnline(true, true, null, 3, 0))
+        assertThatThrownBy(() -> new ConfiguracaoDoPagamentoOnline(true, true, true, true, null, 3, 0))
                 .isInstanceOf(PagamentoOnlineInvalidoException.class);
+    }
+
+    /** Cada forma tem a sua chave (ADR 0037: crédito e débito). */
+    @Test
+    void cadaFormaComASuaChave() {
+        ConfiguracaoDoPagamentoOnline soCredito = new ConfiguracaoDoPagamentoOnline(false, false, true, false,
+                Adiantar.PROXIMA, 3, 0);
+        assertThat(soCredito.ligada(Forma.CREDITO)).isTrue();
+        assertThat(soCredito.ligada(Forma.DEBITO)).isFalse();
+        assertThat(soCredito.ligada(Forma.PIX)).isFalse();
+        assertThat(soCredito.ligada(Forma.BOLETO)).isFalse();
+        ConfiguracaoDoPagamentoOnline soDebito = new ConfiguracaoDoPagamentoOnline(false, false, false, true,
+                Adiantar.PROXIMA, 3, 0);
+        assertThat(soDebito.ligada(Forma.DEBITO)).isTrue();
+        assertThat(soDebito.ligada(Forma.CREDITO)).isFalse();
     }
 }

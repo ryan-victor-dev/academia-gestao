@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { apiFalsa, json, renderizar } from '../../testes/ajudantes';
 import { PagamentosOnline } from './PagamentosOnline';
 
-const atual = { provedor: 'simulado', simulado: true, pixLigado: true, boletoLigado: true, adiantar: 'PROXIMA', diasDoBoleto: 3 };
+const atual = { provedor: 'simulado', simulado: true, pixLigado: true, boletoLigado: true, creditoLigado: true, debitoLigado: true,
+  adiantar: 'PROXIMA', diasDoBoleto: 3, formasDaEmpresa: ['PIX', 'BOLETO', 'CREDITO', 'DEBITO'] };
 const aDevolver = { id: 'p9', forma: 'BOLETO', alunoNome: 'Maria', total: 103, recebido: 103, recebidoEm: '2026-10-04T15:00:00Z',
   motivoDaDevolucao: 'A cobrança já não estava em aberto (paga por outro meio ou cancelada)', valorADevolver: 103,
   pagouACobranca: false, devolvePeloSistema: false, situacao: 'A_DEVOLVER' };
@@ -22,6 +23,7 @@ describe('pagamento online (ADMIN)', () => {
     expect(screen.getByText(/Modo de teste/)).toBeInTheDocument();
     expect(screen.getByText('Nada a devolver.')).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText('Boleto pelo app'));
+    await userEvent.click(screen.getByLabelText('Cartão de débito pelo app'));
     await userEvent.selectOptions(screen.getByLabelText('Até onde adiantar'), 'TODAS');
     await userEvent.clear(screen.getByLabelText(/Dias de validade/));
     await userEvent.type(screen.getByLabelText(/Dias de validade/), '5');
@@ -30,7 +32,27 @@ describe('pagamento online (ADMIN)', () => {
     expect(await screen.findByText('Configuração salva.')).toBeInTheDocument();
     const put = api.de('PUT /api/pagamentos-online/configuracao')[0];
     expect(put.cabecalhos.get('If-Match')).toBe('"1"');
-    expect(put.corpo).toEqual({ pixLigado: true, boletoLigado: false, adiantar: 'TODAS', diasDoBoleto: 5 });
+    expect(put.corpo).toEqual({ pixLigado: true, boletoLigado: false, creditoLigado: true, debitoLigado: false, adiantar: 'TODAS',
+      diasDoBoleto: 5 });
+    expect(screen.queryByText(/não oferece/)).not.toBeInTheDocument();
+  });
+
+  it('a forma que a empresa não oferece: avisa ao lado da chave', async () => {
+    apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, { ...atual, formasDaEmpresa: ['PIX', 'BOLETO', 'CREDITO'] }),
+      'GET /api/pagamentos-online/a-devolver': json(200, []) });
+    renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
+
+    expect(await screen.findByLabelText(/Cartão de débito pelo app/)).toBeInTheDocument();
+    expect(screen.getAllByText(/a empresa de pagamentos não oferece/)).toHaveLength(1);
+    expect(screen.getByText(/a empresa de pagamentos não oferece/).closest('label')).toHaveTextContent('Cartão de débito pelo app');
+  });
+
+  it('cartão a devolver: com o nome da forma', async () => {
+    apiFalsa({ 'GET /api/pagamentos-online/configuracao': json(200, atual),
+      'GET /api/pagamentos-online/a-devolver': json(200, [{ ...sobra, forma: 'CREDITO' }]) });
+    renderizar(<PagamentosOnline />, { perfil: 'ADMIN' });
+
+    expect(await screen.findByText(/Cartão de crédito de R\$\s110,00 recebido em/)).toBeInTheDocument();
   });
 
   it('desligado: explica que a empresa é do servidor', async () => {

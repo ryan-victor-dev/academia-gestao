@@ -11,7 +11,8 @@ import java.sql.SQLException;
 @Repository
 class ConfiguracaoDoPagamentoOnlineRepository {
 
-    private static final String COLUNAS = "pix_ligado, boleto_ligado, adiantar, dias_do_boleto, versao";
+    private static final String COLUNAS =
+            "pix_ligado, boleto_ligado, credito_ligado, debito_ligado, adiantar, dias_do_boleto, versao";
 
     private final JdbcTemplate jdbc;
 
@@ -31,13 +32,16 @@ class ConfiguracaoDoPagamentoOnlineRepository {
     ConfiguracaoDoPagamentoOnline gravar(ConfiguracaoDoPagamentoOnline c) {
         return jdbc.queryForObject("""
                 UPDATE configuracao_pagamento_online
-                SET pix_ligado = ?, boleto_ligado = ?, adiantar = ?, dias_do_boleto = ?, versao = versao + 1
+                SET pix_ligado = ?, boleto_ligado = ?, credito_ligado = ?, debito_ligado = ?, adiantar = ?,
+                    dias_do_boleto = ?, versao = versao + 1
                 RETURNING""" + " " + COLUNAS, this::mapear,
-                c.pixLigado(), c.boletoLigado(), c.adiantar().name(), c.diasDoBoleto());
+                c.pixLigado(), c.boletoLigado(), c.creditoLigado(), c.debitoLigado(), c.adiantar().name(),
+                c.diasDoBoleto());
     }
 
     private ConfiguracaoDoPagamentoOnline mapear(ResultSet rs, int linha) throws SQLException {
         return new ConfiguracaoDoPagamentoOnline(rs.getBoolean("pix_ligado"), rs.getBoolean("boleto_ligado"),
+                rs.getBoolean("credito_ligado"), rs.getBoolean("debito_ligado"),
                 Adiantar.valueOf(rs.getString("adiantar")), rs.getInt("dias_do_boleto"), rs.getLong("versao"));
     }
 }

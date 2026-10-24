@@ -3,6 +3,7 @@ package br.com.academiagestao.pagamentos;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import br.com.academiagestao.pagamentos.ConfiguracaoDoPagamentoOnline.Adiantar;
+import br.com.academiagestao.pagamentos.ProvedorDePagamento.Forma;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -61,31 +63,39 @@ class ConfiguracaoDoPagamentoOnlineController {
         ConfiguracaoDoPagamentoOnline atual = repository.travar();
         VersaoEsperada.conferir(ifMatch, atual.versao(), "a configuração do pagamento online");
         ConfiguracaoDoPagamentoOnline gravada = repository.gravar(new ConfiguracaoDoPagamentoOnline(
-                request.pixLigado(), request.boletoLigado(), request.adiantar(), request.diasDoBoleto(), atual.versao()));
+                request.pixLigado(), request.boletoLigado(), request.creditoLigado(), request.debitoLigado(),
+                request.adiantar(), request.diasDoBoleto(), atual.versao()));
         auditoria.registrar(CONFIGURACAO, ID_NA_TRILHA, "EDITADA", retrato(atual), retrato(gravada));
         return comEtag(gravada);
     }
 
     private ResponseEntity<ConfiguracaoResponse> comEtag(ConfiguracaoDoPagamentoOnline c) {
         return ResponseEntity.ok().eTag(VersaoEsperada.etag(c.versao())).body(new ConfiguracaoResponse(
-                pagamentos.provedorLigado(), pagamentos.simulado(), c.pixLigado(), c.boletoLigado(), c.adiantar(),
-                c.diasDoBoleto()));
+                pagamentos.provedorLigado(), pagamentos.simulado(), c.pixLigado(), c.boletoLigado(),
+                c.creditoLigado(), c.debitoLigado(), c.adiantar(), c.diasDoBoleto(), pagamentos.formasDaEmpresa()));
     }
 
     private static Map<String, Object> retrato(ConfiguracaoDoPagamentoOnline c) {
         return Auditoria.campos("pixLigado", c.pixLigado(), "boletoLigado", c.boletoLigado(),
+                "creditoLigado", c.creditoLigado(), "debitoLigado", c.debitoLigado(),
                 "adiantar", c.adiantar().name(), "diasDoBoleto", c.diasDoBoleto());
     }
 
     record ConfiguracaoRequest(
             @NotNull(message = "é obrigatório") Boolean pixLigado,
             @NotNull(message = "é obrigatório") Boolean boletoLigado,
+            @NotNull(message = "é obrigatório") Boolean creditoLigado,
+            @NotNull(message = "é obrigatório") Boolean debitoLigado,
             @NotNull(message = "é obrigatório") Adiantar adiantar,
             @NotNull(message = "é obrigatório") Integer diasDoBoleto) {
     }
 
-    /** {@code provedor}: a empresa do {@code .env} ({@code desligado}: o app não oferece pagar). */
+    /**
+     * {@code provedor}: a empresa do {@code .env} ({@code desligado}: o app não oferece pagar).
+     * {@code formasDaEmpresa}: as que ela oferece; ligar uma que ela não tem não faz nada aparecer.
+     */
     record ConfiguracaoResponse(String provedor, boolean simulado, boolean pixLigado, boolean boletoLigado,
-                                Adiantar adiantar, int diasDoBoleto) {
+                                boolean creditoLigado, boolean debitoLigado, Adiantar adiantar, int diasDoBoleto,
+                                List<Forma> formasDaEmpresa) {
     }
 }

@@ -210,13 +210,13 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/cobrancas/{id}/lancamentos` (pagamentos e estornos, na ordem; nada se apaga⁷) | ADMIN, RECEPCAO |
 | `GET /api/cobrancas/configuracao`, `PUT` (exige `If-Match`²; acréscimo, juros e dias para bloquear⁷) | Ler: ADMIN, RECEPCAO; alterar: ADMIN |
 | `GET /api/cobrancas/me` | ALUNO (as próprias) |
-| `GET /api/pagamentos-online/me` (se o app oferece pagar, as formas e as cobranças que se pagam hoje, com o Pix e o boleto já gerados¹²) | ALUNO (as próprias) |
-| `POST /api/pagamentos-online/me` (`cobrancaId` e `forma`: `PIX` ou `BOLETO`; devolve o que ainda vale ou gera outro) | ALUNO |
+| `GET /api/pagamentos-online/me` (se o app oferece pagar, as formas e as cobranças que se pagam hoje, com o que já foi gerado em cada forma¹²) | ALUNO (as próprias) |
+| `POST /api/pagamentos-online/me` (`cobrancaId` e `forma`: `PIX`, `BOLETO`, `CREDITO` ou `DEBITO`; devolve o que ainda vale ou gera outro; no cartão, o link da página da empresa) | ALUNO |
 | `POST /api/pagamentos-online/me/{id}/simular-pagamento` (só com o provedor `simulado`: finge que o aluno pagou) | ALUNO (os próprios) |
 | `POST /api/pagamentos-online/aviso` (o aviso da empresa de pagamentos; só dispara a consulta a ela) | sem login (a empresa prova quem é no aviso) |
 | `GET /api/pagamentos-online/a-devolver` (dinheiro que chegou sem ter o que pagar, ou a sobra de quem pagou a mais) | ADMIN |
 | `POST /api/pagamentos-online/{id}/devolver` (o sistema devolve pela empresa¹²), `POST /api/pagamentos-online/{id}/devolvido` (devolvido por fora) | ADMIN |
-| `GET /api/pagamentos-online/configuracao`, `PUT` (exige `If-Match`²; Pix e boleto ligados, até onde adiantar, dias do boleto) | ADMIN |
+| `GET /api/pagamentos-online/configuracao`, `PUT` (exige `If-Match`²; Pix, boleto, crédito e débito ligados, até onde adiantar, dias do boleto; as formas que a empresa oferece) | ADMIN |
 | `POST /api/caixas` (`troco`; abre o caixa de hoje¹⁰) | ADMIN, RECEPCAO |
 | `POST /api/caixas/{dia}/fechar` (`contado`, o dinheiro da gaveta; `justificativa` se houver diferença) | ADMIN, RECEPCAO |
 | `POST /api/caixas/{dia}/reabrir` (`motivo`) | ADMIN |
@@ -306,7 +306,8 @@ e-mail digitado, `LOGIN_BLOQUEADO` pelo limite) e cada senha atual errada na tro
 (`TROCA_SENHA_FALHA`), com o IP. O bloqueio entra uma vez por conta e IP a cada 15 minutos,
 e não uma vez por tentativa. Fica 1 ano; o usuário da aplicação não apaga nem altera. Por
 isso a lista de alunos traz só o resumo: os dados pessoais saem só pelo cadastro aberto (ADR 0032).
-¹² Pagamento online (ADR 0034): desligado por padrão (`PAGAMENTOS_PROVEDOR` no `.env`). O valor é
+¹² Pagamento online (ADRs 0034 a 0037): Pix, boleto e cartão de crédito ou débito (à vista, digitado na
+página da empresa; nenhum dado de cartão passa pelo sistema). Desligado por padrão (`PAGAMENTOS_PROVEDOR` no `.env`). O valor é
 o do dia em que o aluno gerou; o Pix vale até o fim do dia, e o boleto até o vencimento (de uma
 cobrança vencida, 3 dias, configurável). Entra fora do caixa da recepção, como "Pix pelo app" ou
 "Boleto pelo app". O sistema confirma consultando a empresa (no aviso dela, a cada 2 minutos os em aberto e, de

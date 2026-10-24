@@ -4,19 +4,25 @@ import { dataHora, dinheiro } from '../../formato';
 import { chamar, chamarComVersao, ErroDaApi } from '../../sessao/api';
 
 type Adiantar = 'NENHUMA' | 'PROXIMA' | 'TODAS';
+type Forma = 'PIX' | 'BOLETO' | 'CREDITO' | 'DEBITO';
+
+const NOME_DA_FORMA: Record<Forma, string> = { PIX: 'Pix', BOLETO: 'Boleto', CREDITO: 'Cartão de crédito', DEBITO: 'Cartão de débito' };
 
 interface Configuracao {
   provedor: string;
   simulado: boolean;
   pixLigado: boolean;
   boletoLigado: boolean;
+  creditoLigado: boolean;
+  debitoLigado: boolean;
+  formasDaEmpresa: Forma[];
   adiantar: Adiantar;
   diasDoBoleto: number;
 }
 
 interface ADevolver {
   id: string;
-  forma: 'PIX' | 'BOLETO';
+  forma: Forma;
   alunoNome: string | null;
   total: number;
   recebido: number;
@@ -42,7 +48,8 @@ const NOME_DO_ADIANTAR: Record<Adiantar, string> = {
 export function PagamentosOnline() {
   const [atual, setAtual] = useState<Configuracao | null>(null);
   const [versao, setVersao] = useState<string | null>(null);
-  const [form, setForm] = useState({ pixLigado: true, boletoLigado: true, adiantar: 'PROXIMA' as Adiantar, diasDoBoleto: '' });
+  const [form, setForm] = useState({ pixLigado: true, boletoLigado: true, creditoLigado: true, debitoLigado: true,
+    adiantar: 'PROXIMA' as Adiantar, diasDoBoleto: '' });
   const [erro, setErro] = useState<unknown>(null);
   const [salvo, setSalvo] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -55,7 +62,8 @@ export function PagamentosOnline() {
   function mostrar(dados: Configuracao, v: string | null) {
     setAtual(dados);
     setVersao(v);
-    setForm({ pixLigado: dados.pixLigado, boletoLigado: dados.boletoLigado, adiantar: dados.adiantar, diasDoBoleto: String(dados.diasDoBoleto) });
+    setForm({ pixLigado: dados.pixLigado, boletoLigado: dados.boletoLigado, creditoLigado: dados.creditoLigado,
+      debitoLigado: dados.debitoLigado, adiantar: dados.adiantar, diasDoBoleto: String(dados.diasDoBoleto) });
   }
 
   const carregarLista = useCallback(() => {
@@ -74,7 +82,8 @@ export function PagamentosOnline() {
     setEnviando(true);
     try {
       const r = await chamarComVersao<Configuracao>('/api/pagamentos-online/configuracao', { metodo: 'PUT', versao: versao ?? undefined,
-        corpo: { pixLigado: form.pixLigado, boletoLigado: form.boletoLigado, adiantar: form.adiantar, diasDoBoleto: Number(form.diasDoBoleto) } });
+        corpo: { pixLigado: form.pixLigado, boletoLigado: form.boletoLigado, creditoLigado: form.creditoLigado,
+          debitoLigado: form.debitoLigado, adiantar: form.adiantar, diasDoBoleto: Number(form.diasDoBoleto) } });
       mostrar(r.dados, r.versao);
       setSalvo(true);
     } catch (e) {
@@ -126,8 +135,14 @@ export function PagamentosOnline() {
       {atual.simulado && <p className="aviso" role="note">Modo de teste: os pagamentos são simulados. Nunca use assim com alunos de verdade.</p>}
 
       <form className="formulario" onSubmit={enviar} aria-label="Configuração do pagamento online" noValidate>
-        <label className="marcar largo"><input type="checkbox" checked={form.pixLigado} onChange={(e) => setForm({ ...form, pixLigado: e.target.checked })} /> Pix pelo app</label>
-        <label className="marcar largo"><input type="checkbox" checked={form.boletoLigado} onChange={(e) => setForm({ ...form, boletoLigado: e.target.checked })} /> Boleto pelo app</label>
+        {([['pixLigado', 'PIX', 'Pix pelo app'], ['boletoLigado', 'BOLETO', 'Boleto pelo app'],
+          ['creditoLigado', 'CREDITO', 'Cartão de crédito pelo app'], ['debitoLigado', 'DEBITO', 'Cartão de débito pelo app']] as const)
+          .map(([campo, forma, rotulo]) => (
+            <label key={campo} className="marcar largo">
+              <input type="checkbox" checked={form[campo]} onChange={(e) => setForm({ ...form, [campo]: e.target.checked })} /> {rotulo}
+              {!desligado && !atual.formasDaEmpresa.includes(forma) && <span className="suave"> (a empresa de pagamentos não oferece)</span>}
+            </label>
+          ))}
         <label>O aluno pode pagar
           <select aria-label="Até onde adiantar" value={form.adiantar} onChange={(e) => setForm({ ...form, adiantar: e.target.value as Adiantar })}>
             {Object.entries(NOME_DO_ADIANTAR).map(([valor, nome]) => <option key={valor} value={valor}>{nome}</option>)}
@@ -161,7 +176,7 @@ export function PagamentosOnline() {
                 <span className="valor">{dinheiro(p.valorADevolver)}</span>
               </div>
               <p>
-                {p.forma === 'PIX' ? 'Pix' : 'Boleto'} de {dinheiro(p.recebido)} recebido em {dataHora(p.recebidoEm)}
+                {NOME_DA_FORMA[p.forma]} de {dinheiro(p.recebido)} recebido em {dataHora(p.recebidoEm)}
                 {p.pagouACobranca && <> · a cobrança ficou paga com {dinheiro(p.total)}</>}
               </p>
               <p className="suave">{p.motivoDaDevolucao}</p>

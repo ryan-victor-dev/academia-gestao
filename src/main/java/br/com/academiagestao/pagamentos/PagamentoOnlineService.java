@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -69,17 +70,19 @@ class PagamentoOnlineService {
         this.relogio = relogio;
     }
 
-    /** Uma cobrança que o aluno pode pagar hoje, com o Pix e o boleto que ele já gerou (se ainda valem). */
-    record Pagavel(CobrancaEmAberto cobranca, Optional<PagamentoOnline> pix, Optional<PagamentoOnline> boleto) {
+    /** Uma cobrança que o aluno pode pagar hoje, com o que ele já gerou em cada forma (se ainda vale). */
+    record Pagavel(CobrancaEmAberto cobranca, Optional<PagamentoOnline> pix, Optional<PagamentoOnline> boleto,
+                   Optional<PagamentoOnline> credito, Optional<PagamentoOnline> debito) {
     }
 
-    /** O que o app mostra: se há pagamento online, quais formas, e o que pagar. */
-    record Opcoes(boolean ligado, boolean simulado, boolean pix, boolean boleto, List<Pagavel> pagaveis) {
+    /** O que o app mostra: se há pagamento online, quais formas (ligadas e que a empresa tem), e o que pagar. */
+    record Opcoes(boolean ligado, boolean simulado, boolean pix, boolean boleto, boolean credito, boolean debito,
+                  List<Pagavel> pagaveis) {
     }
 
     Opcoes opcoes(UUID alunoId) {
         if (provedor.isEmpty()) {
-            return new Opcoes(false, false, false, false, List.of());
+            return new Opcoes(false, false, false, false, false, false, List.of());
         }
         ConfiguracaoDoPagamentoOnline config = configuracao.ler();
         Instant agora = relogio.instant();
@@ -89,10 +92,12 @@ class PagamentoOnlineService {
                 .map(c -> {
                     List<PagamentoOnline> daCobranca = gerados.getOrDefault(c.id(), List.of());
                     return new Pagavel(c, valendo(daCobranca, Forma.PIX, agora),
-                            valendo(daCobranca, Forma.BOLETO, agora));
+                            valendo(daCobranca, Forma.BOLETO, agora), valendo(daCobranca, Forma.CREDITO, agora),
+                            valendo(daCobranca, Forma.DEBITO, agora));
                 })
                 .toList();
-        return new Opcoes(true, simulado(), config.pixLigado(), config.boletoLigado(), pagaveis);
+        return new Opcoes(true, simulado(), disponivel(config, Forma.PIX), disponivel(config, Forma.BOLETO),
+                disponivel(config, Forma.CREDITO), disponivel(config, Forma.DEBITO), pagaveis);
     }
 
     /**
@@ -102,8 +107,9 @@ class PagamentoOnlineService {
     PagamentoOnline gerar(UUID alunoId, UUID usuarioId, UUID cobrancaId, Forma forma) {
         ProvedorDePagamento empresa = ligado();
         ConfiguracaoDoPagamentoOnline config = configuracao.ler();
-        if (!config.ligada(forma)) {
-            throw new PagamentoOnlineRecusadoException((forma == Forma.PIX ? "O Pix" : "O boleto")
+        if (!disponivel(config, forma)) {
+            String nome = forma.nome();
+            throw new PagamentoOnlineRecusadoException(Character.toUpperCase(nome.charAt(0)) + nome.substring(1)
                     + " não está disponível no app");
         }
         Instant agora = relogio.instant();
@@ -124,8 +130,9 @@ class PagamentoOnlineService {
         // O prazo do antigo passou (o Pix de ontem, por exemplo): sai, na empresa e aqui.
         aguardando.forEach(antigo -> cancelar(empresa, antigo));
 
-        // O Pix vale hoje; o boleto, até o vencimento, ou alguns dias se a cobrança já venceu.
-        LocalDate vencimento = forma == Forma.PIX ? hoje
+        // O Pix e a página do cartão valem hoje; o boleto, até o vencimento, ou alguns dias se a
+        // cobrança já venceu.
+        LocalDate vencimento = forma != Forma.BOLETO ? hoje
                 : cobranca.vencimento().isBefore(hoje) ? hoje.plusDays(config.diasDoBoleto())
                 : cobranca.vencimento();
         Instant validoAte = vencimento.plusDays(1).atStartOfDay(Calendario.FUSO).toInstant();
@@ -211,8 +218,7 @@ class PagamentoOnlineService {
         boolean aMais = pago.compareTo(pagamento.total()) > 0;
         ResultadoDoRecebimento resultado = cobrancas.receber(pagamento.getCobrancaId(),
                 new ValorCombinado(pagamento.getValor(), pagamento.getAcrescimo(), pagamento.getJuros()),
-                aMais ? pagamento.total() : pago, pagamento.getForma() == Forma.PIX ? FormaOnline.PIX : FormaOnline.BOLETO,
-                pagamento.getGeradoPor());
+                aMais ? pagamento.total() : pago, formaNaCobranca(pagamento.getForma()), pagamento.getGeradoPor());
         Instant em = situacao.pagoEm() == null ? relogio.instant() : situacao.pagoEm();
         switch (resultado) {
             case RECEBIDO -> {
@@ -270,8 +276,9 @@ class PagamentoOnlineService {
 
     /** Ainda aguardando na empresa, mas o prazo e a tolerância passaram: expira aqui e cancela lá. */
     private void expirarSePassouDaTolerancia(ProvedorDePagamento empresa, PagamentoOnline pagamento) {
-        Instant limite = pagamento.getValidoAte().plus(pagamento.getForma() == Forma.PIX
-                ? propriedades.toleranciaDoPix() : propriedades.toleranciaDoBoleto());
+        // O cartão, como o Pix: a resposta da empresa chega em minutos.
+        Instant limite = pagamento.getValidoAte().plus(pagamento.getForma() == Forma.BOLETO
+                ? propriedades.toleranciaDoBoleto() : propriedades.toleranciaDoPix());
         if (pagamento.getSituacao() != PagamentoOnline.Situacao.AGUARDANDO || relogio.instant().isBefore(limite)) {
             return;
         }
@@ -309,8 +316,7 @@ class PagamentoOnlineService {
         }
         if (!empresa.devolve(pagamento.getForma())) {
             throw new PagamentoOnlineRecusadoException("A empresa de pagamentos não devolve "
-                    + (pagamento.getForma() == Forma.PIX ? "Pix" : "boleto")
-                    + " pelo sistema: devolva por transferência e marque como devolvido");
+                    + pagamento.getForma().nome() + " pelo sistema: devolva por transferência e marque como devolvido");
         }
         transacao.executeWithoutResult(t -> {
             PagamentoOnline travado = repository.travar(id).orElseThrow();
@@ -393,6 +399,25 @@ class PagamentoOnlineService {
         for (String idExterno : empresa.lerAviso(cabecalhos, corpo)) {
             confirmar(idExterno);
         }
+    }
+
+    /** As formas que a empresa ligada oferece (nenhuma, desligado). */
+    List<Forma> formasDaEmpresa() {
+        return provedor.map(p -> Arrays.stream(Forma.values()).filter(p::oferece).toList()).orElse(List.of());
+    }
+
+    /** Ligada pelo ADMIN e oferecida pela empresa. */
+    private boolean disponivel(ConfiguracaoDoPagamentoOnline config, Forma forma) {
+        return config.ligada(forma) && provedor.filter(p -> p.oferece(forma)).isPresent();
+    }
+
+    private static FormaOnline formaNaCobranca(Forma forma) {
+        return switch (forma) {
+            case PIX -> FormaOnline.PIX;
+            case BOLETO -> FormaOnline.BOLETO;
+            case CREDITO -> FormaOnline.CREDITO;
+            case DEBITO -> FormaOnline.DEBITO;
+        };
     }
 
     /** O nome da empresa ligada, ou {@code desligado}. */
