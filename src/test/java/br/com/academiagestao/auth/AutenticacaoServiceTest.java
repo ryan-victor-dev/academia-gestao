@@ -1,8 +1,10 @@
 package br.com.academiagestao.auth;
 
 import br.com.academiagestao.compartilhado.RegistroDeAcessos;
+import br.com.academiagestao.compartilhado.RegistroDeAcessos.TipoDeLogin;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -20,9 +22,13 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,13 +42,14 @@ class AutenticacaoServiceTest {
     private final UsuarioRepository repository = mock(UsuarioRepository.class);
     private final LimitadorDeTentativas limitador = mock(LimitadorDeTentativas.class);
     private final RegistroDeAcessos acessos = mock(RegistroDeAcessos.class);
+    private final Sessoes sessoes = mock(Sessoes.class);
     private final AutenticacaoService service = new AutenticacaoService(repository, passwordEncoder,
             new GeradorDeToken(new NimbusJwtEncoder(new ImmutableSecret<>(chave)),
                     new JwtProperties("ignorado", Duration.ofMinutes(15), "academia-gestao"), Clock.systemUTC(),
                     mock(br.com.academiagestao.compartilhado.Correio.class)),
             limitador, mock(org.springframework.transaction.PlatformTransactionManager.class),
             mock(TrilhaDeUsuarios.class), acessos,
-            new LimitesDeLoginProperties(20, Duration.ofMinutes(1), 10, 100, Duration.ofMinutes(15)));
+            new LimitesDeLoginProperties(20, Duration.ofMinutes(1), 10, 100, Duration.ofMinutes(15)), sessoes);
 
     private Usuario cadastrar(Perfil perfil) {
         Usuario usuario = Usuario.daEquipe("Ana", "ana@academia.com", passwordEncoder.encode(SENHA), perfil);
@@ -55,7 +62,7 @@ class AutenticacaoServiceTest {
         Usuario usuario = cadastrar(Perfil.RECEPCAO);
 
         // E-mail com maiúsculas e espaços também funciona: é normalizado antes da busca.
-        GeradorDeToken.TokenEmitido emitido = service.autenticar(" Ana@Academia.com ", SENHA, IP);
+        GeradorDeToken.TokenEmitido emitido = service.autenticar(" Ana@Academia.com ", SENHA, IP).emitido();
 
         Jwt jwt = NimbusJwtDecoder.withSecretKey(chave).macAlgorithm(MacAlgorithm.HS256).build()
                 .decode(emitido.token());
@@ -74,7 +81,7 @@ class AutenticacaoServiceTest {
         when(repository.findByEmail("ana@email.com")).thenReturn(Optional.of(aluno));
 
         Jwt jwt = NimbusJwtDecoder.withSecretKey(chave).macAlgorithm(MacAlgorithm.HS256).build()
-                .decode(service.autenticar("ana@email.com", SENHA, IP).token());
+                .decode(service.autenticar("ana@email.com", SENHA, IP).emitido().token());
 
         assertThat(jwt.getClaimAsString("perfil")).isEqualTo("ALUNO");
         assertThat(jwt.getClaimAsString("alunoId")).isEqualTo(alunoId.toString());
@@ -141,5 +148,31 @@ class AutenticacaoServiceTest {
                 .isInstanceOf(MuitasTentativasException.class);
 
         verify(acessos).loginBloqueado(null, "ana@academia.com", IP, Duration.ofMinutes(15));
+    }
+
+    /**
+     * O LOGIN só entra no registro depois do token e da sessão (pendências baixas, item 25): se a
+     * sessão não abre, quem tentou não entrou, e o registro não pode dizer que entrou.
+     */
+    @Test
+    void sessaoQueNaoAbreNaoDeixaUmLoginNoRegistro() {
+        Usuario usuario = cadastrar(Perfil.RECEPCAO);
+        when(sessoes.abrir(usuario.getId())).thenThrow(new IllegalStateException("banco fora do ar"));
+
+        assertThatThrownBy(() -> service.autenticar("ana@academia.com", SENHA, IP))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(acessos, never()).login(eq(TipoDeLogin.LOGIN), any(), any(), any());
+    }
+
+    @Test
+    void loginCertoGravaOLoginDepoisDeAbrirASessao() {
+        Usuario usuario = cadastrar(Perfil.RECEPCAO);
+
+        service.autenticar("ana@academia.com", SENHA, IP);
+
+        InOrder ordem = inOrder(sessoes, acessos);
+        ordem.verify(sessoes).abrir(usuario.getId());
+        ordem.verify(acessos).login(TipoDeLogin.LOGIN, usuario.getId(), "ana@academia.com", IP);
     }
 }

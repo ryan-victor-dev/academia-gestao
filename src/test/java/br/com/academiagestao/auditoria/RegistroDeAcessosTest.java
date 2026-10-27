@@ -244,15 +244,11 @@ class RegistroDeAcessosTest {
         assertThatThrownBy(() -> transacao.executeWithoutResult(
                 t -> registro.consultaDeAluno(recepcao, aluno, ip))).isInstanceOf(IllegalTransactionStateException.class);
         assertThatThrownBy(() -> transacao.executeWithoutResult(
-                t -> registro.login(RegistroDeAcessos.Tipo.LOGIN, recepcao, "x@y.z", ip)))
+                t -> registro.login(RegistroDeAcessos.TipoDeLogin.LOGIN, recepcao, "x@y.z", ip)))
                 .isInstanceOf(IllegalTransactionStateException.class);
         assertThatThrownBy(() -> transacao.executeWithoutResult(
                 t -> registro.loginBloqueado(recepcao, "x@y.z", ip, Duration.ofMinutes(15))))
                 .isInstanceOf(IllegalTransactionStateException.class);
-        assertThatThrownBy(() -> registro.login(RegistroDeAcessos.Tipo.CONSULTA_ALUNO, recepcao, "x@y.z", ip))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> registro.login(RegistroDeAcessos.Tipo.LOGIN_BLOQUEADO, recepcao, "x@y.z", ip))
-                .isInstanceOf(IllegalArgumentException.class);
         assertThat(acessos()).isEmpty();
     }
 

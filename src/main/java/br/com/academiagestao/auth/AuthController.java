@@ -36,8 +36,7 @@ class AuthController {
     /** Devolve o token e abre uma sessão renovável (cookie), ADR 0033. */
     @PostMapping("/login")
     ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest requisicao) {
-        return comSessaoNova(autenticacaoService.autenticar(request.email(), request.senha(),
-                requisicao.getRemoteAddr()));
+        return comSessao(autenticacaoService.autenticar(request.email(), request.senha(), requisicao.getRemoteAddr()));
     }
 
     /** Troca o cookie da sessão por um token novo (e um cookie novo). */
@@ -64,17 +63,15 @@ class AuthController {
     ResponseEntity<LoginResponse> trocarSenha(@AuthenticationPrincipal Jwt jwt,
                                               @Valid @RequestBody TrocaDeSenhaRequest request,
                                               HttpServletRequest requisicao) {
-        // A versão do token mudou: a sessão antiga não renova mais, e uma nova é aberta.
-        return comSessaoNova(autenticacaoService.trocarSenha(
+        return comSessao(autenticacaoService.trocarSenha(
                 UUID.fromString(jwt.getSubject()), request.senhaAtual(), request.novaSenha(),
                 requisicao.getRemoteAddr()));
     }
 
-    private ResponseEntity<LoginResponse> comSessaoNova(GeradorDeToken.TokenEmitido emitido) {
-        Sessoes.Aberta sessao = sessoes.abrir(emitido.usuarioId());
+    private ResponseEntity<LoginResponse> comSessao(AutenticacaoService.Entrada entrada) {
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookie(sessao.cookie()).toString())
-                .body(LoginResponse.de(emitido, sessao.expiraEm()));
+                .header(HttpHeaders.SET_COOKIE, cookie(entrada.sessao().cookie()).toString())
+                .body(LoginResponse.de(entrada.emitido(), entrada.sessao().expiraEm()));
     }
 
     /** HttpOnly (script nenhum lê), Secure, SameSite=Strict e só nas rotas de sessão. */

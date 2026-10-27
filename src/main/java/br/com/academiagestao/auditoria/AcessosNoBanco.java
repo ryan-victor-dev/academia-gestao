@@ -31,12 +31,9 @@ class AcessosNoBanco implements RegistroDeAcessos {
 
     @Override
     @Transactional(propagation = Propagation.NEVER)
-    public void login(Tipo tipo, UUID usuarioId, String conta, String ip) {
-        if (tipo == Tipo.CONSULTA_ALUNO || tipo == Tipo.LOGIN_BLOQUEADO) {
-            throw new IllegalArgumentException(tipo + " tem o próprio método");
-        }
+    public void login(TipoDeLogin tipo, UUID usuarioId, String conta, String ip) {
         jdbc.update("INSERT INTO acessos (tipo, usuario_id, conta, ip) VALUES (?, ?, ?, ?)",
-                tipo.name(), usuarioId, conta, ip);
+                tipo.tipo().name(), usuarioId, conta, ip);
     }
 
     @Override

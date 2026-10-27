@@ -2,7 +2,7 @@ package br.com.academiagestao.auth;
 
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.compartilhado.RegistroDeAcessos;
-import br.com.academiagestao.compartilhado.RegistroDeAcessos.Tipo;
+import br.com.academiagestao.compartilhado.RegistroDeAcessos.TipoDeLogin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.DisabledException;
@@ -33,6 +33,7 @@ class AutenticacaoService {
     private final TrilhaDeUsuarios trilha;
     private final RegistroDeAcessos acessos;
     private final LimitesDeLoginProperties limites;
+    private final Sessoes sessoes;
 
     // Hash de uma senha que ninguém conhece. Quando o e-mail não existe, comparamos a senha
     // com ele mesmo assim, para a resposta demorar o mesmo tanto que com um e-mail válido.
@@ -46,8 +47,10 @@ class AutenticacaoService {
                         PlatformTransactionManager transacoes,
                         TrilhaDeUsuarios trilha,
                         RegistroDeAcessos acessos,
-                        LimitesDeLoginProperties limites) {
+                        LimitesDeLoginProperties limites,
+                        Sessoes sessoes) {
         this.repository = repository;
+        this.sessoes = sessoes;
         this.trilha = trilha;
         this.acessos = acessos;
         this.limites = limites;
@@ -65,7 +68,7 @@ class AutenticacaoService {
      * bem maior): quem sabe só o e-mail não tranca o dono para fora.
      * Sem transação aqui: cada consulta usa a sua, curta, e o BCrypt roda sem conexão presa.
      */
-    GeradorDeToken.TokenEmitido autenticar(String email, String senha, String ip) {
+    Entrada autenticar(String email, String senha, String ip) {
         String conta = Usuario.normalizarEmail(email);
         try {
             limitador.verificarERegistrar(ip, conta);
@@ -85,13 +88,16 @@ class AutenticacaoService {
             limitador.registrarFalha(conta, ip);
             // Nunca a senha digitada: ela pode ser a senha certa de outra conta, com um erro de digitação.
             log.warn("Login recusado: conta {} / IP {}", conta, ip);
-            acessos.login(Tipo.LOGIN_FALHO, usuario.map(Usuario::getId).orElse(null), conta, ip);
+            acessos.login(TipoDeLogin.LOGIN_FALHO, usuario.map(Usuario::getId).orElse(null), conta, ip);
             throw new CredenciaisInvalidasException();
         }
         limitador.registrarSucesso(conta, ip);
+        Entrada entrada = entrar(usuario.get());
+        // Só depois do token e da sessão: se um deles falhar, não fica um LOGIN de quem não
+        // entrou (pendências baixas, item 25).
         log.info("Login: conta {} / IP {}", conta, ip);
-        acessos.login(Tipo.LOGIN, usuario.get().getId(), conta, ip);
-        return geradorDeToken.gerar(usuario.get());
+        acessos.login(TipoDeLogin.LOGIN, usuario.get().getId(), conta, ip);
+        return entrada;
     }
 
     /**
@@ -100,7 +106,7 @@ class AutenticacaoService {
      * atual por tentativa e erro e ganhar acesso permanente, já que o token dura 15 minutos.
      * Conferências e BCrypt fora de transação; só a gravação final abre uma, curta.
      */
-    GeradorDeToken.TokenEmitido trocarSenha(UUID usuarioId, String senhaAtual, String novaSenha, String ip) {
+    Entrada trocarSenha(UUID usuarioId, String senhaAtual, String novaSenha, String ip) {
         // O token pode ser de alguém desativado depois do login: aí, nada de trocar senha.
         Usuario usuario = repository.findById(usuarioId)
                 .filter(Usuario::isAtivo)
@@ -117,7 +123,7 @@ class AutenticacaoService {
         if (!passwordEncoder.matches(senhaAtual, usuario.getSenhaHash())) {
             limitador.registrarFalha(conta, ip);
             log.warn("Troca de senha recusada (senha atual errada): conta {} / IP {}", conta, ip);
-            acessos.login(Tipo.TROCA_SENHA_FALHA, usuarioId, conta, ip);
+            acessos.login(TipoDeLogin.TROCA_SENHA_FALHA, usuarioId, conta, ip);
             throw new DadosInvalidosException("senha atual incorreta");
         }
         limitador.registrarSucesso(conta, ip);
@@ -144,6 +150,16 @@ class AutenticacaoService {
             trilha.ato(gravado, "SENHA_TROCADA");
             return gravado;
         });
-        return geradorDeToken.gerar(atualizado);
+        // A versão do token mudou: a sessão antiga não renova mais, e uma nova é aberta.
+        return entrar(atualizado);
+    }
+
+    /** O token e a sessão renovável (ADR 0033): o que quem entra recebe. */
+    private Entrada entrar(Usuario usuario) {
+        GeradorDeToken.TokenEmitido token = geradorDeToken.gerar(usuario);
+        return new Entrada(token, sessoes.abrir(usuario.getId()));
+    }
+
+    record Entrada(GeradorDeToken.TokenEmitido emitido, Sessoes.Aberta sessao) {
     }
 }

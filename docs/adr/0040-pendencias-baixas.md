@@ -167,3 +167,20 @@ Cada regra pegou o seu mutante (8 de 8: cada tipo de acesso ao banco, a transaç
 método, e o service usando o controller e o record dele). No Docker, o mesmo roteiro rodou nas
 duas versões, com os perfis permitidos e os recusados, os erros do If-Match e a trilha: as
 respostas saíram idênticas.
+
+### 25 — O registro de login: só os tipos certos, e depois de quem entrou ter entrado
+Antes: o `RegistroDeAcessos.login` recebia o `Tipo` inteiro e recusava, em execução, a consulta
+ao cadastro e o bloqueio (que têm método próprio). E o `LOGIN` era gravado antes de gerar o token
+e de abrir a sessão: se um deles falhasse, ficava um `LOGIN` de quem não entrou (diagnóstico da
+etapa 8, B7).
+
+Agora o método recebe um `TipoDeLogin` (`LOGIN`, `LOGIN_FALHO`, `TROCA_SENHA_FALHA`), e passar
+outro não compila. O login e a troca de senha devolvem o token e a sessão juntos (a sessão saiu
+do controller e foi para o `AutenticacaoService`), e o `LOGIN` só é gravado depois dos dois. Se o
+registro falhar depois disso, sobra uma sessão sem dono: o cookie dela nunca saiu do servidor, e
+ela vence sozinha.
+
+Testes: a sessão que não abre não deixa `LOGIN`, e o `LOGIN` vem depois da sessão; os testes do
+registro já conferiam o tipo gravado em cada caso. 4 mutantes, 4 mortos (a ordem de antes e cada
+tipo trocado). No Docker: login, senha errada, troca recusada e aceita, renovação pelo cookie e o
+cookie antigo recusado depois da troca, com o registro na ordem certa.
