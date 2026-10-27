@@ -433,4 +433,15 @@ class CobrancaTest {
             assertThat(status.podeIrPara(destino)).isEqualTo(esperado.contains(destino));
         }
     }
+
+    /** Sem o valor recebido, a recusa é a do valor errado, e não um erro de programação. */
+    @Test
+    void onlineSemORecebidoEhRecusado() {
+        Cobranca cobranca = cobranca();
+        ValorDevido combinado = new ValorDevido(new BigDecimal("100"), BigDecimal.ZERO, BigDecimal.ZERO, 0);
+
+        assertThatThrownBy(() -> cobranca.pagarOnline(combinado, null, MeioDePagamento.BOLETO, ALUNO, AGORA))
+                .isInstanceOf(PagamentoRecusadoException.class);
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
+    }
 }

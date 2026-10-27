@@ -2,6 +2,7 @@ package br.com.academiagestao.auth;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -188,5 +189,31 @@ class UsuarioTest {
         // Nada mudou: nem a senha, nem os tokens.
         assertThat(u.getSenhaHash()).isEqualTo(HASH);
         assertThat(u.getVersaoToken()).isEqualTo(versao);
+    }
+
+    /** O código confirma só o e-mail para onde foi (ADR 0038). */
+    @Test
+    void confirmaOEmailSoComOCodigoQueFoiParaEle() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@academia.com", HASH, Perfil.RECEPCAO);
+        Instant agora = Instant.parse("2026-10-27T12:00:00.123456789Z");
+
+        assertThatThrownBy(() -> u.confirmarEmail("outro@academia.com", agora)).isInstanceOf(IllegalStateException.class);
+        assertThat(u.getEmailConfirmadoEm()).isNull();
+
+        u.confirmarEmail("ana@academia.com", agora);
+        assertThat(u.getEmailConfirmadoEm()).isEqualTo(Instant.parse("2026-10-27T12:00:00.123456Z"));
+        assertThat(u.getCriadoEm()).isNotNull();
+    }
+
+    @Test
+    void corrigeOEmailSoAntesDeConfirmar() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@academia.com", HASH, Perfil.RECEPCAO);
+
+        u.corrigirEmail("  Ana.Souza@Academia.COM ");
+        assertThat(u.getEmail()).isEqualTo("ana.souza@academia.com");
+
+        u.confirmarEmail("ana.souza@academia.com", Instant.parse("2026-10-27T12:00:00Z"));
+        assertThatThrownBy(() -> u.corrigirEmail("ana@academia.com")).isInstanceOf(IllegalStateException.class);
+        assertThat(u.getEmail()).isEqualTo("ana.souza@academia.com");
     }
 }

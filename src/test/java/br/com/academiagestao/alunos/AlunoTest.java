@@ -142,4 +142,22 @@ class AlunoTest {
         assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "a" + email150, null, null, null), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class);
     }
+
+    /** O aluno corrige o e-mail no primeiro acesso (ADR 0038): o cadastro acompanha, normalizado. */
+    @Test
+    void corrigeOEmailNormalizadoERecusaOInvalido() {
+        Aluno aluno = Aluno.novo(dados("Ana", "52998224725"), Instant.now());
+
+        aluno.corrigirEmail("  Ana@Email.COM ");
+        assertThat(aluno.getEmail()).isEqualTo("ana@email.com");
+
+        String noLimite = "a".repeat(Aluno.TAMANHO_MAXIMO_EMAIL - "@x.com".length()) + "@x.com";
+        aluno.corrigirEmail(noLimite);
+        assertThat(aluno.getEmail()).isEqualTo(noLimite);
+        for (String invalido : new String[] {null, "  ", "sem-arroba", "a" + noLimite}) {
+            assertThatThrownBy(() -> aluno.corrigirEmail(invalido)).as(invalido)
+                    .isInstanceOf(DadosInvalidosException.class);
+        }
+        assertThat(aluno.getEmail()).isEqualTo(noLimite);
+    }
 }

@@ -170,30 +170,61 @@
 							</dependency>
 						</dependencies>
 						<configuration>
+							<!-- Conferida pelo ListaDaMutacaoTest (pendências baixas, item 27): toda entidade, o
+							     domínio da cobrança e a classe de cada teste de unidade (menos os services, que
+							     os testes com banco é que cobrem). -->
 							<targetClasses>
 								<param>br.com.academiagestao.alunos.Cpf</param>
 								<param>br.com.academiagestao.alunos.Aluno</param>
-								<param>br.com.academiagestao.planos.Plano</param>
+								<param>br.com.academiagestao.auditoria.AuditoriaNoBanco</param>
+								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>
+								<param>br.com.academiagestao.auth.LimiteDeRequisicoes</param>
+								<param>br.com.academiagestao.auth.PoliticaDeSenha</param>
+								<param>br.com.academiagestao.auth.SessaoProperties</param>
+								<param>br.com.academiagestao.auth.Usuario</param>
+								<param>br.com.academiagestao.cobranca.dominio.*</param>
+								<param>br.com.academiagestao.compartilhado.Correio</param>
+								<param>br.com.academiagestao.compartilhado.ProxyConfiavel</param>
+								<param>br.com.academiagestao.compartilhado.RecursoModificadoException</param>
+								<param>br.com.academiagestao.compartilhado.VersaoEsperada</param>
+								<param>br.com.academiagestao.matriculas.FormaDePagamento</param>
 								<param>br.com.academiagestao.matriculas.Matricula</param>
 								<param>br.com.academiagestao.matriculas.Trancamento</param>
-								<param>br.com.academiagestao.auth.Usuario</param>
-								<param>br.com.academiagestao.auth.PoliticaDeSenha</param>
-								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>
-								<param>br.com.academiagestao.compartilhado.VersaoEsperada</param>
-								<param>br.com.academiagestao.compartilhado.RecursoModificadoException</param>
-								<param>br.com.academiagestao.cobranca.dominio.*</param>
+								<param>br.com.academiagestao.pagamentos.ConfiguracaoDoPagamentoOnline</param>
+								<param>br.com.academiagestao.pagamentos.PagamentoOnline</param>
+								<param>br.com.academiagestao.planos.Plano</param>
+								<param>br.com.academiagestao.treinos.DivisaoDaFicha</param>
+								<param>br.com.academiagestao.treinos.Exercicio</param>
+								<param>br.com.academiagestao.treinos.ExercicioDaFicha</param>
+								<param>br.com.academiagestao.treinos.Ficha</param>
 							</targetClasses>
-							<!-- Só testes de unidade (sem banco): rápidos o bastante para cada mutação. -->
+							<!-- Todos os testes de unidade (sem Spring e sem banco): rápidos o bastante para cada
+							     mutação. Também conferida pelo ListaDaMutacaoTest. -->
 							<targetTests>
-								<param>br.com.academiagestao.alunos.CpfTest</param>
+								<param>br.com.academiagestao.alunos.AlunoServiceTest</param>
 								<param>br.com.academiagestao.alunos.AlunoTest</param>
-								<param>br.com.academiagestao.planos.PlanoTest</param>
-								<param>br.com.academiagestao.matriculas.MatriculaTest</param>
-								<param>br.com.academiagestao.auth.UsuarioTest</param>
-								<param>br.com.academiagestao.auth.PoliticaDeSenhaTest</param>
+								<param>br.com.academiagestao.alunos.CpfTest</param>
+								<param>br.com.academiagestao.auditoria.AuditoriaNoBancoTest</param>
+								<param>br.com.academiagestao.auth.AutenticacaoServiceTest</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporariaTest</param>
-								<param>br.com.academiagestao.compartilhado.VersaoEsperadaTest</param>
+								<param>br.com.academiagestao.auth.LimiteDeRequisicoesTest</param>
+								<param>br.com.academiagestao.auth.PoliticaDeSenhaTest</param>
+								<param>br.com.academiagestao.auth.PrimeiroAdminInicializadorValidacaoTest</param>
+								<param>br.com.academiagestao.auth.SessaoPropertiesTest</param>
+								<param>br.com.academiagestao.auth.SoConsultaSeSomenteLeituraTest</param>
+								<param>br.com.academiagestao.auth.UsuarioTest</param>
 								<param>br.com.academiagestao.cobranca.dominio.*Test</param>
+								<param>br.com.academiagestao.compartilhado.CorreioTest</param>
+								<param>br.com.academiagestao.compartilhado.ProxyConfiavelTest</param>
+								<param>br.com.academiagestao.compartilhado.UsuarioDaAplicacaoNoBancoValidacaoTest</param>
+								<param>br.com.academiagestao.compartilhado.VersaoEsperadaTest</param>
+								<param>br.com.academiagestao.matriculas.FormaDePagamentoTest</param>
+								<param>br.com.academiagestao.matriculas.MatriculaTest</param>
+								<param>br.com.academiagestao.pagamentos.ConfiguracaoDoPagamentoOnlineTest</param>
+								<param>br.com.academiagestao.pagamentos.PagamentoOnlineTest</param>
+								<param>br.com.academiagestao.planos.PlanoTest</param>
+								<param>br.com.academiagestao.treinos.ExercicioTest</param>
+								<param>br.com.academiagestao.treinos.FichaTest</param>
 							</targetTests>
 							<mutators>
 								<mutator>STRONGER</mutator>

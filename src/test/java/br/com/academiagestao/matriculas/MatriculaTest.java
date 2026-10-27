@@ -791,4 +791,14 @@ class MatriculaTest {
         assertThat(atual.getTrocadaEm()).isNull();
         assertThat(atual.situacao(em("2026-10-20T10:00"))).isEqualTo(SituacaoMatricula.VIGENTE);
     }
+
+    @Test
+    void canceladaNaoContinuaATroca() {
+        Matricula nova = novaDoPlano(false, "150");
+        nova.cancelar(USUARIO, "Desistiu", em("2027-01-20T10:00"));
+
+        assertThatThrownBy(() -> MatriculaNaCobranca.continuar(nova,
+                new MatriculaParaCobranca.Continuacao(LocalDate.parse("2027-02-01"))))
+                .isInstanceOf(IllegalStateException.class);
+    }
 }

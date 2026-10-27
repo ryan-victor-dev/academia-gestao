@@ -51,13 +51,13 @@ record ConfiguracaoDoPagamentoOnline(boolean pixLigado, boolean boletoLigado, bo
      */
     List<CobrancaEmAberto> pagaveis(List<CobrancaEmAberto> emAberto, LocalDate hoje) {
         List<CobrancaEmAberto> pagaveis = new ArrayList<>();
-        int adiantadas = 0;
+        boolean adiantouUma = false;
         for (CobrancaEmAberto cobranca : emAberto) {
             if (!cobranca.vencimento().isAfter(hoje)) {
                 pagaveis.add(cobranca);
-            } else if (adiantar == Adiantar.TODAS || adiantar == Adiantar.PROXIMA && adiantadas == 0) {
+            } else if (adiantar == Adiantar.TODAS || adiantar == Adiantar.PROXIMA && !adiantouUma) {
                 pagaveis.add(cobranca);
-                adiantadas++;
+                adiantouUma = true;
             }
         }
         return pagaveis;

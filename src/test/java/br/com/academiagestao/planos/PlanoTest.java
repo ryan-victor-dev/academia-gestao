@@ -1,5 +1,6 @@
 package br.com.academiagestao.planos;
 
+import br.com.academiagestao.compartilhado.CondicoesDoPlano;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -169,5 +170,12 @@ class PlanoTest {
         assertThat(plano.getNome()).isEqualTo("Anual");
         assertThat(plano.getPercentualMulta()).isEqualByComparingTo("20");
         assertThat(plano.getFormaPagamento()).isEqualTo(FormaPagamento.A_VISTA);
+    }
+
+    /** O service confere o nome livre com o mesmo nome que a entidade grava. */
+    @Test
+    void limpaONomeComoAEntidade() {
+        assertThat(Plano.limparNome("  Plano   Anual  ")).isEqualTo(CondicoesDoPlano.limparNome("  Plano   Anual  "))
+                .isNotBlank();
     }
 }

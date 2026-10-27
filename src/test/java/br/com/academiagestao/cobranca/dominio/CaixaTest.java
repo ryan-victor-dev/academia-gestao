@@ -182,4 +182,40 @@ class CaixaTest {
         assertThat(caixa.recepcaoVe(DIA.plusDays(1))).isTrue();
         assertThat(caixa.contagemAsCegas()).isTrue();
     }
+
+    /**
+     * Valor com centavos exatos é aceito no troco e no contado; um terço de centavo, não
+     * (pendências baixas, item 27: os testes só usavam valores redondos).
+     */
+    @Test
+    void centavosExatosNoTrocoENoContado() {
+        Caixa caixa = aberto("10.55");
+        assertThat(caixa.getTroco()).isEqualByComparingTo("10.55");
+        assertThatThrownBy(() -> aberto("10.555")).isInstanceOf(CobrancaInvalidaException.class);
+
+        assertThatThrownBy(() -> fechar(aberto("10.55"), "10.555", "0", "0", null))
+                .isInstanceOf(CobrancaInvalidaException.class);
+        assertThatCode(() -> fechar(caixa, "10.55", "0", "0", null)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void motivoDaReaberturaComOTamanhoMaximo() {
+        Caixa caixa = aberto("0");
+        fechar(caixa, "0", "0", "0", null);
+
+        assertThat(caixa.reabrir("x".repeat(500), ADMIN, AGORA).motivo()).hasSize(500);
+    }
+
+    @Test
+    void restauraOQueFoiLidoDoBanco() {
+        UUID id = UUID.randomUUID();
+        Caixa caixa = Caixa.restaurar(id, DIA, new BigDecimal("50.00"), Caixa.Situacao.FECHADO, AGORA, RECEPCAO);
+
+        assertThat(caixa.getId()).isEqualTo(id);
+        assertThat(caixa.getDia()).isEqualTo(DIA);
+        assertThat(caixa.getTroco()).isEqualByComparingTo("50.00");
+        assertThat(caixa.getSituacao()).isEqualTo(Caixa.Situacao.FECHADO);
+        assertThat(caixa.getAbertoEm()).isEqualTo(AGORA);
+        assertThat(caixa.getAbertoPor()).isEqualTo(RECEPCAO);
+    }
 }

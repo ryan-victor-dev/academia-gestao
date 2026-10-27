@@ -179,6 +179,7 @@ class PagamentoOnlineTest {
             PagamentoOnline p = em(situacao);
             p.contestar(AGORA, false);
             assertThat(p.getSituacao()).isEqualTo(Situacao.CONTESTADO);
+            assertThat(p.getCobrancaReaberta()).isFalse();
         }
         for (Situacao situacao : new Situacao[] {Situacao.AGUARDANDO, Situacao.EXPIRADO, Situacao.CANCELADO}) {
             assertThatThrownBy(() -> em(situacao).contestar(AGORA, false)).isInstanceOf(IllegalStateException.class);
@@ -195,5 +196,36 @@ class PagamentoOnlineTest {
         assertThat(p.getDevolvidoEm()).isEqualTo(Instant.parse("2026-11-10T15:00:00.123456Z"));
         assertThatThrownBy(() -> p.devolver(admin, AGORA)).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> pix().devolver(admin, AGORA)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void guardaOQueFoiGerado() {
+        UUID cobranca = UUID.randomUUID();
+        UUID aluno = UUID.randomUUID();
+        UUID por = UUID.randomUUID();
+        PagamentoOnline boleto = PagamentoOnline.novo(UUID.randomUUID(), cobranca, aluno, Forma.BOLETO, "simulado",
+                new Gerado("sim_2", null, "34191.79001", "https://boleto/2", null), new BigDecimal("100"),
+                BigDecimal.ZERO, BigDecimal.ZERO, VALIDO_ATE, por, AGORA);
+
+        assertThat(boleto.getId()).isNotNull();
+        assertThat(boleto.getCobrancaId()).isEqualTo(cobranca);
+        assertThat(boleto.getAlunoId()).isEqualTo(aluno);
+        assertThat(boleto.getForma()).isEqualTo(Forma.BOLETO);
+        assertThat(boleto.getProvedor()).isEqualTo("simulado");
+        assertThat(boleto.getIdExterno()).isEqualTo("sim_2");
+        assertThat(boleto.getBoletoLinhaDigitavel()).isEqualTo("34191.79001");
+        assertThat(boleto.getBoletoUrl()).isEqualTo("https://boleto/2");
+        assertThat(boleto.getValidoAte()).isEqualTo(VALIDO_ATE);
+        assertThat(boleto.getGeradoPor()).isEqualTo(por);
+        assertThat(pix().getPixCopiaECola()).isEqualTo("copia-e-cola");
+    }
+
+    @Test
+    void soOQueAguardaExpira() {
+        PagamentoOnline p = pix();
+        p.expirar();
+        assertThat(p.getSituacao()).isEqualTo(Situacao.EXPIRADO);
+        assertThatThrownBy(p::expirar).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> em(Situacao.PAGO).expirar()).isInstanceOf(IllegalStateException.class);
     }
 }

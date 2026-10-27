@@ -277,4 +277,13 @@ class FichaTest {
                 .containsEntry("series", 3).containsEntry("repeticoes", "10").containsEntry("carga", "20 kg")
                 .containsEntry("descansoSegundos", 60).containsEntry("observacao", null);
     }
+
+    @Test
+    void cadaItemGuardaOExercicioDoCatalogo() {
+        Ficha ficha = montar(umaDivisao(item(SUPINO), item(REMADA)));
+
+        assertThat(ficha.getId()).isNotNull();
+        assertThat(ficha.getDivisoes().getFirst().getExercicios())
+                .extracting(ExercicioDaFicha::getExercicioId).containsExactly(SUPINO, REMADA);
+    }
 }

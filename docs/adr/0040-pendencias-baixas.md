@@ -192,3 +192,34 @@ matrícula (diagnóstico da etapa 7, B5). Agora é `AlunosParaOutrosModulos`, e 
 usa hoje sem prometer que a lista não cresce. Nada mais mudou; o `ArquiteturaTest` acompanha o
 nome (com o nome antigo na lista, a regra da porta falha). Os ADRs antigos ficam como estão:
 registram a decisão da época.
+
+### 27 — A lista do PIT conferida por um teste, e os mutantes que sobravam
+A lista do PIT (perfil `mutacao`) era escrita à mão e ficou para trás: os treinos, o limite de
+requisições, a auditoria e outros dez testes de unidade não estavam nela. Rodando com tudo, eram
+967 mutantes, 22 vivos e 31 sem cobertura (revisões de 17/10 e 18/10 e diagnósticos das etapas 7
+e 8).
+
+**A lista.** O `ListaDaMutacaoTest` lê o `pom.xml` e o código e exige: todo teste de unidade (sem
+Spring e sem banco) nos testes do PIT; a classe de cada um (`FooTest` testa `Foo`) nas mutadas,
+menos os services (o que eles fazem depende do banco, e os testes com banco é que os cobrem; sem
+ele, sobrariam mutantes falsos); toda entidade e todo o `cobranca.dominio` nas mutadas; e nenhuma
+entrada que não exista mais. Com o `pom.xml` de antes, ele falha em três dessas regras.
+
+**Os vivos.** Ganharam teste: centavos exatos no troco e no contado do caixa e o motivo de 500
+caracteres na reabertura; `Caixa.restaurar`; o pagamento online sem o valor recebido; o que o
+`PagamentoOnline` guarda e o `expirar`; a matrícula cancelada que não continua uma troca; o e-mail
+corrigido e confirmado (`Aluno` e `Usuario`); o autor da trilha (`AuditoriaNoBanco`); o
+`ProxyConfiavel` aplicado à válvula do Tomcat; e os getters que nenhum teste lia. Em
+`ConfiguracaoDoPagamentoOnline.pagaveis`, o contador virou um booleano: o mutante `++` → `--` era
+equivalente (o contador só era comparado com zero).
+
+**Os que só o banco pega.** Nove continuam vivos no PIT, e é esperado: o crédito zero e o primeiro
+vencimento igual ao início da troca (os getters normalizam os dois, e só os `CHECK` da V27 e da
+V28 os recusam), a posição do exercício (só a V30 a confere) e os `getVersao` das entidades (sem
+o banco, a versão é sempre 0). Cada um foi rodado à mão contra os testes com banco do módulo, e
+os 9 foram pegos (o do aluno, pelos testes de edição simultânea; o da matrícula, que nenhum
+endpoint usa, pelo `MatriculaRepositoryTest`).
+
+Resultado: 966 mutantes, 953 mortos, 4 por tempo, e só esses 9 vivos ou sem cobertura (iguais em
+duas rodadas seguidas; uma rodada anterior teve o processo do PIT caindo em mais da metade dos
+mutantes, sem mensagem, e foi descartada).
