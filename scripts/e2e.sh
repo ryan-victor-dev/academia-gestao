@@ -35,7 +35,8 @@ sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -base64 24)|; \
         s|^ADMIN_SENHA=.*|ADMIN_SENHA=senha-primeiro-acesso-123|; \
         s|^JWT_SEGREDO=.*|JWT_SEGREDO=$(openssl rand -base64 32)|; \
         s|^HTTP_PORTA=.*|HTTP_PORTA=$E2E_HTTP|; s|^HTTPS_PORTA=.*|HTTPS_PORTA=$E2E_HTTPS|; \
-        s|^BACKUP_UID=.*|BACKUP_UID=$(id -u)|; s|^BACKUP_GID=.*|BACKUP_GID=$(id -g)|" .env
+        s|^BACKUP_UID=.*|BACKUP_UID=$(id -u)|; s|^BACKUP_GID=.*|BACKUP_GID=$(id -g)|; \
+        s|^PROXY_REDE=.*|PROXY_REDE=10.250.251.0/24|; s|^PROXY_IP_DO_CADDY=.*|PROXY_IP_DO_CADDY=10.250.251.10|" .env
 
 echo "Subindo a instalação de teste (https://localhost:$E2E_HTTPS)..."
 docker compose up --build -d >/dev/null 2>&1

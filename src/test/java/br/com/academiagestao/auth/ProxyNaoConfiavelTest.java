@@ -20,11 +20,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Quem não é um proxy confiável não pode escolher o próprio IP mandando X-Forwarded-For:
  * senão bastaria trocar o cabeçalho a cada tentativa para furar o limite de login.
- * Aqui o localhost deixa de ser confiável (só 10.9.9.9 seria), e o cabeçalho é ignorado.
+ * Aqui o localhost deixa de ser confiável (só 10.9.9.9 seria, como o IP fixo do Caddy no
+ * Docker), e o cabeçalho é ignorado.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "server.tomcat.remoteip.internal-proxies=10\\.9\\.9\\.9")
+        properties = "academia.proxy-confiavel=10.9.9.9")
 @ExtendWith(OutputCaptureExtension.class)
 @DirtiesContext
 class ProxyNaoConfiavelTest {

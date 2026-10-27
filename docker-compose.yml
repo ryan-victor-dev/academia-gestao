@@ -90,9 +90,14 @@ services:
       ACADEMIA_EMAIL_SENHA: ${EMAIL_SENHA:-}
       ACADEMIA_EMAIL_TLS: ${EMAIL_TLS:-true}
       ACADEMIA_EMAIL_REMETENTE: ${EMAIL_REMETENTE:-}
+      # Só o Caddy pode dizer qual é o IP do cliente (X-Forwarded-For): de outro container ou
+      # desta máquina, o cabeçalho é ignorado, e o limite de login por IP não é furado.
+      ACADEMIA_PROXY_CONFIAVEL: ${PROXY_IP_DO_CADDY:-10.250.250.10}
     ports:
       # Só nesta máquina (diagnóstico); quem vem da rede entra pelo Caddy, com HTTPS.
       - "127.0.0.1:8090:8090"
+    # default: banco e e-mail; proxy: só com o Caddy.
+    networks: [default, proxy]
 
   # Caixa de e-mails de teste (ADR 0038), só com --profile email-de-teste: recebe os e-mails
   # do sistema sem mandar nada para fora, e mostra numa página (http://localhost:8025, só nesta
@@ -183,6 +188,11 @@ services:
         condition: service_completed_successfully
       app:
         condition: service_started
+    # Numa rede só com a aplicação, com IP fixo: é o único IP em que a aplicação confia para
+    # o X-Forwarded-For (ACADEMIA_PROXY_CONFIAVEL acima).
+    networks:
+      proxy:
+        ipv4_address: ${PROXY_IP_DO_CADDY:-10.250.250.10}
     environment:
       DOMINIO: ${DOMINIO:-localhost}
       HTTP_PORTA: ${HTTP_PORTA:-80}
@@ -195,6 +205,14 @@ services:
       # Certificados e chaves do Caddy: sobrevivem a reinícios (evita pedir de novo ao Let's Encrypt).
       - caddy_data:/data
       - caddy_config:/config
+
+networks:
+  # Caddy e aplicação. Fora das faixas que o Docker usa sozinho (172.17–172.31, 192.168): se
+  # colidir com outra rede do servidor, troque PROXY_REDE e PROXY_IP_DO_CADDY no .env.
+  proxy:
+    ipam:
+      config:
+        - subnet: ${PROXY_REDE:-10.250.250.0/24}
 
 volumes:
   pgdata:
