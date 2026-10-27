@@ -126,3 +126,20 @@ trigramas passou para ela (a contagem da página o usa).
 Medido num Postgres descartável, com 100 mil alunos e 20 % deles "Maria": a página de "maria"
 caiu de 131 ms para 20 ms, e a contagem fica em 7 ms. O `IndicesDaBuscaDeAlunosTest` confere que a
 consulta da aplicação usa o índice novo.
+
+### 23 — Montar ficha encerra a anterior sem carregá-la
+Antes: para encerrar a ficha atual, o `montar` a carregava inteira (as divisões e os exercícios são
+EAGER, até 7 × 20 linhas) só para mudar o momento do encerramento e a versão (diagnóstico da
+etapa 7, B6).
+
+Agora o repositório busca só o id da atual e a encerra com um `UPDATE` (`encerrada_em` e a versão
++ 1, só se ela ainda for a atual). O aluno continua travado antes, como na correção; se o `UPDATE`
+não acha a ficha, é erro de programação (500), e não uma corrida. O momento passa pela mesma
+função da entidade (`Ficha.momentoDoEncerramento`, na precisão do banco), e a trilha fica igual à
+de antes: ela já gravava só o que mudou, e só o `encerradaEm` mudava.
+
+O resultado não muda, então só a contagem do Hibernate mostra a diferença: o
+`MontarNaoCarregaAAnteriorTest` exige zero fichas, divisões e exercícios carregados, e confere o
+encerramento, a versão e a trilha. No Docker, três montagens seguidas para o mesmo aluno: cada
+anterior encerrada no momento da seguinte, com a versão nova, as divisões intactas, a correção
+recusada (409) e a trilha com só o `encerradaEm`.

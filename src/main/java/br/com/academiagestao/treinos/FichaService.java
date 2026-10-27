@@ -60,12 +60,15 @@ class FichaService {
         // Conferida antes de encerrar a anterior: ficha inválida não encerra nada.
         Ficha nova = Ficha.montar(alunoId, dados, nomesDosExercicios(dados, Set.of()), montadaPor, agora);
 
-        repository.buscarAtual(alunoId).ifPresent(anterior -> {
-            Map<String, Object> antes = anterior.retrato();
-            anterior.encerrar(agora);
-            // Gravada antes da nova: o banco admite uma só atual por aluno.
-            repository.saveAndFlush(anterior);
-            auditoria.registrar(FICHA, anterior.getId(), "ENCERRADA", antes, anterior.retrato());
+        // Encerrada antes de gravar a nova (o banco admite uma só atual por aluno), sem carregar as
+        // divisões e os exercícios dela: na trilha, só o momento do encerramento muda.
+        repository.idDaAtual(alunoId).ifPresent(anterior -> {
+            Instant encerradaEm = Ficha.momentoDoEncerramento(agora);
+            if (repository.encerrar(anterior, encerradaEm) != 1) {
+                throw new IllegalStateException("a ficha " + anterior + " deixou de ser a atual com o aluno travado");
+            }
+            auditoria.registrar(FICHA, anterior, "ENCERRADA", Auditoria.campos("encerradaEm", null),
+                    Auditoria.campos("encerradaEm", encerradaEm));
         });
         Ficha gravada = repository.saveAndFlush(nova);
         auditoria.registrar(FICHA, gravada.getId(), "MONTADA", Map.of(), gravada.retrato());

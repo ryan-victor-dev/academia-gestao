@@ -120,7 +120,12 @@ class Ficha {
     /** Vai para o histórico: daqui em diante, nunca muda. */
     void encerrar(Instant agora) {
         garantirAtual();
-        this.encerradaEm = agora.truncatedTo(ChronoUnit.MICROS);
+        this.encerradaEm = momentoDoEncerramento(agora);
+    }
+
+    /** Na precisão do banco (microssegundos); também o do FichaRepository.encerrar. */
+    static Instant momentoDoEncerramento(Instant agora) {
+        return agora.truncatedTo(ChronoUnit.MICROS);
     }
 
     void garantirAtual() {

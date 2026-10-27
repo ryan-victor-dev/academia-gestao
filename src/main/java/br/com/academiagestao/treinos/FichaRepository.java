@@ -16,6 +16,19 @@ interface FichaRepository extends JpaRepository<Ficha, UUID> {
     @Query("SELECT f FROM Ficha f WHERE f.alunoId = :alunoId AND f.encerradaEm IS NULL")
     Optional<Ficha> buscarAtual(UUID alunoId);
 
+    /** Só o id da atual, sem carregar as divisões e os exercícios (que são EAGER). */
+    @Query("SELECT f.id FROM Ficha f WHERE f.alunoId = :alunoId AND f.encerradaEm IS NULL")
+    Optional<UUID> idDaAtual(UUID alunoId);
+
+    /**
+     * Encerra sem carregar a ficha (pendências baixas, item 23): só o momento e a versão mudam,
+     * como no {@link Ficha#encerrar}. Quem chama trava o aluno antes. Devolve 0 se ela já não
+     * era a atual.
+     */
+    @Modifying
+    @Query("UPDATE Ficha f SET f.encerradaEm = :momento, f.versao = f.versao + 1 WHERE f.id = :id AND f.encerradaEm IS NULL")
+    int encerrar(UUID id, Instant momento);
+
     /** A atual e as encerradas, da mais nova para a mais antiga, uma página por vez. */
     @Query(value = "SELECT f FROM Ficha f WHERE f.alunoId = :alunoId ORDER BY f.montadaEm DESC, f.id DESC",
             countQuery = "SELECT count(f) FROM Ficha f WHERE f.alunoId = :alunoId")
