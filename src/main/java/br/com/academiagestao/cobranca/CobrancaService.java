@@ -240,10 +240,11 @@ class CobrancaService {
         return new Consulta(cobranca, devido, hoje);
     }
 
-    private static Map<String, Object> retrato(Cobranca cobranca) {
+    // Também o das mudanças automáticas (CobrancasDasMatriculas).
+    static Map<String, Object> retrato(Cobranca cobranca) {
         Pagamento pagamento = cobranca.getPagamento();
         return Auditoria.campos("status", cobranca.getStatus().name(), "valor", cobranca.getValor(),
-                "vencimento", cobranca.getVencimento().toString(),
+                "vencimento", cobranca.getVencimento().toString(), "foraDoCronograma", cobranca.isForaDoCronograma(),
                 "pagoTotal", pagamento == null ? null : pagamento.total(),
                 "meioDePagamento", pagamento == null ? null : pagamento.meio().name());
     }

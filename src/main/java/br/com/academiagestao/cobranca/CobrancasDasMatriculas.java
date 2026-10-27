@@ -1,7 +1,10 @@
 package br.com.academiagestao.cobranca;
 
+import br.com.academiagestao.cobranca.dominio.Cobranca;
 import br.com.academiagestao.cobranca.dominio.Cronograma;
 import br.com.academiagestao.cobranca.dominio.MatriculaParaCobranca;
+import br.com.academiagestao.cobranca.dominio.StatusCobranca;
+import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.Calendario;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -11,8 +14,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import static br.com.academiagestao.compartilhado.Auditoria.Entidade.COBRANCA;
 
 /**
  * Porta pública da cobrança para as matrículas (ADR 0024): a cada mudança, a matrícula manda
@@ -23,12 +31,14 @@ public class CobrancasDasMatriculas {
 
     private final CobrancaRepository repository;
     private final ConfiguracaoDaCobrancaRepository configuracao;
+    private final Auditoria auditoria;
     private final Clock relogio;
 
     CobrancasDasMatriculas(CobrancaRepository repository, ConfiguracaoDaCobrancaRepository configuracao,
-                           Clock relogio) {
+                           Auditoria auditoria, Clock relogio) {
         this.repository = repository;
         this.configuracao = configuracao;
+        this.auditoria = auditoria;
         this.relogio = relogio;
     }
 
@@ -49,6 +59,10 @@ public class CobrancasDasMatriculas {
      * Acerta as cobranças da matrícula com o cronograma dela. Na primeira vez, registra desde
      * quando ela tem cobranças: o início, ou hoje para as que já existiam antes da cobrança
      * (decisão do dono: ninguém fica atrasado de repente). Quem chama trava a matrícula.
+     *
+     * Cada cobrança que o acerto muda (cancelada, reprogramada, fora do cronograma) vai para a
+     * trilha, com o autor da mudança na matrícula (pendências baixas, item 18). As criadas não:
+     * saem do cronograma da matrícula, que já está na trilha dela.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public void acompanhar(MatriculaParaCobranca matricula) {
@@ -59,10 +73,31 @@ public class CobrancasDasMatriculas {
             repository.registrarCronograma(matricula.matriculaId(), desde);
             return desde;
         });
-        Cronograma.Acerto acerto = Cronograma.acertar(matricula,
-                repository.travarDaMatricula(matricula.matriculaId()), aPartirDe, agora);
-        acerto.alteradas().forEach(repository::atualizar);
+        List<Cobranca> gravadas = repository.travarDaMatricula(matricula.matriculaId());
+        // O acerto altera as próprias cobranças: o retrato de antes precisa vir primeiro.
+        Map<UUID, Map<String, Object>> antes = gravadas.stream()
+                .collect(Collectors.toMap(Cobranca::getId, CobrancaService::retrato));
+        Cronograma.Acerto acerto = Cronograma.acertar(matricula, gravadas, aPartirDe, agora);
+        for (Cobranca alterada : acerto.alteradas()) {
+            repository.atualizar(alterada);
+            registrar(alterada, antes.get(alterada.getId()));
+        }
         acerto.novas().forEach(repository::inserir);
+    }
+
+    private void registrar(Cobranca cobranca, Map<String, Object> antes) {
+        Map<String, Object> depois = CobrancaService.retrato(cobranca);
+        String acao;
+        // O acerto só cancela as em aberto e nunca mexe numa cancelada.
+        if (cobranca.getStatus() == StatusCobranca.CANCELADA) {
+            acao = "CANCELADA";
+            depois.put("motivo", cobranca.getCancelamento().motivo());
+        } else if (!cobranca.getVencimento().toString().equals(antes.get("vencimento"))) {
+            acao = "REPROGRAMADA";
+        } else {
+            acao = "FORA_DO_CRONOGRAMA";
+        }
+        auditoria.registrar(COBRANCA, cobranca.getId(), acao, antes, depois);
     }
 
     /**

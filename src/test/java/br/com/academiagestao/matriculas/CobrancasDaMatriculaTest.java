@@ -72,6 +72,9 @@ class CobrancasDaMatriculaTest {
     @AfterEach
     void limpar() {
         relogio.restaurar();
+        // A trilha não é apagada pela aplicação (ADR 0021): o teste limpa a das cobranças que criou.
+        alunos.forEach(id -> jdbc.update("DELETE FROM auditoria WHERE entidade = 'COBRANCA' AND entidade_id IN "
+                + "(SELECT id FROM cobrancas WHERE aluno_id = ?)", id));
         alunos.forEach(id -> limpeza.apagar("alunos", id));
         planos.forEach(id -> limpeza.apagar("planos", id));
         limpeza.apagar("usuarios", usuario);
@@ -242,6 +245,15 @@ class CobrancasDaMatriculaTest {
         // Marcada fora do cronograma: um estorno a cancela em vez de voltar a dever (ADR 0026).
         assertThat(jdbc.queryForList("SELECT parcela FROM cobrancas WHERE matricula_id = ? AND fora_do_cronograma",
                 Integer.class, matricula.getId())).containsExactly(3);
+        // Pendências baixas, item 18: também na trilha, como a 2, em aberto, cancelada (a 1, do mês
+        // corrente, continua devida).
+        assertThat(jdbc.queryForList("""
+                SELECT c.parcela || ' ' || a.acao || ' ' || a.alteracoes::text FROM auditoria a
+                JOIN cobrancas c ON c.id = a.entidade_id WHERE a.entidade = 'COBRANCA' AND c.matricula_id = ?
+                ORDER BY c.parcela""", String.class, matricula.getId()))
+                .hasSize(2)
+                .anySatisfy(linha -> assertThat(linha).startsWith("2 CANCELADA "))
+                .contains("3 FORA_DO_CRONOGRAMA {\"foraDoCronograma\": {\"antes\": false, \"depois\": true}}");
     }
 
     /** Troca: a atual fica com as de antes do dia, e a nova começa com a primeira dela hoje. */

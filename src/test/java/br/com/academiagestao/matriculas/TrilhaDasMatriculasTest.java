@@ -77,6 +77,8 @@ class TrilhaDasMatriculasTest {
         relogio.restaurar();
         jdbc.update("DELETE FROM auditoria WHERE entidade = 'MATRICULA' AND entidade_id IN "
                 + "(SELECT id FROM matriculas WHERE aluno_id = ?)", aluno);
+        jdbc.update("DELETE FROM auditoria WHERE entidade = 'COBRANCA' AND entidade_id IN "
+                + "(SELECT id FROM cobrancas WHERE aluno_id = ?)", aluno);
         limpeza.apagar("alunos", aluno);
         limpeza.apagarOnde("planos", "id IN (?, ?)", plano, outroPlano);
         for (UUID usuario : List.of(recepcao, admin)) {
@@ -175,6 +177,43 @@ class TrilhaDasMatriculasTest {
         assertThat((String) daNova.get(0).get("alteracoes"))
                 .contains("\"trocaDe\": {\"antes\": null, \"depois\": \"" + atual + "\"}")
                 .contains("\"plano\": {\"antes\": null, \"depois\": \"Trimestral " + outroPlano + "\"}");
+    }
+
+    /**
+     * Pendências baixas, item 18: o que a matrícula faz nas cobranças (reprogramar no
+     * trancamento, cancelar as em aberto no cancelamento) também entra, com o mesmo autor.
+     */
+    @Test
+    void mudancasAutomaticasNasCobrancasEntramNaTrilha() throws Exception {
+        UUID id = matricular(outroPlano);
+        enviar("/api/matriculas/" + id + "/trancar", "{\"inicio\": \"%s\", \"voltaPrevista\": \"%s\", \"motivo\": \"Viagem\"}"
+                .formatted(hoje().plusDays(5), hoje().plusDays(20))).andExpect(status().isOk());
+
+        List<Map<String, Object>> reprogramadas = trilhaDasCobrancas(id);
+        // As 2 parcelas depois do início do trancamento andam 15 dias; a de hoje, não.
+        assertThat(reprogramadas).extracting(l -> l.get("acao")).containsExactly("REPROGRAMADA", "REPROGRAMADA");
+        assertThat(reprogramadas).extracting(l -> l.get("autor")).containsOnly(recepcao.toString());
+        LocalDate segunda = hoje().plusMonths(1);
+        assertThat(reprogramadas).extracting(l -> (String) l.get("alteracoes")).contains(
+                "{\"vencimento\": {\"antes\": \"" + segunda + "\", \"depois\": \"" + segunda.plusDays(15) + "\"}}");
+
+        enviar("/api/matriculas/" + id + "/cancelar", "{\"motivo\": \"Mudou de cidade\"}").andExpect(status().isOk());
+
+        List<Map<String, Object>> canceladas = trilhaDasCobrancas(id).stream()
+                .filter(l -> "CANCELADA".equals(l.get("acao"))).toList();
+        assertThat(canceladas).hasSize(jdbc.queryForObject(
+                "SELECT count(*) FROM cobrancas WHERE matricula_id = ? AND status = 'CANCELADA'", Integer.class, id))
+                .isNotEmpty();
+        assertThat(canceladas).extracting(l -> l.get("autor")).containsOnly(recepcao.toString());
+        assertThat(canceladas).extracting(l -> (String) l.get("alteracoes")).allSatisfy(alteracoes -> assertThat(alteracoes)
+                .contains("\"status\": {\"antes\": \"PENDENTE\", \"depois\": \"CANCELADA\"}")
+                .contains("\"motivo\": {\"antes\": null, \"depois\": \"Matrícula encerrada"));
+    }
+
+    private List<Map<String, Object>> trilhaDasCobrancas(UUID matricula) {
+        return jdbc.queryForList("SELECT autor, acao, alteracoes::text AS alteracoes FROM auditoria "
+                + "WHERE entidade = 'COBRANCA' AND entidade_id IN (SELECT id FROM cobrancas WHERE matricula_id = ?) "
+                + "ORDER BY id", matricula);
     }
 
     /** Recusada antes de gravar (aluno inativo): nem matrícula nem trilha. */

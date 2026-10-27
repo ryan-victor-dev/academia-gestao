@@ -74,3 +74,20 @@ e não grava nada.
 idempotentes e não regravam nenhum campo que outra pessoa possa ter editado, então não perdem a
 alteração de ninguém. Exigir o cabeçalho só nos exercícios tornaria a API incoerente e não
 protegeria nada.
+
+### 18 — O que a matrícula faz nas cobranças vai para a trilha
+Antes: o acerto das cobranças com o cronograma da matrícula (ADR 0024) reprogramava (trancamento,
+volta), cancelava as em aberto (cancelamento, troca) e tirava do cronograma a paga adiantada, sem
+nada na trilha das cobranças: só ficava a da matrícula que causou a mudança.
+
+Agora cada cobrança que o acerto altera ganha uma linha na trilha (`COBRANCA`), na mesma
+transação e com o mesmo autor da operação na matrícula (sem token, como na geração da subida, o
+próprio sistema):
+- `REPROGRAMADA`: o vencimento, antes e depois;
+- `CANCELADA`: o status e o motivo ("Matrícula encerrada..."); o motivo distingue do
+  cancelamento feito pelo ADMIN, que usa a mesma ação;
+- `FORA_DO_CRONOGRAMA`: a paga que o estorno passa a cancelar (ADR 0026). O campo
+  `foraDoCronograma` entrou no retrato da cobrança, também nas mudanças feitas à mão.
+
+As criadas não entram: saem do cronograma da matrícula, que já está na trilha dela (uma
+matrícula de 12 meses seriam 12 linhas a mais, sem informação nova).
