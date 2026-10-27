@@ -12,4 +12,7 @@ RUN npm run build
 
 # ===== Etapa 2: servir =====
 FROM caddy:2.11-alpine
+# O curl (e as bibliotecas dele, como a do brotli) vem na imagem oficial, mas o Caddy não usa:
+# fora, a imagem perde 3 vulnerabilidades altas e o que um invasor usaria para baixar arquivos.
+RUN apk del --no-cache curl
 COPY --from=build /web/dist /srv

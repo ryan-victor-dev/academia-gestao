@@ -50,3 +50,15 @@ Com o desenho escolhido, o token revogado recebe 401 sem gastar nada.
 
 Fica: um token revogado em laço ainda custa uma consulta por requisição (por chave primária), como
 sempre custou, até vencer (15 min). O limite de requisições não o pega, porque ele não gasta fichas.
+
+### 6 — Vulnerabilidades das imagens, reconferidas
+Trivy 0.65 (altas e críticas) em 26/10, com as imagens base baixadas de novo:
+
+| Imagem | Achado | Decisão |
+|---|---|---|
+| Aplicação (`eclipse-temurin:25-jre` + jar) | 0 | — |
+| Caddy, pacotes do Alpine | 3 novas, com correção: `curl`/`libcurl` (CVE-2026-92392) e `brotli-libs` (CVE-2026-111497) | **Removidos** da imagem (`apk del curl`): o Caddy não usa nenhum dos dois, e sem eles a imagem perde também o que um invasor usaria para baixar arquivos. Ficam 0 |
+| Caddy, binário 2.11.7 (Go 1.26.8) | As mesmas 4 do ADR 0014; ainda não há Caddy 2.11.8 nem 2.12 | Risco aceito, como no ADR 0014 (HTTP/2 desligado; as outras não se aplicam a um proxy reverso) |
+| Postgres (`17-alpine`), `gosu` | As mesmas 25 (1 crítica) do ADR 0014; a imagem de 21/10 ainda traz o `gosu` com Go 1.24.6 | Risco aceito, como no ADR 0014 (roda um instante na subida, sem rede) |
+
+Reconferir quando o Dependabot abrir a atualização do Caddy ou do Postgres.
