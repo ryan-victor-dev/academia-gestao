@@ -91,3 +91,12 @@ próprio sistema):
 
 As criadas não entram: saem do cronograma da matrícula, que já está na trilha dela (uma
 matrícula de 12 meses seriam 12 linhas a mais, sem informação nova).
+
+### 17 — Um teste confere que o banco usa o fuso do Java
+O fuso da academia está no Java (`Calendario.FUSO`) e no gatilho que só aceita lançamento no caixa
+do dia (V35). Se um mudasse sem o outro, o caixa recusaria pagamentos perto da meia-noite.
+
+Em vez de tirar o fuso do gatilho (passá-lo pela aplicação abriria um jeito de contornar a trava),
+o `FusoNoBancoTest` lê do banco a definição **atual** de todas as funções e visões e exige que todo
+`AT TIME ZONE` use o `Calendario.FUSO`, e que haja pelo menos um (para não passar no vazio). As
+migrações V25 e V26, que também citam o fuso, ficam de fora: são correções de dados que já rodaram.
