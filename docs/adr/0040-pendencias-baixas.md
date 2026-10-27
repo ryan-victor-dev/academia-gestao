@@ -143,3 +143,27 @@ O resultado não muda, então só a contagem do Hibernate mostra a diferença: o
 encerramento, a versão e a trilha. No Docker, três montagens seguidas para o mesmo aluno: cada
 anterior encerrada no momento da seguinte, com a versão nova, as divisões intactas, a correção
 recusada (409) e a trilha com só o `encerradaEm`.
+
+### 24 — O controller não usa o banco nem abre transação
+O combinado (Controller → Service → Repository) era só convenção: cinco controllers faziam a parte
+do service. A trilha e o registro de acessos montavam o SQL no controller; a lista de usuários e o
+`/api/me` usavam o repositório; e a configuração do pagamento online travava a linha, conferia o
+If-Match, gravava e escrevia na trilha, tudo no controller, com o `@Transactional` nele. Esse
+último a lista não citava; a regra nova o achou.
+
+Agora o SQL e a transação estão em services (`AuditoriaService`, `AcessosService`, `MeService`,
+`EquipeService.listar` e `ConfiguracaoDoPagamentoOnlineService`, no molde do da cobrança), e o
+controller só confere o formato e chama. A ordem das conferências não mudou: a configuração nova
+ainda só é validada depois do If-Match (versão errada continua 412, e não 400).
+
+Três regras novas no `ArquiteturaTest` impedem a volta:
+- controller não depende de `org.springframework.jdbc`, de repositório (do Spring Data ou só pelo
+  nome, como os de `JdbcTemplate`) nem do `EntityManager`;
+- controller não tem `@Transactional`, nem na classe nem nos métodos;
+- service não depende de controller, nem dos records de dentro dele (senão, o jeito de "cumprir"
+  a primeira regra seria o service devolver a resposta da API).
+
+Cada regra pegou o seu mutante (8 de 8: cada tipo de acesso ao banco, a transação na classe e no
+método, e o service usando o controller e o record dele). No Docker, o mesmo roteiro rodou nas
+duas versões, com os perfis permitidos e os recusados, os erros do If-Match e a trilha: as
+respostas saíram idênticas.

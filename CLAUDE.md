@@ -26,7 +26,8 @@ do módulo usa Spring e SQL (`JdbcTemplate`), sem JPA.
 
 As fronteiras são verificadas pelo `ArquiteturaTest` (ArchUnit, ADR 0015): sem ciclos;
 `auth` e `compartilhado` não dependem de outros módulos; de fora de um módulo, só a porta
-pública dele. Se um módulo novo precisar de outro, declare a porta pública no teste.
+pública dele; controller sem banco nem `@Transactional`, e service sem tipos do controller
+(ADR 0040, item 24). Se um módulo novo precisar de outro, declare a porta pública no teste.
 
 Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão viram ADR novo.
 

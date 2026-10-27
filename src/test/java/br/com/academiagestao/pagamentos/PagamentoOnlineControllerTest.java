@@ -125,7 +125,7 @@ class PagamentoOnlineControllerTest {
         relogio.restaurar();
         jdbc.update("DELETE FROM auditoria WHERE entidade_id IN (SELECT id FROM pagamentos_online WHERE aluno_id = ?) "
                 + "OR entidade_id IN (SELECT id FROM cobrancas WHERE aluno_id IN (?, ?))", aluno, aluno, outroAluno);
-        jdbc.update("DELETE FROM auditoria WHERE entidade_id = ?", ConfiguracaoDoPagamentoOnlineController.ID_NA_TRILHA);
+        jdbc.update("DELETE FROM auditoria WHERE entidade_id = ?", ConfiguracaoDoPagamentoOnlineService.ID_NA_TRILHA);
         limpeza.apagar("alunos", aluno);
         limpeza.apagar("alunos", outroAluno);
         limpeza.apagar("planos", plano);
@@ -1071,11 +1071,11 @@ class PagamentoOnlineControllerTest {
                 .contentType(MediaType.APPLICATION_JSON).content(corpo)).andExpect(status().isPreconditionFailed());
         mvc.perform(get("/api/pagamentos-online/configuracao").with(doAluno())).andExpect(status().isForbidden());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM auditoria WHERE entidade = 'CONFIGURACAO' "
-                + "AND entidade_id = ?", Integer.class, ConfiguracaoDoPagamentoOnlineController.ID_NA_TRILHA))
+                + "AND entidade_id = ?", Integer.class, ConfiguracaoDoPagamentoOnlineService.ID_NA_TRILHA))
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT alteracoes -> 'debitoLigado' ->> 'depois' FROM auditoria "
                 + "WHERE entidade = 'CONFIGURACAO' AND entidade_id = ?", String.class,
-                ConfiguracaoDoPagamentoOnlineController.ID_NA_TRILHA)).isEqualTo("false");
+                ConfiguracaoDoPagamentoOnlineService.ID_NA_TRILHA)).isEqualTo("false");
 
         // Com TODAS, a terceira (que vence daqui a 35 dias) também se paga.
         cobranca(1, -5);

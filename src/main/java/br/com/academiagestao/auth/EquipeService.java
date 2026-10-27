@@ -2,6 +2,7 @@ package br.com.academiagestao.auth;
 
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,14 @@ class EquipeService {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.trilha = trilha;
+    }
+
+    /** Todos os logins do sistema, também os de aluno, pelo nome. */
+    @Transactional(readOnly = true)
+    List<UsuarioResponse> listar() {
+        return repository.findAll(Sort.by("nome")).stream()
+                .map(UsuarioResponse::de)
+                .toList();
     }
 
     @Transactional

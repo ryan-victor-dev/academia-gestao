@@ -5,13 +5,11 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,24 +28,18 @@ import java.util.UUID;
 @PreAuthorize("hasRole('ADMIN')")
 class UsuarioController {
 
-    private final UsuarioRepository repository;
     private final RedefinicaoDeSenha redefinicaoDeSenha;
     private final EquipeService equipeService;
 
-    UsuarioController(UsuarioRepository repository, RedefinicaoDeSenha redefinicaoDeSenha,
-                      EquipeService equipeService) {
-        this.repository = repository;
+    UsuarioController(RedefinicaoDeSenha redefinicaoDeSenha, EquipeService equipeService) {
         this.redefinicaoDeSenha = redefinicaoDeSenha;
         this.equipeService = equipeService;
     }
 
     /** Lista os logins do sistema. */
     @GetMapping
-    @Transactional(readOnly = true)
     List<UsuarioResponse> listar() {
-        return repository.findAll(Sort.by("nome")).stream()
-                .map(UsuarioResponse::de)
-                .toList();
+        return equipeService.listar();
     }
 
     /**

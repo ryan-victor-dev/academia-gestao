@@ -10,6 +10,10 @@ import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import com.tngtech.archunit.lang.ArchRule;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityManager;
+import org.springframework.data.repository.Repository;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -22,8 +26,11 @@ import java.time.YearMonth;
 import java.time.ZonedDateTime;
 import java.util.Set;
 
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
@@ -120,6 +127,43 @@ class ArquiteturaTest {
                 }
             })
             .because("a entidade guarda as regras do próprio módulo; o que vem de outro é copiado (ADR 0002)");
+
+    /*
+     * Controller -> Service -> Repository (CLAUDE.md; pendências baixas, item 24): o controller
+     * recebe, confere o formato e responde; o banco e a transação ficam no service. Antes, cinco
+     * controllers faziam SQL ou abriam transação, e nada reclamava.
+     */
+    @ArchTest
+    static final ArchRule controllersNaoAcessamOBanco = noClasses()
+            .that().areAnnotatedWith(RestController.class)
+            .should().dependOnClassesThat(resideInAPackage("org.springframework.jdbc..")
+                    .or(assignableTo(Repository.class))
+                    .or(simpleNameEndingWith("Repository"))
+                    .or(assignableTo(EntityManager.class)))
+            .because("o banco fica no service e no repositório; o controller só chama o service");
+
+    @ArchTest
+    static final ArchRule controllersNaoAbremTransacao = noClasses()
+            .that().areAnnotatedWith(RestController.class)
+            .should().beAnnotatedWith(Transactional.class)
+            .because("a transação é do service (é ele que sabe o que precisa ir junto)");
+
+    @ArchTest
+    static final ArchRule metodosDeControllerNaoAbremTransacao = noMethods()
+            .that().areDeclaredInClassesThat().areAnnotatedWith(RestController.class)
+            .should().beAnnotatedWith(Transactional.class)
+            .because("a transação é do service (é ele que sabe o que precisa ir junto)");
+
+    // Também os records de entrada e saída, que ficam dentro do controller.
+    private static final DescribedPredicate<JavaClass> DA_WEB = DescribedPredicate.describe(
+            "um controller ou um tipo de dentro dele", classe -> classe.isAnnotatedWith(RestController.class)
+                    || classe.getEnclosingClass().map(c -> c.isAnnotatedWith(RestController.class)).orElse(false));
+
+    @ArchTest
+    static final ArchRule servicesNaoDependemDosControllers = noClasses()
+            .that().haveSimpleNameEndingWith("Service")
+            .should().dependOnClassesThat(DA_WEB)
+            .because("o service não sabe quem o chama: os tipos dele não são os da API");
 
     private static String modulo(JavaClass classe) {
         return classe.getPackageName().substring(BASE.length()).split("\\.")[0];
