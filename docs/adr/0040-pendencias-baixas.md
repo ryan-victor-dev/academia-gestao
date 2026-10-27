@@ -100,3 +100,16 @@ Em vez de tirar o fuso do gatilho (passá-lo pela aplicação abriria um jeito d
 o `FusoNoBancoTest` lê do banco a definição **atual** de todas as funções e visões e exige que todo
 `AT TIME ZONE` use o `Calendario.FUSO`, e que haja pelo menos um (para não passar no vazio). As
 migrações V25 e V26, que também citam o fuso, ficam de fora: são correções de dados que já rodaram.
+
+### 10 — Pagamento registrado sem receber: a conferência do ADMIN, escrita
+A recepção registra o pagamento que diz ter recebido; o sistema não sabe se o PIX ou o cartão do
+balcão entrou na conta. No dinheiro, o fechamento às cegas pega a falta (ADR 0031); no PIX e no
+cartão, só a conferência do ADMIN com o extrato do banco e o da maquininha. O relatório do caixa
+já separa cada dia por forma, que é o que essa conferência precisa: faltava dizer como fazê-la.
+
+Agora o README tem a rotina (semanal e antes de fechar o mês): o relatório por forma contra o
+extrato e a maquininha, e os lançamentos e a trilha para achar quem registrou.
+
+Fica para o dono decidir (muda o trabalho da recepção): exigir o código da transação (o "ID" do
+PIX ou o número do comprovante do cartão) ao registrar, para a conferência ser linha a linha, e
+não por total do dia.

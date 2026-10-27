@@ -368,6 +368,22 @@ para todos) ou de requisições (300 por minuto por usuário
 logado) e 503 quando o banco está sobrecarregado (nenhuma conexão livre em 3 s ou
 consulta acima de 5 s); 429 e 503 trazem o cabeçalho `Retry-After`.
 
+### Conferência do PIX e do cartão (ADMIN)
+
+O sistema registra o que a recepção informa: ele não tem como saber se um PIX ou um cartão
+registrado no balcão entrou de fato na conta. O dinheiro, o fechamento do caixa confere (a
+contagem às cegas); **o PIX e o cartão do balcão, só o ADMIN, comparando com o banco e com a
+maquininha**. Faça isso pelo menos uma vez por semana, e sempre antes de fechar o mês:
+
+1. Na tela **Caixa**, abra o relatório do período (ou `GET /api/caixas/relatorio?de=&ate=`).
+2. Para cada dia, compare o líquido de **PIX** com o extrato do banco, e o de **cartão de débito**
+   e **de crédito** com o relatório da maquininha (o mesmo dia, sem as taxas).
+3. Se um dia não bater, os lançamentos de cada cobrança (`GET /api/cobrancas/{id}/lancamentos`) e a
+   trilha (`GET /api/auditoria`) dizem quem registrou cada pagamento, e em que hora.
+
+O Pix, o boleto e o cartão **pelo app** (ADRs 0034 a 0037) não precisam disso: a cobrança só fica
+paga quando a empresa de pagamento confirma.
+
 ### Backup e restauração
 
 O serviço `backup` do Compose faz um `pg_dump` do banco todo dia, a partir das 3h
