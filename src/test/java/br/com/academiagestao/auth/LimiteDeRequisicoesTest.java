@@ -114,6 +114,32 @@ class LimiteDeRequisicoesTest {
         assertThat(limite.consumir("ana").liberada()).isFalse();
     }
 
+    /** Conferir (antes do banco, diagnóstico de 18/10, S4) diz o mesmo que consumir, sem gastar. */
+    @Test
+    void conferirNaoGastaFichaERecusaComoConsumir() {
+        LimiteDeRequisicoes limite = limite(2);
+        for (int i = 0; i < 10; i++) {
+            assertThat(limite.conferir("ana").liberada()).isTrue();
+        }
+        assertThat(limite.usuariosAcompanhados()).as("conferir não cria balde").isZero();
+
+        limite.consumir("ana");
+        assertThat(limite.conferir("ana").liberada()).isTrue();
+        limite.consumir("ana");
+
+        LimiteDeRequisicoes.Resultado recusada = limite.conferir("ana");
+        assertThat(recusada.liberada()).isFalse();
+        // 2 por minuto = uma ficha a cada 30 s; o aviso no log sai uma vez, como no consumir.
+        assertThat(recusada.esperar()).isEqualTo(Duration.ofSeconds(30));
+        assertThat(recusada.avisar()).isTrue();
+        assertThat(limite.consumir("ana").avisar()).isFalse();
+
+        relogio.andar(Duration.ofSeconds(30));
+        assertThat(limite.conferir("ana").liberada()).isTrue();
+        assertThat(limite.consumir("ana").liberada()).isTrue();
+        assertThat(limite.conferir("ana").liberada()).isFalse();
+    }
+
     @Test
     void oBaldeNaoPassaDoLimiteMesmoDepoisDeMuitoTempoParado() {
         LimiteDeRequisicoes limite = limite(60);

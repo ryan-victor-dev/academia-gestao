@@ -21,7 +21,9 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
@@ -74,6 +76,7 @@ class SegurancaConfig {
                                             AuthenticationEntryPoint entryPoint,
                                             AccessDeniedHandler accessDeniedHandler,
                                             LimiteDeRequisicoes limiteDeRequisicoes,
+                                            SecretKey chaveJwt, JwtProperties jwtProperties, Clock relogio,
                                             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver)
             throws Exception {
         return http
@@ -130,7 +133,11 @@ class SegurancaConfig {
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
                         .permissionsPolicyHeader(permissoes -> permissoes
                                 .policy("camera=(), microphone=(), geolocation=(), payment=()")))
-                // Limite por usuário: depois do token validado, antes de chegar à rota.
+                // Limite por usuário: quem já está sem ficha é recusado antes da consulta ao banco;
+                // a ficha é gasta depois do token validado, antes de chegar à rota.
+                .addFilterBefore(new FiltroDeLimiteAntesDoBanco(
+                                decodificadorSemBanco(chaveJwt, jwtProperties, relogio), limiteDeRequisicoes, resolver),
+                        BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(new FiltroDeLimiteDeRequisicoes(limiteDeRequisicoes, resolver),
                         BearerTokenAuthenticationFilter.class)
                 .httpBasic(basic -> basic.disable())
@@ -196,13 +203,25 @@ class SegurancaConfig {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(chaveJwt)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                validadoresSemBanco(properties, relogio), new TokenRevogadoValidator(usuarioRepository)));
+        return decoder;
+    }
+
+    /** O mesmo, sem a consulta ao banco: só para o limite por usuário (FiltroDeLimiteAntesDoBanco). */
+    static JwtDecoder decodificadorSemBanco(SecretKey chaveJwt, JwtProperties properties, Clock relogio) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(chaveJwt)
+                .macAlgorithm(MacAlgorithm.HS256)
+                .build();
+        decoder.setJwtValidator(validadoresSemBanco(properties, relogio));
+        return decoder;
+    }
+
+    private static OAuth2TokenValidator<Jwt> validadoresSemBanco(JwtProperties properties, Clock relogio) {
         JwtTimestampValidator expiracao = new JwtTimestampValidator();
         expiracao.setClock(relogio);
         // Os padrões do Spring continuam; o de expiração passado aqui toma o lugar do dele.
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithValidators(expiracao, new JwtIssuerValidator(properties.emissor())),
-                new TokenRevogadoValidator(usuarioRepository)));
-        return decoder;
+        return JwtValidators.createDefaultWithValidators(expiracao, new JwtIssuerValidator(properties.emissor()));
     }
 
     /**

@@ -33,3 +33,20 @@ Agora:
 
 Rejeitado: um segredo compartilhado num cabeçalho do Caddy (mais código e mais um segredo para
 trocar, para o mesmo efeito); confiar na rede inteira do proxy (o gateway dela é a própria máquina).
+
+### 4 — Sem ficha, o 429 sai antes da consulta ao banco
+Antes: o limite por usuário (300/min) vinha depois da validação completa do token, que consulta o
+usuário no banco (token revogado?). Um token roubado em laço gerava uma consulta por requisição,
+mesmo recebendo 429.
+
+Agora o limite é olhado duas vezes:
+- **Antes** da validação completa, um filtro confere o token só pela assinatura, pela expiração e
+  pelo emissor (sem banco; o "sub" já é de confiança) e recusa quem está sem ficha, **sem gastar**.
+- **Depois**, como antes, a ficha é gasta.
+
+Rejeitado: gastar a ficha antes da consulta. Um token revogado (que ainda tem a assinatura certa,
+até vencer) esgotaria o balde do dono da conta, e a troca de senha não pararia mais o estrago.
+Com o desenho escolhido, o token revogado recebe 401 sem gastar nada.
+
+Fica: um token revogado em laço ainda custa uma consulta por requisição (por chave primária), como
+sempre custou, até vencer (15 min). O limite de requisições não o pega, porque ele não gasta fichas.

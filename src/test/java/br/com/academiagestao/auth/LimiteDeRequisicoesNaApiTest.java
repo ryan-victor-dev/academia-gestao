@@ -119,18 +119,65 @@ class LimiteDeRequisicoesNaApiTest {
     /** Com token de verdade: o filtro precisa vir depois da validação do token, que diz quem é. */
     @Test
     void comTokenDeVerdade() throws Exception {
-        email = "limite-" + UUID.randomUUID() + "@teste.local";
-        jdbc.update("INSERT INTO usuarios (id, nome, email, senha_hash, perfil) VALUES (?, 'Limite', ?, ?, 'RECEPCAO')",
-                UUID.randomUUID(), email, passwordEncoder.encode(SENHA));
-        String corpo = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\": \"%s\", \"senha\": \"%s\"}".formatted(email, SENHA)))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        String token = "Bearer " + JsonPath.read(corpo, "$.token");
+        String token = loginDeVerdade();
 
         for (int i = 0; i < 5; i++) {
             mvc.perform(get("/api/me").header("Authorization", token)).andExpect(status().isOk());
         }
         mvc.perform(get("/api/me").header("Authorization", token)).andExpect(status().isTooManyRequests());
+    }
+
+    /**
+     * Diagnóstico de 18/10 (S4): sem ficha, o 429 sai antes da consulta ao banco. Para ver a ordem,
+     * o token é revogado depois de gastar as fichas: se o banco fosse consultado antes, viria 401.
+     */
+    @Test
+    void semFichaRecebe429AntesDeOTokenSerConferidoNoBanco() throws Exception {
+        String token = loginDeVerdade();
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(get("/api/me").header("Authorization", token)).andExpect(status().isOk());
+        }
+
+        revogarOsTokens();
+
+        mvc.perform(get("/api/me").header("Authorization", token))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "12"));
+    }
+
+    /** Quem só tem um token revogado (um token roubado, depois da troca de senha) não esgota o dono. */
+    @Test
+    void tokenRevogadoNaoGastaAsFichasDoDonoDaConta() throws Exception {
+        String revogado = loginDeVerdade();
+        revogarOsTokens();
+        for (int i = 0; i < 10; i++) {
+            mvc.perform(get("/api/me").header("Authorization", revogado)).andExpect(status().isUnauthorized());
+        }
+
+        String novo = login();
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(get("/api/me").header("Authorization", novo)).andExpect(status().isOk());
+        }
+        mvc.perform(get("/api/me").header("Authorization", novo)).andExpect(status().isTooManyRequests());
+    }
+
+    private String loginDeVerdade() throws Exception {
+        email = "limite-" + UUID.randomUUID() + "@teste.local";
+        jdbc.update("INSERT INTO usuarios (id, nome, email, senha_hash, perfil) VALUES (?, 'Limite', ?, ?, 'RECEPCAO')",
+                UUID.randomUUID(), email, passwordEncoder.encode(SENHA));
+        return login();
+    }
+
+    private String login() throws Exception {
+        String corpo = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"%s\", \"senha\": \"%s\"}".formatted(email, SENHA)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return "Bearer " + JsonPath.read(corpo, "$.token");
+    }
+
+    /** Como a troca de senha faz: os tokens de antes deixam de valer. */
+    private void revogarOsTokens() {
+        jdbc.update("UPDATE usuarios SET versao_token = versao_token + 1 WHERE email = ?", email);
     }
 }

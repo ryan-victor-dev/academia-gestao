@@ -56,6 +56,19 @@ class LimiteDeRequisicoes {
      * aviso por recusa empurraria o resto para fora).
      */
     Resultado consumir(String usuario) {
+        return avaliar(usuario, true);
+    }
+
+    /**
+     * Como {@link #consumir}, mas sem gastar a ficha: diz se o usuário já está sem nenhuma. Serve
+     * para recusar antes de consultar o banco (o token ainda não foi conferido lá): quem só
+     * confere não gasta, e um token revogado não esgota o balde do dono da conta.
+     */
+    Resultado conferir(String usuario) {
+        return avaliar(usuario, false);
+    }
+
+    private Resultado avaliar(String usuario, boolean gastar) {
         Instant agora = relogio.instant();
         Resultado[] resultado = {Resultado.LIBERADA};
         // compute é atômico por chave: duas requisições do mesmo usuário não gastam a mesma ficha.
@@ -68,7 +81,7 @@ class LimiteDeRequisicoes {
             Instant novoCheioEm = cheioEm.plus(intervalo);
             Duration excesso = Duration.between(agora, novoCheioEm).minus(janela);
             if (excesso.isNegative() || excesso.isZero()) {
-                return new Balde(novoCheioEm, balde == null ? null : balde.avisadoEm());
+                return gastar ? new Balde(novoCheioEm, balde == null ? null : balde.avisadoEm()) : balde;
             }
             // Aviso no futuro: o relógio voltou, e o log não deve ficar calado até a hora antiga.
             boolean avisar = balde.avisadoEm() == null || balde.avisadoEm().isAfter(agora)
