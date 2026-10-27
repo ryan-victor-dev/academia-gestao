@@ -31,6 +31,10 @@ public class Aluno {
     @Column(nullable = false, length = TAMANHO_MAXIMO_NOME)
     private String nome;
 
+    // O nome sem acento e minúsculo, gravado pelo banco (coluna gerada, V52): só para a busca.
+    @Column(name = "nome_busca", insertable = false, updatable = false)
+    private String nomeBusca;
+
     // A coluna é CHAR(11). Sem o @JdbcTypeCode o Hibernate esperaria VARCHAR e a
     // validação do schema (ddl-auto: validate) impediria a aplicação de subir.
     @JdbcTypeCode(SqlTypes.CHAR)

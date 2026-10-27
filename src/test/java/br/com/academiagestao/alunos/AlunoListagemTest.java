@@ -98,6 +98,19 @@ class AlunoListagemTest {
                 .andExpect(jsonPath("$.conteudo[*].nome").value(contains(esperado)));
     }
 
+    /** O nome da busca é gravado pelo banco (coluna gerada, V52): acompanha a troca do nome. */
+    @Test
+    void buscaAchaPeloNomeNovoDepoisDaTroca() throws Exception {
+        Aluno aluno = repository.save(Aluno.novo(new DadosAluno("José Antônio", "39053344705", null, null, null, null),
+                Instant.now()));
+        jdbc.update("UPDATE alunos SET nome = 'Josefina Conceição' WHERE id = ?", aluno.getId());
+
+        mvc.perform(get("/api/alunos").param("busca", "conceicao").with(perfil("ADMIN")))
+                .andExpect(jsonPath("$.conteudo[*].nome").value(contains("Josefina Conceição")));
+        mvc.perform(get("/api/alunos").param("busca", "antonio").with(perfil("ADMIN")))
+                .andExpect(jsonPath("$.totalElementos").value(0));
+    }
+
     @Test
     void buscaPeloComecoDoCpfComPontuacao() throws Exception {
         mvc.perform(get("/api/alunos").param("busca", "529.982").with(perfil("ADMIN")))

@@ -55,11 +55,12 @@ public interface AlunoRepository extends JpaRepository<Aluno, UUID>, JpaSpecific
                 if (buscaPorCpf && termo.matches("[\\d.\\-\\s]+")) {
                     condicoes.add(cb.like(root.get("cpf"), escaparLike(Cpf.normalizar(termo)) + "%", '\\'));
                 } else {
-                    // Os dois lados sem acento e minúsculos: "jose" acha "José" e "JOSÉ". A mesma
-                    // função do índice de trigramas (V17); com outra expressão, o índice não vale.
+                    // Os dois lados sem acento e minúsculos: "jose" acha "José" e "JOSÉ". O do aluno
+                    // já vem gravado (nome_busca, V52), com o índice de trigramas; o da busca, a
+                    // mesma função que o gera.
                     String padrao = "%" + escaparLike(termo.toLowerCase(Locale.ROOT)) + "%";
                     condicoes.add(cb.like(
-                            cb.function("nome_normalizado", String.class, root.get("nome")),
+                            root.get("nomeBusca"),
                             cb.function("nome_normalizado", String.class, cb.literal(padrao)),
                             '\\'));
                 }

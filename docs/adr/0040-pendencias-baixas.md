@@ -113,3 +113,16 @@ extrato e a maquininha, e os lançamentos e a trilha para achar quem registrou.
 Fica para o dono decidir (muda o trabalho da recepção): exigir o código da transação (o "ID" do
 PIX ou o número do comprovante do cartão) ao registrar, para a conferência ser linha a linha, e
 não por total do dia.
+
+### 21 — Busca por nome com o nome normalizado gravado na linha
+Antes: a página da busca é lida pelo índice de nome e id, na ordem, e o filtro calculava
+`nome_normalizado` (o `unaccent`) em cada linha descartada até achar 20. Com um nome comum, eram
+dezenas de milhares de cálculos por busca.
+
+Agora (V52) o nome normalizado é uma **coluna gerada** (`nome_busca`): o banco a grava em cada
+INSERT e UPDATE do nome, e ninguém a escreve à mão. O filtro compara a coluna, e o índice de
+trigramas passou para ela (a contagem da página o usa).
+
+Medido num Postgres descartável, com 100 mil alunos e 20 % deles "Maria": a página de "maria"
+caiu de 131 ms para 20 ms, e a contagem fica em 7 ms. O `IndicesDaBuscaDeAlunosTest` confere que a
+consulta da aplicação usa o índice novo.

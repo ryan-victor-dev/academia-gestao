@@ -58,9 +58,10 @@ class IndicesDaBuscaDeAlunosTest {
     // (Desligar só a varredura não basta: o Postgres percorreria o índice de nome em ordem.)
     private static final String[] SO_BITMAP = {"enable_seqscan", "enable_indexscan", "enable_indexonlyscan"};
 
+    /** Sobre a coluna gerada (V52): a busca precisa comparar a coluna, e não recalcular a função. */
     @Test
     void buscaPorParteDoNomeUsaOIndiceDeTrigramas() {
-        assertThat(usosDuranteAListagem("ix_alunos_busca_nome", AlunoRepository.filtro("José", false, true),
+        assertThat(usosDuranteAListagem("ix_alunos_nome_busca", AlunoRepository.filtro("José", false, true),
                 SO_BITMAP)).isPositive();
     }
 
