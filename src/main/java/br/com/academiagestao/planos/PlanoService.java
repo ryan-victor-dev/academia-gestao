@@ -67,6 +67,10 @@ class PlanoService {
     @Transactional
     Plano inativar(UUID id) {
         Plano plano = buscar(id);
+        // Já inativo: nada muda, e a trilha não ganha um "INATIVADO" que não aconteceu.
+        if (!plano.isAtivo()) {
+            return plano;
+        }
         Map<String, Object> antes = retrato(plano);
         plano.inativar();
         return gravar(plano, "INATIVADO", antes);
@@ -76,11 +80,12 @@ class PlanoService {
     @Transactional
     Plano reativar(UUID id) {
         Plano plano = buscar(id);
-        Map<String, Object> antes = retrato(plano);
-        if (!plano.isAtivo()) {
-            garantirNomeLivre(plano.getNome(), id);
-            plano.reativar();
+        if (plano.isAtivo()) {
+            return plano;
         }
+        garantirNomeLivre(plano.getNome(), id);
+        Map<String, Object> antes = retrato(plano);
+        plano.reativar();
         return gravar(plano, "REATIVADO", antes);
     }
 

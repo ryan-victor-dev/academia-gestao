@@ -69,6 +69,10 @@ class ExercicioService {
     @Transactional
     Exercicio inativar(UUID id) {
         Exercicio exercicio = buscar(id);
+        // Já inativo: nada muda, e a trilha não ganha um "INATIVADO" que não aconteceu.
+        if (!exercicio.isAtivo()) {
+            return exercicio;
+        }
         Map<String, Object> antes = retrato(exercicio);
         exercicio.inativar();
         return gravar(exercicio, "INATIVADO", antes);
@@ -78,11 +82,12 @@ class ExercicioService {
     @Transactional
     Exercicio reativar(UUID id) {
         Exercicio exercicio = buscar(id);
-        Map<String, Object> antes = retrato(exercicio);
-        if (!exercicio.isAtivo()) {
-            garantirNomeLivre(exercicio.getNome(), id);
-            exercicio.reativar();
+        if (exercicio.isAtivo()) {
+            return exercicio;
         }
+        garantirNomeLivre(exercicio.getNome(), id);
+        Map<String, Object> antes = retrato(exercicio);
+        exercicio.reativar();
         return gravar(exercicio, "REATIVADO", antes);
     }
 

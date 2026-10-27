@@ -174,6 +174,26 @@ class PlanoControllerTest {
                 .andExpect(jsonPath("$.ativo").value(true));
     }
 
+    /** Pendências baixas, item 14: repetir não muda nada, nem a versão, nem a trilha. */
+    @Test
+    void inativarOuReativarDeNovoNaoMudaNadaNemATrilha() throws Exception {
+        String id = cadastrarPlano("Mensal");
+        mvc.perform(post("/api/planos/" + id + "/reativar").with(ADMIN))
+                .andExpect(status().isOk()).andExpect(header().string("ETag", "\"0\""))
+                .andExpect(jsonPath("$.ativo").value(true));
+        mvc.perform(post("/api/planos/" + id + "/inativar").with(ADMIN)).andExpect(status().isOk());
+        mvc.perform(post("/api/planos/" + id + "/inativar").with(ADMIN))
+                .andExpect(status().isOk()).andExpect(header().string("ETag", "\"1\""))
+                .andExpect(jsonPath("$.ativo").value(false));
+        mvc.perform(post("/api/planos/" + id + "/reativar").with(ADMIN)).andExpect(status().isOk());
+        mvc.perform(post("/api/planos/" + id + "/reativar").with(ADMIN))
+                .andExpect(status().isOk()).andExpect(header().string("ETag", "\"2\""));
+
+        assertThat(jdbc.queryForList("SELECT acao FROM auditoria WHERE entidade = 'PLANO' AND entidade_id = ?"
+                + " ORDER BY momento, id", String.class, UUID.fromString(id)))
+                .containsExactly("CRIADO", "INATIVADO", "REATIVADO");
+    }
+
     @Test
     void listaEmOrdemDeNome() throws Exception {
         cadastrarPlano("Trimestral");

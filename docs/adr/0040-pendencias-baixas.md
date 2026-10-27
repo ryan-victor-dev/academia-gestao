@@ -62,3 +62,15 @@ Trivy 0.65 (altas e críticas) em 26/10, com as imagens base baixadas de novo:
 | Postgres (`17-alpine`), `gosu` | As mesmas 25 (1 crítica) do ADR 0014; a imagem de 21/10 ainda traz o `gosu` com Go 1.24.6 | Risco aceito, como no ADR 0014 (roda um instante na subida, sem rede) |
 
 Reconferir quando o Dependabot abrir a atualização do Caddy ou do Postgres.
+
+### 14 — Inativar ou reativar de novo não vai para a trilha
+Antes: inativar um exercício já inativo (ou reativar um já ativo) gravava "INATIVADO" (ou
+"REATIVADO") na trilha, sem nada ter mudado. O `PlanoService` tinha o mesmo código.
+
+Agora, nos exercícios e nos planos, a repetição devolve o registro como está (200, mesma versão)
+e não grava nada.
+
+**Sem `If-Match`, de propósito**, como nos planos e nos alunos: inativar e reativar são
+idempotentes e não regravam nenhum campo que outra pessoa possa ter editado, então não perdem a
+alteração de ninguém. Exigir o cabeçalho só nos exercícios tornaria a API incoerente e não
+protegeria nada.
