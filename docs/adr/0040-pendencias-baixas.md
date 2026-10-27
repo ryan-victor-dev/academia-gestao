@@ -223,3 +223,18 @@ endpoint usa, pelo `MatriculaRepositoryTest`).
 Resultado: 966 mutantes, 953 mortos, 4 por tempo, e só esses 9 vivos ou sem cobertura (iguais em
 duas rodadas seguidas; uma rodada anterior teve o processo do PIT caindo em mais da metade dos
 mutantes, sem mensagem, e foi descartada).
+
+### E-mail no e2e
+Os fluxos de e-mail (ADRs 0038 e 0039) só eram validados à mão, com roteiros fora do Git. O
+`scripts/e2e.sh` ganhou uma terceira fase, depois da API e das telas: liga o e-mail no `.env` da
+instalação de teste como o README manda (Mailpit, `--profile email-de-teste`), sobe de novo e roda
+o `scripts/e2e_email.py`. Ele confere, lendo os códigos na caixa do Mailpit como a pessoa leria:
+a tela de login oferecendo as duas opções; o ADMIN entrando sem confirmar; a confirmação no
+primeiro acesso da equipe (sem ela, 403; código errado recusado); o "esqueci a senha" (202 também
+para quem não existe, sem mandar nada; código de uso único; a senha antiga para de valer); e o
+primeiro acesso do aluno (nada vai para um e-mail que não é o do cadastro; com login, um novo
+pedido não manda código). O Mailpit da instalação de teste usa outra porta (18025), e a
+desmontagem passou a incluir o perfil dele. As rotas de autenticação que dão 429 esperam a janela
+do limite por IP (ADR 0022) e tentam de novo uma vez, com aviso no log: depois da API e das telas,
+o mesmo IP já gastou boa parte do limite. Resultado: 133 + 21 + 32 conferências, 0 falhas; com a
+confirmação desligada à mão (mutante), a fase do e-mail falha.

@@ -6,13 +6,14 @@
 # aleatórias), roda scripts/e2e.py e SEMPRE desmonta no final, apagando os volumes.
 #
 # Uso:  scripts/e2e.sh          (leva uns 5 minutos: há esperas pelo limite de login)
-# Depois da API (scripts/e2e.py), as telas num Chromium de verdade (web/e2e/telas.mjs).
+# Depois da API (scripts/e2e.py), as telas num Chromium de verdade (web/e2e/telas.mjs) e, por
+# último, o e-mail ligado com o Mailpit (scripts/e2e_email.py).
 # Requer, uma vez: cd web && npm ci && npx playwright install chromium
-# Portas: E2E_HTTPS (padrão 18443) e E2E_HTTP (padrão 18089).
+# Portas: E2E_HTTPS (padrão 18443), E2E_HTTP (padrão 18089) e E2E_MAILPIT (padrão 18025).
 set -euo pipefail
 RAIZ=$(cd "$(dirname "$0")/.." && pwd)
 DESTINO=$RAIZ/target/e2e/instalacao
-export E2E_HTTPS=${E2E_HTTPS:-18443} E2E_HTTP=${E2E_HTTP:-18089}
+export E2E_HTTPS=${E2E_HTTPS:-18443} E2E_HTTP=${E2E_HTTP:-18089} E2E_MAILPIT=${E2E_MAILPIT:-18025}
 export COMPOSE_PROJECT_NAME=academia-e2e E2E_PREFIXO=e2e-
 
 if [ ! -d "$RAIZ/web/node_modules/playwright" ] || ! (cd "$RAIZ/web" && npx --no-install playwright --version >/dev/null 2>&1); then
@@ -20,7 +21,8 @@ if [ ! -d "$RAIZ/web/node_modules/playwright" ] || ! (cd "$RAIZ/web" && npx --no
   exit 1
 fi
 
-desmontar() { [ -d "$DESTINO" ] && (cd "$DESTINO" && docker compose down -v >/dev/null 2>&1 || true); rm -rf "$DESTINO"; }
+# Com o perfil do Mailpit: sem ele, o down deixaria o container do e-mail para trás.
+desmontar() { [ -d "$DESTINO" ] && (cd "$DESTINO" && docker compose --profile email-de-teste down -v >/dev/null 2>&1 || true); rm -rf "$DESTINO"; }
 trap desmontar EXIT
 desmontar
 mkdir -p "$DESTINO"
@@ -28,7 +30,7 @@ mkdir -p "$DESTINO"
 
 cd "$DESTINO"
 # Isolamento: outros nomes e portas, para não colidir com o ambiente de desenvolvimento.
-sed -i 's/container_name: academia-/container_name: e2e-/; s/"127.0.0.1:5432:5432"/"127.0.0.1:15432:5432"/; s/"127.0.0.1:8090:8090"/"127.0.0.1:18090:8090"/' docker-compose.yml
+sed -i 's/container_name: academia-/container_name: e2e-/; s/"127.0.0.1:5432:5432"/"127.0.0.1:15432:5432"/; s/"127.0.0.1:8090:8090"/"127.0.0.1:18090:8090"/; s/"127.0.0.1:8025:8025"/"127.0.0.1:'"$E2E_MAILPIT"':8025"/' docker-compose.yml
 cp .env.example .env
 sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -base64 24)|; \
         s|^DB_APP_SENHA=.*|DB_APP_SENHA=$(openssl rand -base64 24)|; \
@@ -48,5 +50,16 @@ echo
 echo "Telas (Chromium):"
 node "$RAIZ/web/e2e/telas.mjs" "https://localhost:$E2E_HTTPS"
 TELAS=$?
+echo
+echo "E-mail (Mailpit):"
+# Como o README manda testar: o e-mail vai para o Mailpit, e nada sai da máquina.
+sed -i -e 's|^EMAIL_HOST=.*|EMAIL_HOST=mailpit|' -e 's|^EMAIL_PORTA=.*|EMAIL_PORTA=1025|' \
+       -e 's|^EMAIL_TLS=.*|EMAIL_TLS=false|' -e 's|^EMAIL_REMETENTE=.*|EMAIL_REMETENTE=teste@academia.local|' .env
+grep -q '^EMAIL_HOST=mailpit$' .env || echo "AVISO: o .env não ficou com o e-mail ligado" >&2
+docker compose --profile email-de-teste up -d >/dev/null 2>&1
+sleep 5
+for _ in $(seq 90); do curl -skf "https://localhost:$E2E_HTTPS/actuator/health" >/dev/null && break; sleep 2; done
+python3 -I "$RAIZ/scripts/e2e_email.py" "$DESTINO"
+EMAIL=$?
 set -e
-[ "$API" -eq 0 ] && [ "$TELAS" -eq 0 ]
+[ "$API" -eq 0 ] && [ "$TELAS" -eq 0 ] && [ "$EMAIL" -eq 0 ]

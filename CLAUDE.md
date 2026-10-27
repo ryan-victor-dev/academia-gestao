@@ -10,7 +10,7 @@ comentários, mensagens de commit, ADRs e respostas ao usuário.
 ./mvnw verify                      # todos os testes (precisa do Docker ligado)
 ./mvnw -P mutacao test-compile org.pitest:pitest-maven:mutationCoverage   # mutação (PIT)
 docker compose up --build -d       # ambiente local; entrada em https://localhost:<HTTPS_PORTA>
-scripts/e2e.sh                     # ponta a ponta (API e telas) numa instalação do zero, isolada (~6 min)
+scripts/e2e.sh                     # ponta a ponta (API, telas e e-mail) numa instalação do zero, isolada (~7 min)
 (cd web && npm test && npm run tipos)   # testes e tipos das telas (Vitest)
 scripts/usuario-validacao.sh PERFIL   # token de um usuário de teste (só desenvolvimento)
 ```

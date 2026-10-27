@@ -471,7 +471,9 @@ Para checar se os testes de domínio realmente pegam erros (teste de mutação):
 Teste de ponta a ponta numa instalação do zero, isolada do seu ambiente (outras portas
 e containers; tudo é apagado no final). Primeiro a API (`scripts/e2e.py`), depois as telas
 num Chromium de verdade (`web/e2e/telas.mjs`: os quatro perfis trabalhando juntos, o aluno no
-celular e o PWA sem internet):
+celular e o PWA sem internet) e, por último, o e-mail ligado com o Mailpit (`scripts/e2e_email.py`:
+a confirmação no primeiro acesso, o "esqueci a senha" e o primeiro acesso do aluno, com os códigos
+lidos da caixa de entrada):
 
 ```bash
 (cd web && npm ci && npx playwright install chromium)   # uma vez
