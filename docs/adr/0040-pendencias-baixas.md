@@ -184,3 +184,11 @@ Testes: a sessão que não abre não deixa `LOGIN`, e o `LOGIN` vem depois da se
 registro já conferiam o tipo gravado em cada caso. 4 mutantes, 4 mortos (a ordem de antes e cada
 tipo trocado). No Docker: login, senha errada, troca recusada e aceita, renovação pelo cookie e o
 cookie antigo recusado depois da troca, com o registro na ordem certa.
+
+### 26 — A porta do módulo de alunos com um nome que não engana
+A porta pública dos alunos nasceu para as matrículas (`AlunosParaMatricula`, ADR 0017) e hoje
+serve também os treinos, a cobrança e os pagamentos: quem lia o nome achava que era só da
+matrícula (diagnóstico da etapa 7, B5). Agora é `AlunosParaOutrosModulos`, e o javadoc diz quem a
+usa hoje sem prometer que a lista não cresce. Nada mais mudou; o `ArquiteturaTest` acompanha o
+nome (com o nome antigo na lista, a regra da porta falha). Os ADRs antigos ficam como estão:
+registram a decisão da época.

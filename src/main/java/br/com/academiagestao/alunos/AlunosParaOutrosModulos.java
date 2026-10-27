@@ -11,15 +11,16 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * O que os módulos de matrículas, de treinos, de cobrança e de pagamentos podem pedir ao de alunos. Devolve dados, não
- * lança as exceções daqui: quem decide a resposta HTTP é o módulo que chamou.
+ * O que os outros módulos (hoje matrículas, treinos, cobrança e pagamentos) podem pedir ao de
+ * alunos. Devolve dados, não lança as exceções daqui: quem decide a resposta HTTP é o módulo
+ * que chamou.
  */
 @Service
-public class AlunosParaMatricula {
+public class AlunosParaOutrosModulos {
 
     private final AlunoRepository repository;
 
-    AlunosParaMatricula(AlunoRepository repository) {
+    AlunosParaOutrosModulos(AlunoRepository repository) {
         this.repository = repository;
     }
 

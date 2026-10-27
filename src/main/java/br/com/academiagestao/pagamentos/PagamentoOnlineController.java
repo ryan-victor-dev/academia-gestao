@@ -1,6 +1,6 @@
 package br.com.academiagestao.pagamentos;
 
-import br.com.academiagestao.alunos.AlunosParaMatricula;
+import br.com.academiagestao.alunos.AlunosParaOutrosModulos;
 import br.com.academiagestao.auth.ClaimsDoToken;
 import br.com.academiagestao.cobranca.CobrancasParaPagamentoOnline.CobrancaEmAberto;
 import br.com.academiagestao.pagamentos.PagamentoOnlineService.Opcoes;
@@ -45,9 +45,9 @@ import java.util.stream.Collectors;
 class PagamentoOnlineController {
 
     private final PagamentoOnlineService service;
-    private final AlunosParaMatricula alunos;
+    private final AlunosParaOutrosModulos alunos;
 
-    PagamentoOnlineController(PagamentoOnlineService service, AlunosParaMatricula alunos) {
+    PagamentoOnlineController(PagamentoOnlineService service, AlunosParaOutrosModulos alunos) {
         this.service = service;
         this.alunos = alunos;
     }

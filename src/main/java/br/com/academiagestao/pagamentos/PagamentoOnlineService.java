@@ -1,6 +1,6 @@
 package br.com.academiagestao.pagamentos;
 
-import br.com.academiagestao.alunos.AlunosParaMatricula;
+import br.com.academiagestao.alunos.AlunosParaOutrosModulos;
 import br.com.academiagestao.cobranca.CobrancasParaPagamentoOnline;
 import br.com.academiagestao.cobranca.CobrancasParaPagamentoOnline.CobrancaEmAberto;
 import br.com.academiagestao.cobranca.CobrancasParaPagamentoOnline.FormaOnline;
@@ -53,7 +53,7 @@ class PagamentoOnlineService {
     private final PagamentoOnlineRepository repository;
     private final ConfiguracaoDoPagamentoOnlineRepository configuracao;
     private final CobrancasParaPagamentoOnline cobrancas;
-    private final AlunosParaMatricula alunos;
+    private final AlunosParaOutrosModulos alunos;
     private final Auditoria auditoria;
     private final PagamentosProperties propriedades;
     private final TransactionTemplate transacao;
@@ -61,7 +61,7 @@ class PagamentoOnlineService {
 
     PagamentoOnlineService(ObjectProvider<ProvedorDePagamento> provedor, PagamentoOnlineRepository repository,
                            ConfiguracaoDoPagamentoOnlineRepository configuracao, CobrancasParaPagamentoOnline cobrancas,
-                           AlunosParaMatricula alunos, Auditoria auditoria, PagamentosProperties propriedades,
+                           AlunosParaOutrosModulos alunos, Auditoria auditoria, PagamentosProperties propriedades,
                            PlatformTransactionManager transacoes, Clock relogio) {
         this.provedor = Optional.ofNullable(provedor.getIfAvailable());
         this.repository = repository;

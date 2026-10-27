@@ -1,6 +1,6 @@
 package br.com.academiagestao.cobranca;
 
-import br.com.academiagestao.alunos.AlunosParaMatricula;
+import br.com.academiagestao.alunos.AlunosParaOutrosModulos;
 import br.com.academiagestao.auth.ClaimsDoToken;
 import br.com.academiagestao.cobranca.CobrancaService.Consulta;
 import br.com.academiagestao.cobranca.dominio.Cancelamento;
@@ -46,9 +46,9 @@ import java.util.stream.Collectors;
 class CobrancaController {
 
     private final CobrancaService service;
-    private final AlunosParaMatricula alunos;
+    private final AlunosParaOutrosModulos alunos;
 
-    CobrancaController(CobrancaService service, AlunosParaMatricula alunos) {
+    CobrancaController(CobrancaService service, AlunosParaOutrosModulos alunos) {
         this.service = service;
         this.alunos = alunos;
     }

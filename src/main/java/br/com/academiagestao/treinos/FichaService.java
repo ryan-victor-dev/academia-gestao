@@ -1,6 +1,6 @@
 package br.com.academiagestao.treinos;
 
-import br.com.academiagestao.alunos.AlunosParaMatricula;
+import br.com.academiagestao.alunos.AlunosParaOutrosModulos;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
@@ -30,11 +30,11 @@ class FichaService {
 
     private final FichaRepository repository;
     private final ExercicioRepository exercicios;
-    private final AlunosParaMatricula alunos;
+    private final AlunosParaOutrosModulos alunos;
     private final Auditoria auditoria;
     private final Clock relogio;
 
-    FichaService(FichaRepository repository, ExercicioRepository exercicios, AlunosParaMatricula alunos,
+    FichaService(FichaRepository repository, ExercicioRepository exercicios, AlunosParaOutrosModulos alunos,
                  Auditoria auditoria, Clock relogio) {
         this.repository = repository;
         this.exercicios = exercicios;

@@ -1,6 +1,6 @@
 package br.com.academiagestao.matriculas;
 
-import br.com.academiagestao.alunos.AlunosParaMatricula;
+import br.com.academiagestao.alunos.AlunosParaOutrosModulos;
 import br.com.academiagestao.cobranca.CobrancasDasMatriculas;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.Calendario;
@@ -32,13 +32,13 @@ class MatriculaService {
     private static final DateTimeFormatter DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final MatriculaRepository repository;
-    private final AlunosParaMatricula alunos;
+    private final AlunosParaOutrosModulos alunos;
     private final PlanosParaMatricula planos;
     private final CobrancasDasMatriculas cobrancas;
     private final Auditoria auditoria;
     private final Clock relogio;
 
-    MatriculaService(MatriculaRepository repository, AlunosParaMatricula alunos, PlanosParaMatricula planos,
+    MatriculaService(MatriculaRepository repository, AlunosParaOutrosModulos alunos, PlanosParaMatricula planos,
                      CobrancasDasMatriculas cobrancas, Auditoria auditoria, Clock relogio) {
         this.repository = repository;
         this.alunos = alunos;
