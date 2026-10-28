@@ -29,3 +29,10 @@ Agora o token leva as duas, e `PUT /api/auth/email` recusa o só de leitura (403
 confirmar o código continuam liberados: confirmar não muda o cadastro e é o caminho para o
 inativo chegar aos próprios dados (direito dele, ADR 0029). Na tela, o inativo não vê "O e-mail
 está errado?", e sim um aviso para falar com a recepção, que corrige o cadastro.
+
+### B3 — HSTS também nas telas
+O Spring põe o `Strict-Transport-Security` nas respostas da API, mas as telas (arquivos servidos
+pelo próprio Caddy) não o tinham: quem abrisse o endereço pela primeira vez em HTTP dependia do
+redirecionamento. Agora o Caddy põe o mesmo cabeçalho das telas (`max-age` de um ano, com os
+subdomínios), e a API continua com o dela, sem duplicar. Em `localhost` não muda nada na prática:
+a API já o mandava. O e2e confere o cabeçalho na página.

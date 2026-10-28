@@ -81,6 +81,8 @@ secao("entrada HTTPS")
 s, b, h = req("GET", "/actuator/health")
 confere("health via HTTPS", s == 200 and b["status"] == "UP")
 confere("HSTS", "max-age" in (h.get("Strict-Transport-Security") or ""))
+r = subprocess.run(["curl", "-skI", BASE + "/"], capture_output=True, text=True).stdout.lower()
+confere("HSTS também nas telas", "strict-transport-security: max-age=31536000" in r, r[:300])
 r = subprocess.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code} %{redirect_url}", f"http://localhost:{HTTP}/x"],
                    capture_output=True, text=True).stdout
 confere("HTTP redireciona para HTTPS", r.startswith(f"301 https://localhost:{HTTPS}/x"), r)

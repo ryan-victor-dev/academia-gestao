@@ -46,6 +46,9 @@ https://{$DOMINIO:localhost}:{$HTTPS_PORTA:443} {
 
 		# Só scripts, estilos e imagens do próprio site, e conexões só com a própria API: um
 		# script injetado não roda nem manda dados para fora. Sem estilo inline.
+		# HTTPS sempre, como a API (o Spring põe o mesmo): o navegador nem tenta o HTTP depois da
+		# primeira visita (diagnóstico de 27/10, B3).
+		header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		header X-Content-Type-Options nosniff
 		header Referrer-Policy no-referrer
