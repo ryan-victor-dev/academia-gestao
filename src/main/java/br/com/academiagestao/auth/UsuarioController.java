@@ -1,7 +1,10 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.Pagina;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -36,10 +40,20 @@ class UsuarioController {
         this.equipeService = equipeService;
     }
 
-    /** Lista os logins do sistema. */
+    /** Os logins da equipe (sem os de aluno, que vêm paginados de /alunos). */
     @GetMapping
     List<UsuarioResponse> listar() {
         return equipeService.listar();
+    }
+
+    /** Os logins de aluno, paginados, com busca por qualquer parte do nome ou do e-mail (diagnóstico de 27/10, B4). */
+    @GetMapping("/alunos")
+    Pagina<UsuarioResponse> listarLoginsDeAlunos(
+            @RequestParam(required = false) String busca,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
+            @RequestParam(defaultValue = "20") @Min(value = 1, message = "deve ser pelo menos {value}")
+            @Max(value = 100, message = "pode ser no máximo {value}") int tamanho) {
+        return Pagina.de(equipeService.listarLoginsDeAlunos(busca, pagina, tamanho), UsuarioResponse::de);
     }
 
     /**

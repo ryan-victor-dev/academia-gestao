@@ -36,3 +36,15 @@ pelo próprio Caddy) não o tinham: quem abrisse o endereço pela primeira vez e
 redirecionamento. Agora o Caddy põe o mesmo cabeçalho das telas (`max-age` de um ano, com os
 subdomínios), e a API continua com o dela, sem duplicar. Em `localhost` não muda nada na prática:
 a API já o mandava. O e2e confere o cabeçalho na página.
+
+### B4 — A lista da equipe sem os logins de alunos; os de alunos, paginados
+`GET /api/usuarios` devolvia todos os logins, inclusive os de aluno, sem paginação: com milhares de
+alunos, a tela da equipe carregaria todos para mostrar meia dúzia (os de aluno ficavam escondidos
+por um filtro na tela). Agora:
+- `GET /api/usuarios` traz só a equipe (todos os perfis menos ALUNO), pelo nome, sem paginar: são
+  poucos.
+- `GET /api/usuarios/alunos` traz os logins de aluno paginados (20 por padrão, até 100), pelo nome,
+  com `busca` por qualquer parte do nome ou do e-mail, sem diferenciar maiúsculas (`%` e `_` são
+  texto, e não curingas).
+- Na tela, "Mostrar também os logins de alunos" abre uma seção à parte, com busca e páginas; as
+  ações (desativar, senha nova) são as mesmas e recarregam as duas listas.

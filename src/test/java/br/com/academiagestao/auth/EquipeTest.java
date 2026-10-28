@@ -18,6 +18,8 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -78,6 +80,54 @@ class EquipeTest {
 
     private Usuario daEquipe(String email, Perfil perfil) {
         return repository.save(Usuario.daEquipe(email, email, passwordEncoder.encode(SENHA), perfil));
+    }
+
+    private Usuario loginDeAluno(String nome, String email) {
+        UUID alunoId = UUID.randomUUID();
+        jdbc.update("INSERT INTO alunos (id, nome, cpf, email) VALUES (?, ?, ?, ?)", alunoId, nome,
+                CpfsParaTeste.aleatorio(), email);
+        return repository.save(Usuario.deAluno(nome, email, passwordEncoder.encode(SENHA), alunoId));
+    }
+
+    private ResultActions loginsDeAlunos(String parametros) throws Exception {
+        return mvc.perform(get("/api/usuarios/alunos?" + parametros).header("Authorization", "Bearer " + tokenDoAdmin));
+    }
+
+    /** A lista da equipe não traz os logins de aluno, que podem ser milhares (diagnóstico de 27/10, B4). */
+    @Test
+    void listaDaEquipeSemOsLoginsDeAlunos() throws Exception {
+        daEquipe("rita@academia.com", Perfil.RECEPCAO);
+        loginDeAluno("Aluna", "aluna@academia.com");
+
+        mvc.perform(get("/api/usuarios").header("Authorization", "Bearer " + tokenDoAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[*].email", containsInAnyOrder("admin@academia.com", "rita@academia.com")));
+    }
+
+    /** Os logins de aluno vêm paginados, pelo nome, com busca por parte do nome ou do e-mail. */
+    @Test
+    void loginsDeAlunosPaginadosComBusca() throws Exception {
+        daEquipe("rita@academia.com", Perfil.RECEPCAO);
+        loginDeAluno("Carla 100%", "carla@exemplo.com");
+        loginDeAluno("Ana Souza", "ana@exemplo.com");
+        loginDeAluno("Bruno Lima", "bruno.souza@outro.com");
+
+        loginsDeAlunos("tamanho=2").andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElementos").value(3))
+                .andExpect(jsonPath("$.totalPaginas").value(2))
+                .andExpect(jsonPath("$.conteudo[*].nome", contains("Ana Souza", "Bruno Lima")));
+        loginsDeAlunos("tamanho=2&pagina=1").andExpect(jsonPath("$.conteudo[*].nome", contains("Carla 100%")));
+        // "souza": no nome da Ana e no e-mail do Bruno; sem diferenciar maiúsculas.
+        loginsDeAlunos("busca=SOUZA").andExpect(jsonPath("$.conteudo[*].nome", contains("Ana Souza", "Bruno Lima")));
+        // "%" é texto, e não o curinga do LIKE.
+        mvc.perform(get("/api/usuarios/alunos").param("busca", "%").header("Authorization", "Bearer " + tokenDoAdmin))
+                .andExpect(jsonPath("$.conteudo[*].nome", contains("Carla 100%")));
+        loginsDeAlunos("busca=rita").andExpect(jsonPath("$.totalElementos").value(0));
+        loginsDeAlunos("tamanho=101").andExpect(status().isBadRequest());
+        String tokenDaRita = token(login("rita@academia.com", SENHA));
+        mvc.perform(get("/api/usuarios/alunos").header("Authorization", "Bearer " + tokenDaRita))
+                .andExpect(status().isForbidden());
     }
 
     @Test

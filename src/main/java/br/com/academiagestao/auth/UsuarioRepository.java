@@ -1,6 +1,9 @@
 package br.com.academiagestao.auth;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -20,6 +23,14 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
     boolean existsByAlunoId(UUID alunoId);
 
     Optional<Usuario> findByAlunoId(UUID alunoId);
+
+    /** A equipe: todos os logins menos os de aluno. */
+    List<Usuario> findByPerfilNot(Perfil perfil, Sort ordem);
+
+    /** Logins de aluno cujo nome (em minúsculas) ou e-mail casa com o padrão do LIKE. */
+    @Query("select u from Usuario u where u.perfil = br.com.academiagestao.auth.Perfil.ALUNO "
+            + "and (lower(u.nome) like :padrao escape '\\' or u.email like :padrao escape '\\')")
+    Page<Usuario> buscarLoginsDeAlunos(String padrao, Pageable pagina);
 
     /** ADMINs ativos, com as linhas travadas até o fim da transação (SELECT ... FOR UPDATE). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

@@ -8,18 +8,33 @@ const usuario = (id: string, nome: string, perfil: string, mudancas: object = {}
   ({ id, nome, email: `${id}@x.com`, perfil, ativo: true, precisaTrocarSenha: false, somenteLeitura: false, ...mudancas });
 // O usuário logado nos testes é o "u1" (ajudantes.usuarioDe).
 const lista = [usuario('u1', 'Eu Admin', 'ADMIN'), usuario('u2', 'Rita', 'RECEPCAO'), usuario('u3', 'Outro Admin', 'ADMIN'),
-  usuario('u4', 'Aluno Ana', 'ALUNO'), usuario('u5', 'Paulo', 'INSTRUTOR', { ativo: false })];
+  usuario('u5', 'Paulo', 'INSTRUTOR', { ativo: false })];
+const paginaDeAlunos = (conteudo: object[], pagina = 0, totalPaginas = 1) =>
+  ({ conteudo, pagina, tamanho: 20, totalElementos: conteudo.length + 20 * (totalPaginas - 1), totalPaginas });
 const linha = (nome: string) => screen.getByText(nome, { exact: false, selector: '.principal' }).closest('li')!;
 
 describe('equipe', () => {
-  it('lista a equipe; logins de alunos só se pedir', async () => {
-    apiFalsa({ 'GET /api/usuarios': json(200, lista) });
+  it('lista a equipe; logins de alunos só se pedir, à parte, paginados e com busca (B4)', async () => {
+    const api = apiFalsa({ 'GET /api/usuarios': json(200, lista),
+      'GET /api/usuarios/alunos': (p) => json(200, p.busca.get('busca') === 'bia'
+        ? paginaDeAlunos([usuario('u7', 'Aluna Bia', 'ALUNO')])
+        : paginaDeAlunos([usuario('u4', 'Aluno Ana', 'ALUNO')], Number(p.busca.get('pagina')), 2)) });
     renderizar(<Equipe />, { perfil: 'ADMIN' });
 
     expect(await screen.findByText('Rita')).toBeInTheDocument();
     expect(screen.queryByText('Aluno Ana')).not.toBeInTheDocument();
+    expect(api.de('GET /api/usuarios/alunos')).toHaveLength(0);
     await userEvent.click(screen.getByLabelText('Mostrar também os logins de alunos'));
-    expect(screen.getByText('Aluno Ana')).toBeInTheDocument();
+    expect(await screen.findByText('Aluno Ana')).toBeInTheDocument();
+    expect(api.de('GET /api/usuarios/alunos')[0].busca.get('pagina')).toBe('0');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    expect(await screen.findByText('Página 2 de 2')).toBeInTheDocument();
+    expect(api.de('GET /api/usuarios/alunos').at(-1)!.busca.get('pagina')).toBe('1');
+
+    await userEvent.type(screen.getByLabelText('Buscar por nome ou e-mail'), 'bia');
+    expect(await screen.findByText('Aluna Bia')).toBeInTheDocument();
+    expect(api.de('GET /api/usuarios/alunos').at(-1)!.busca.get('pagina')).toBe('0');
   });
 
   it('a si mesmo não desativa; ADMIN não ganha senha nova; desativado reativa', async () => {

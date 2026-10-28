@@ -2,12 +2,15 @@ package br.com.academiagestao.auth;
 
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -25,12 +28,24 @@ class EquipeService {
         this.trilha = trilha;
     }
 
-    /** Todos os logins do sistema, também os de aluno, pelo nome. */
+    /**
+     * Os logins da equipe, pelo nome: são poucos. Os de aluno, que podem ser milhares, ficam de fora
+     * e vêm paginados de {@link #listarLoginsDeAlunos} (diagnóstico de 27/10, B4).
+     */
     @Transactional(readOnly = true)
     List<UsuarioResponse> listar() {
-        return repository.findAll(Sort.by("nome")).stream()
+        return repository.findByPerfilNot(Perfil.ALUNO, Sort.by("nome")).stream()
                 .map(UsuarioResponse::de)
                 .toList();
+    }
+
+    /** Os logins de aluno, pelo nome, com busca opcional por qualquer parte do nome ou do e-mail. */
+    @Transactional(readOnly = true)
+    Page<Usuario> listarLoginsDeAlunos(String busca, int pagina, int tamanho) {
+        String termo = busca == null ? "" : busca.trim().toLowerCase(Locale.ROOT);
+        // Sem o escape, buscar "%" ou "_" casaria com todos (são curingas do LIKE).
+        String padrao = "%" + termo.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return repository.buscarLoginsDeAlunos(padrao, PageRequest.of(pagina, tamanho, Sort.by("nome", "id")));
     }
 
     @Transactional
