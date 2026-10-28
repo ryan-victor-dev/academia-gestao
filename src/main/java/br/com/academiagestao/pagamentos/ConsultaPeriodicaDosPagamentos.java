@@ -13,9 +13,9 @@ import org.springframework.stereotype.Component;
 @ConditionalOnWebApplication
 class ConsultaPeriodicaDosPagamentos {
 
-    private final PagamentoOnlineService service;
+    private final ConfirmacaoDePagamentoOnlineService service;
 
-    ConsultaPeriodicaDosPagamentos(PagamentoOnlineService service) {
+    ConsultaPeriodicaDosPagamentos(ConfirmacaoDePagamentoOnlineService service) {
         this.service = service;
     }
 

@@ -45,10 +45,15 @@ import java.util.stream.Collectors;
 class PagamentoOnlineController {
 
     private final PagamentoOnlineService service;
+    private final ConfirmacaoDePagamentoOnlineService confirmacao;
+    private final DevolucaoDePagamentoOnlineService devolucao;
     private final AlunosParaOutrosModulos alunos;
 
-    PagamentoOnlineController(PagamentoOnlineService service, AlunosParaOutrosModulos alunos) {
+    PagamentoOnlineController(PagamentoOnlineService service, ConfirmacaoDePagamentoOnlineService confirmacao,
+                              DevolucaoDePagamentoOnlineService devolucao, AlunosParaOutrosModulos alunos) {
         this.service = service;
+        this.confirmacao = confirmacao;
+        this.devolucao = devolucao;
         this.alunos = alunos;
     }
 
@@ -76,7 +81,7 @@ class PagamentoOnlineController {
     @PreAuthorize("hasRole('ALUNO')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void simular(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
-        service.simularPagamento(alunoId(jwt), id);
+        confirmacao.simularPagamento(alunoId(jwt), id);
     }
 
     /**
@@ -90,31 +95,31 @@ class PagamentoOnlineController {
         for (String nome : Collections.list(requisicao.getHeaderNames())) {
             cabecalhos.put(nome.toLowerCase(Locale.ROOT), requisicao.getHeader(nome));
         }
-        service.receberAviso(cabecalhos, corpo == null ? new byte[0] : corpo);
+        confirmacao.receberAviso(cabecalhos, corpo == null ? new byte[0] : corpo);
     }
 
     /** Com o nome do aluno: o ADMIN acha o pagamento no painel da empresa e devolve. */
     @GetMapping("/a-devolver")
     @PreAuthorize("hasRole('ADMIN')")
     List<ADevolverResponse> aDevolver() {
-        List<PagamentoOnline> lista = service.aDevolver();
+        List<PagamentoOnline> lista = devolucao.aDevolver();
         Map<UUID, String> nomes = alunos.nomes(lista.stream().map(PagamentoOnline::getAlunoId).collect(Collectors.toSet()));
         return lista.stream().map(p -> new ADevolverResponse(PagamentoOnlineResponse.de(p), nomes.get(p.getAlunoId()),
-                service.devolvePeloSistema(p))).toList();
+                devolucao.devolvePeloSistema(p))).toList();
     }
 
     /** O ADMIN confirma, e o sistema devolve pela empresa (ADR 0035). */
     @PostMapping("/{id}/devolver")
     @PreAuthorize("hasRole('ADMIN')")
     PagamentoOnlineResponse devolver(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
-        return PagamentoOnlineResponse.de(service.devolverPelaEmpresa(id, UUID.fromString(jwt.getSubject())));
+        return PagamentoOnlineResponse.de(devolucao.devolverPelaEmpresa(id, UUID.fromString(jwt.getSubject())));
     }
 
     /** As contestações dos últimos 90 dias (ADR 0037): o ADMIN é avisado aqui. */
     @GetMapping("/contestacoes")
     @PreAuthorize("hasRole('ADMIN')")
     List<ContestacaoResponse> contestacoes() {
-        List<PagamentoOnline> lista = service.contestacoes();
+        List<PagamentoOnline> lista = confirmacao.contestacoes();
         Map<UUID, String> nomes = alunos.nomes(lista.stream().map(PagamentoOnline::getAlunoId).collect(Collectors.toSet()));
         return lista.stream().map(p -> new ContestacaoResponse(PagamentoOnlineResponse.de(p), nomes.get(p.getAlunoId())))
                 .toList();
@@ -125,14 +130,14 @@ class PagamentoOnlineController {
     @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void simularContestacao(@PathVariable UUID id) {
-        service.simularContestacao(id);
+        confirmacao.simularContestacao(id);
     }
 
     /** Devolvido por fora (a empresa não devolve boleto pelo sistema, por exemplo). */
     @PostMapping("/{id}/devolvido")
     @PreAuthorize("hasRole('ADMIN')")
     PagamentoOnlineResponse devolvido(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
-        return PagamentoOnlineResponse.de(service.marcarDevolvido(id, UUID.fromString(jwt.getSubject())));
+        return PagamentoOnlineResponse.de(devolucao.marcarDevolvido(id, UUID.fromString(jwt.getSubject())));
     }
 
     private static UUID alunoId(Jwt jwt) {

@@ -26,12 +26,12 @@ import java.util.List;
 class ConfiguracaoDoPagamentoOnlineController {
 
     private final ConfiguracaoDoPagamentoOnlineService service;
-    private final PagamentoOnlineService pagamentos;
+    private final EmpresaDePagamento empresa;
 
     ConfiguracaoDoPagamentoOnlineController(ConfiguracaoDoPagamentoOnlineService service,
-                                            PagamentoOnlineService pagamentos) {
+                                            EmpresaDePagamento empresa) {
         this.service = service;
-        this.pagamentos = pagamentos;
+        this.empresa = empresa;
     }
 
     @GetMapping
@@ -52,8 +52,8 @@ class ConfiguracaoDoPagamentoOnlineController {
 
     private ResponseEntity<ConfiguracaoResponse> comEtag(ConfiguracaoDoPagamentoOnline c) {
         return ResponseEntity.ok().eTag(VersaoEsperada.etag(c.versao())).body(new ConfiguracaoResponse(
-                pagamentos.provedorLigado(), pagamentos.simulado(), c.pixLigado(), c.boletoLigado(),
-                c.creditoLigado(), c.debitoLigado(), c.adiantar(), c.diasDoBoleto(), pagamentos.formasDaEmpresa()));
+                empresa.provedorLigado(), empresa.simulado(), c.pixLigado(), c.boletoLigado(),
+                c.creditoLigado(), c.debitoLigado(), c.adiantar(), c.diasDoBoleto(), empresa.formasDaEmpresa()));
     }
 
     record ConfiguracaoRequest(

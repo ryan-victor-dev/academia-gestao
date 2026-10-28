@@ -94,3 +94,19 @@ reconferidas, em 28/10, as imagens reconstruídas com as bases baixadas de novo 
 | Backup (Postgres `17-alpine` + `age`) e Postgres | `gosu` com Go 1.24.6: 26 (1 crítica), como no ADR 0014. O `age` não trouxe nenhuma | Risco aceito, como no ADR 0014: no Postgres, o `gosu` roda um instante na subida, sem rede; no backup, nem roda (a rotina sobe direto como o usuário) |
 
 Reconferir quando o Dependabot abrir a atualização do Caddy ou do Postgres.
+
+### B6 — O `PagamentoOnlineService` dividido por assunto (decisão do dono: agora)
+Com 544 linhas, o `PagamentoOnlineService` gerava, recebia avisos, consultava, devolvia, contestava
+e simulava: o maior arquivo do projeto, e onde a empresa de pagamentos de verdade vai entrar. O dono
+preferiu dividir agora, sem mudar comportamento:
+
+| Classe | O quê |
+|---|---|
+| `EmpresaDePagamento` | a empresa ligada (ou nenhuma) e o que se pergunta a ela: as formas, se está disponível, o nome, se é o simulado, cancelar lá |
+| `PagamentoOnlineService` | o que o aluno vê e gera: as opções e o Pix, o boleto ou a página do cartão |
+| `ConfirmacaoDePagamentoOnlineService` | o que a empresa diz: o aviso, as consultas periódicas, o recebimento, a expiração, a contestação e o simulado, todos por `confirmar` |
+| `DevolucaoDePagamentoOnlineService` | o dinheiro a devolver: a lista, a devolução pela empresa e a marcação "por fora" |
+
+Os métodos foram copiados sem mudar (conferido linha a linha contra o original; mudaram só as
+chamadas à empresa, que passam pela `EmpresaDePagamento`). Os 41 testes do controller de pagamentos
+e o roteiro do pagamento online no Docker passam iguais.

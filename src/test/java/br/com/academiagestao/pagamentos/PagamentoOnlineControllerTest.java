@@ -89,6 +89,12 @@ class PagamentoOnlineControllerTest {
     @Autowired
     PagamentoOnlineService service;
 
+    @Autowired
+    ConfirmacaoDePagamentoOnlineService confirmacao;
+
+    @Autowired
+    DevolucaoDePagamentoOnlineService devolucao;
+
     private final UUID aluno = UUID.randomUUID();
     private final UUID outroAluno = UUID.randomUUID();
     private final UUID usuarioDoAluno = UUID.randomUUID();
@@ -432,7 +438,7 @@ class PagamentoOnlineControllerTest {
         Map<String, Object> pix = gerado(cobranca(1, 30), "PIX");
         String externo = idExterno(pix.get("id"));
         simulado.simularPagamento(externo, new BigDecimal("110.00"));
-        service.confirmar(externo);
+        confirmacao.confirmar(externo);
         return UUID.fromString(pix.get("id").toString());
     }
 
@@ -451,7 +457,7 @@ class PagamentoOnlineControllerTest {
             return chamada.callRealMethod();
         }).when(simulado).devolver(any());
 
-        service.devolverPelaEmpresa(id, admin);
+        devolucao.devolverPelaEmpresa(id, admin);
 
         assertThat(porFora).containsExactly(409);
         assertThat(situacao(id)).isEqualTo("DEVOLVIDO");
@@ -511,7 +517,7 @@ class PagamentoOnlineControllerTest {
         Map<String, Object> pix = gerado(atrasada, "PIX");
         String externo = idExterno(pix.get("id"));
         simulado.simularPagamento(externo, new BigDecimal("110.00"));
-        service.confirmar(externo);
+        confirmacao.confirmar(externo);
         jdbc.update("UPDATE pagamentos_online SET provedor = 'outra' WHERE id = ?::uuid", pix.get("id").toString());
 
         mvc.perform(get("/api/pagamentos-online/a-devolver").with(doAdmin()))
@@ -551,12 +557,12 @@ class PagamentoOnlineControllerTest {
                 Map<String, Object> pix = gerado(cobranca(10 + rodada, 0), "PIX");
                 String externo = idExterno(pix.get("id"));
                 simulado.simularPagamento(externo, new BigDecimal("150.00"));
-                service.confirmar(externo);
+                confirmacao.confirmar(externo);
                 UUID id = UUID.fromString(pix.get("id").toString());
                 List<CompletableFuture<PagamentoOnline>> pedidos = List.of(admin, outroAdmin).stream()
                         .map(quem -> CompletableFuture.supplyAsync(() -> {
                             lado.set(quem);
-                            return service.devolverPelaEmpresa(id, quem);
+                            return devolucao.devolverPelaEmpresa(id, quem);
                         }))
                         .toList();
                 pedidos.forEach(CompletableFuture::join);
@@ -629,10 +635,10 @@ class PagamentoOnlineControllerTest {
         assertThat(situacao(ontem.get("id"))).isEqualTo("CANCELADO");
         simulado.simularPagamento(idExterno(ontem.get("id")), null);
 
-        service.consultarAguardando();
+        confirmacao.consultarAguardando();
         assertThat(situacao(ontem.get("id"))).as("a consulta dos em aberto não olha os cancelados").isEqualTo("CANCELADO");
 
-        service.consultarEncerrados();
+        confirmacao.consultarEncerrados();
         assertThat(situacao(ontem.get("id"))).isEqualTo("PAGO");
         assertThat(jdbc.queryForObject("SELECT status FROM cobrancas WHERE id = ?", String.class, atrasada))
                 .isEqualTo("PAGA");
@@ -649,11 +655,11 @@ class PagamentoOnlineControllerTest {
 
         // O Pix de ontem valia até o início de hoje + 1 dia: 7 dias depois disso, mais um minuto.
         relogio.fixar(inicioDo(hoje.plusDays(1)).plus(Duration.ofDays(7)).plusSeconds(60));
-        service.consultarEncerrados();
+        confirmacao.consultarEncerrados();
         assertThat(situacao(ontem.get("id"))).isEqualTo("CANCELADO");
 
         relogio.fixar(inicioDo(hoje.plusDays(1)).plus(Duration.ofDays(7)).minusSeconds(60));
-        service.consultarEncerrados();
+        confirmacao.consultarEncerrados();
         assertThat(situacao(ontem.get("id"))).as("um minuto antes do fim da janela").isEqualTo("PAGO");
     }
 
@@ -669,7 +675,7 @@ class PagamentoOnlineControllerTest {
         assertThat(situacao(ontem.get("id"))).isEqualTo("CANCELADO");
         assertThat(simulado.consultar(externo).estado()).isEqualTo(ProvedorDePagamento.Estado.AGUARDANDO);
 
-        service.consultarEncerrados();
+        confirmacao.consultarEncerrados();
 
         assertThat(simulado.consultar(externo).estado()).isEqualTo(ProvedorDePagamento.Estado.ENCERRADO);
         assertThat(situacao(ontem.get("id"))).isEqualTo("CANCELADO");
@@ -682,19 +688,19 @@ class PagamentoOnlineControllerTest {
         Map<String, Object> esquecido = gerado(cobranca(2, -5), "PIX");
         simulado.simularPagamento(idExterno(pago.get("id")), null);
 
-        service.consultarAguardando();
+        confirmacao.consultarAguardando();
         assertThat(simulado.consultar(idExterno(esquecido.get("id"))).estado())
                 .as("dentro do prazo, a consulta não cancela na empresa").isEqualTo(ProvedorDePagamento.Estado.AGUARDANDO);
 
         irPara(hoje.plusDays(1).atTime(0, 30));
-        service.consultarAguardando();
+        confirmacao.consultarAguardando();
         assertThat(situacao(pago.get("id"))).isEqualTo("PAGO");
         assertThat(situacao(esquecido.get("id"))).isEqualTo("AGUARDANDO");
         assertThat(simulado.consultar(idExterno(esquecido.get("id"))).estado())
                 .as("na tolerância, também não").isEqualTo(ProvedorDePagamento.Estado.AGUARDANDO);
 
         irPara(hoje.plusDays(1).atTime(1, 1));
-        service.consultarAguardando();
+        confirmacao.consultarAguardando();
         assertThat(situacao(esquecido.get("id"))).isEqualTo("EXPIRADO");
         assertThat(simulado.consultar(idExterno(esquecido.get("id"))).estado())
                 .isEqualTo(ProvedorDePagamento.Estado.ENCERRADO);
@@ -731,7 +737,7 @@ class PagamentoOnlineControllerTest {
             List<CompletableFuture<Void>> lados = List.of(1, 2).stream().map(i -> CompletableFuture.runAsync(() -> {
                 try {
                     largada.await();
-                    service.confirmar(externo);
+                    confirmacao.confirmar(externo);
                 } catch (InterruptedException e) {
                     throw new IllegalStateException(e);
                 }
@@ -859,7 +865,7 @@ class PagamentoOnlineControllerTest {
         assertThat(statusDaCobranca(atrasada)).isEqualTo("PAGA");
 
         simulado.simularContestacao(idExterno(cartao.get("id")));
-        service.consultarContestacoes();
+        confirmacao.consultarContestacoes();
 
         assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
         assertThat(statusDaCobranca(atrasada)).isEqualTo("PENDENTE");
@@ -876,7 +882,7 @@ class PagamentoOnlineControllerTest {
                 .isEqualTo("true");
         mvc.perform(get("/api/pagamentos-online/contestacoes").with(doAluno())).andExpect(status().isForbidden());
         // De novo: nada muda.
-        service.consultarContestacoes();
+        confirmacao.consultarContestacoes();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM lancamentos WHERE cobranca_id = ? AND tipo = 'ESTORNO'",
                 Integer.class, atrasada)).isEqualTo(1);
     }
@@ -906,7 +912,7 @@ class PagamentoOnlineControllerTest {
         assertThat(situacao(cartao.get("id"))).isEqualTo("A_DEVOLVER");
 
         simulado.simularContestacao(idExterno(cartao.get("id")));
-        service.consultarContestacoes();
+        confirmacao.consultarContestacoes();
 
         assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
         assertThat(jdbc.queryForObject("SELECT cobranca_reaberta FROM pagamentos_online WHERE id = ?::uuid", Boolean.class,
@@ -930,7 +936,7 @@ class PagamentoOnlineControllerTest {
         simular(deHoje.get("id")).andExpect(status().isNoContent());
         String externoDeOntem = idExterno(ontem.get("id"));
         simulado.simularPagamento(externoDeOntem, null);
-        service.confirmar(externoDeOntem);
+        confirmacao.confirmar(externoDeOntem);
         assertThat(situacao(ontem.get("id"))).isEqualTo("A_DEVOLVER");
 
         simulado.simularContestacao(externoDeOntem);
@@ -952,7 +958,7 @@ class PagamentoOnlineControllerTest {
                 .andExpect(status().isOk());
 
         simulado.simularContestacao(idExterno(cartao.get("id")));
-        service.consultarContestacoes();
+        confirmacao.consultarContestacoes();
 
         assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
         mvc.perform(get("/api/pagamentos-online/contestacoes").with(doAdmin()))
@@ -968,11 +974,11 @@ class PagamentoOnlineControllerTest {
         Map<String, Object> cartao = gerado(atrasada, "CREDITO");
         String externo = idExterno(cartao.get("id"));
         simulado.simularPagamento(externo, new BigDecimal("110.00"));
-        service.confirmar(externo);
+        confirmacao.confirmar(externo);
         assertThat(situacao(cartao.get("id"))).isEqualTo("A_DEVOLVER");
 
         simulado.simularContestacao(externo);
-        service.consultarContestacoes();
+        confirmacao.consultarContestacoes();
 
         assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
         assertThat(statusDaCobranca(atrasada)).isEqualTo("PENDENTE");
@@ -992,11 +998,11 @@ class PagamentoOnlineControllerTest {
                 java.sql.Timestamp.class, cartao.get("id").toString()).toInstant();
 
         relogio.fixar(recebidoEm.plus(Duration.ofDays(120)).plusSeconds(60));
-        service.consultarContestacoes();
+        confirmacao.consultarContestacoes();
         assertThat(situacao(cartao.get("id"))).as("fora da janela").isEqualTo("PAGO");
 
         relogio.fixar(recebidoEm.plus(Duration.ofDays(120)).minusSeconds(60));
-        service.consultarContestacoes();
+        confirmacao.consultarContestacoes();
         assertThat(situacao(cartao.get("id"))).isEqualTo("CONTESTADO");
         assertThat(situacao(pix.get("id"))).as("o Pix não entra na consulta diária").isEqualTo("PAGO");
         aviso(TOKEN, idExterno(pix.get("id"))).andExpect(status().isNoContent());
@@ -1012,7 +1018,7 @@ class PagamentoOnlineControllerTest {
         simulado.simularPagamento(externo, null);
         simulado.simularContestacao(externo);
 
-        service.consultarAguardando();
+        confirmacao.consultarAguardando();
 
         assertThat(situacao(cartao.get("id"))).isEqualTo("EXPIRADO");
         assertThat(statusDaCobranca(atrasada)).isEqualTo("PENDENTE");
@@ -1134,7 +1140,7 @@ class PagamentoOnlineControllerTest {
         Map<String, Object> cartao = gerado(cobranca(1, 30), "CREDITO");
 
         irPara(hoje.plusDays(1).atTime(1, 1));
-        service.consultarAguardando();
+        confirmacao.consultarAguardando();
 
         assertThat(situacao(cartao.get("id"))).isEqualTo("EXPIRADO");
     }
