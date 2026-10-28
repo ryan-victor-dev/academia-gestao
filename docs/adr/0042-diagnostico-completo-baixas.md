@@ -65,3 +65,19 @@ Decisão: **o sistema roda com uma instância só**, e isso agora está escrito 
 Nada muda no código: com uma instância (o Compose sobe uma), não há problema; o que muda é que
 quem pensar em escalar sabe por onde começar: os limites em memória vão para o banco, e as tarefas ganham uma trava no banco (por exemplo, `pg_try_advisory_lock`,
 ou o ShedLock), para só uma rodar por vez.
+
+### B7 — Limite de tokens inválidos por IP (decisão do dono)
+Um IP mandava 1.480 tokens inválidos por segundo, todos 401, sem limite: sem banco (a assinatura é
+conferida antes), mas com a CPU à vontade. O dono decidiu por um limite por IP na própria aplicação.
+
+- Cada 401 de quem **mandou um token** gasta uma ficha do IP (`LimiteDeTokensInvalidos`, 60 por
+  minuto, `academia.tokens-invalidos.por-minuto`). O 401 de quem não mandou token nenhum não conta.
+- O IP sem fichas recebe 429 (com `Retry-After`) em toda requisição com token, antes de qualquer
+  conferência (`FiltroDeTokensInvalidos`, o primeiro filtro de segurança): é a conferência da
+  assinatura que custa. O 429 não gasta ficha, e as fichas voltam aos poucos (uma a cada segundo).
+  Requisição sem token passa (o login tem o limite dele).
+- O mesmo balde de fichas do limite por usuário, em memória (uma instância só, B5).
+- 60 por minuto fica muito acima do uso real (um token vencido de vez em quando, que a tela renova
+  sozinha) e muito abaixo de um laço. Numa academia em que todos saem pelo mesmo IP (a rede da
+  recepção), só um laço de verdade esgota o balde, e aí todos daquele IP esperam até a ficha voltar.
+- Não resolve a enxurrada vinda de muitos IPs (pendências, item 3), que continua com o dono.

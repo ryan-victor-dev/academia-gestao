@@ -50,7 +50,7 @@ import java.util.List;
 @Configuration
 @ConditionalOnWebApplication
 @EnableMethodSecurity // liga o @PreAuthorize nos controllers
-@EnableConfigurationProperties(LimiteDeRequisicoesProperties.class)
+@EnableConfigurationProperties({LimiteDeRequisicoesProperties.class, LimiteDeTokensInvalidosProperties.class})
 class SegurancaConfig {
 
     /** Autoridade de quem entrou com senha temporária; substitui o ROLE_ do perfil. */
@@ -76,6 +76,7 @@ class SegurancaConfig {
                                             AuthenticationEntryPoint entryPoint,
                                             AccessDeniedHandler accessDeniedHandler,
                                             LimiteDeRequisicoes limiteDeRequisicoes,
+                                            LimiteDeTokensInvalidos limiteDeTokensInvalidos,
                                             SecretKey chaveJwt, JwtProperties jwtProperties, Clock relogio,
                                             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver)
             throws Exception {
@@ -145,6 +146,10 @@ class SegurancaConfig {
                 .addFilterBefore(new FiltroDeLimiteAntesDoBanco(
                                 decodificadorSemBanco(chaveJwt, jwtProperties, relogio), limiteDeRequisicoes, resolver),
                         BearerTokenAuthenticationFilter.class)
+                // Antes de tudo que confere o token: o IP que já mandou tokens inválidos demais
+                // recebe 429 sem gastar a CPU da assinatura (diagnóstico de 27/10, B7).
+                .addFilterBefore(new FiltroDeTokensInvalidos(limiteDeTokensInvalidos, resolver),
+                        FiltroDeLimiteAntesDoBanco.class)
                 .addFilterAfter(new FiltroDeLimiteDeRequisicoes(limiteDeRequisicoes, resolver),
                         BearerTokenAuthenticationFilter.class)
                 .httpBasic(basic -> basic.disable())
@@ -174,15 +179,19 @@ class SegurancaConfig {
      * igual a qualquer outro erro.
      */
 
-    /** 401: sem token, token inválido ou expirado. */
+    /** 401: sem token, token inválido ou expirado. O recusado gasta uma ficha do IP (B7). */
     @Bean
     AuthenticationEntryPoint authenticationEntryPoint(
-            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver) {
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver,
+            LimiteDeTokensInvalidos limiteDeTokensInvalidos) {
         // O padrão do Spring escolhe o status e o WWW-Authenticate (RFC 6750). O cabeçalho é
         // reescrito só com o código do erro: a descrição trazia detalhes internos ("Signed JWT
         // rejected: Invalid signature", "Token revogado") que ajudam quem tenta forjar um token.
         BearerTokenAuthenticationEntryPoint padrao = new BearerTokenAuthenticationEntryPoint();
         return (request, response, excecao) -> {
+            if (tokenForaDasRotasDeSessao(request) != null) {
+                limiteDeTokensInvalidos.registrarRecusa(request.getRemoteAddr());
+            }
             padrao.commence(request, response, excecao);
             response.setHeader(HttpHeaders.WWW_AUTHENTICATE,
                     excecao instanceof OAuth2AuthenticationException oauth

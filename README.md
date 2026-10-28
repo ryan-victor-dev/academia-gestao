@@ -59,7 +59,7 @@ Qualquer transição fora do diagrama lança `TransicaoInvalidaException`. O est
 apaga o pagamento: os dois ficam no registro de lançamentos, que só cresce (ADR 0025).
 
 **Uma instância só** (ADR 0042, B5): o sistema roda com um container da aplicação. Os limites por
-usuário (300 requisições/min) ficam na memória dela, e as tarefas
+usuário (300 requisições/min) e de tokens inválidos por IP ficam na memória dela, e as tarefas
 periódicas (limpezas, retenção da trilha, consultas à empresa de pagamento) rodam nela. Duas
 instâncias contariam os limites em dobro e repetiriam as tarefas. Para escalar, primeiro esses
 limites vão para o banco e as tarefas ganham uma trava no banco (uma só roda por vez).
@@ -373,8 +373,9 @@ temporária ainda não trocada), 404 para recurso inexistente, 409 para conflito
 desde o `GET`, 428 quando falta o `If-Match`, 413 para corpo acima de 64 KB,
 429 para excesso de tentativas de login (20 por minuto por IP; 10 senhas erradas
 em 15 minutos bloqueiam o e-mail para aquele IP, e 100 somando todos os IPs o bloqueiam
-para todos) ou de requisições (300 por minuto por usuário
-logado) e 503 quando o banco está sobrecarregado (nenhuma conexão livre em 3 s ou
+para todos), de requisições (300 por minuto por usuário
+logado) ou de tokens recusados (60 por minuto por IP: depois disso, toda requisição com token
+daquele IP recebe 429 até a ficha voltar) e 503 quando o banco está sobrecarregado (nenhuma conexão livre em 3 s ou
 consulta acima de 5 s); 429 e 503 trazem o cabeçalho `Retry-After`.
 
 ### Conferência do PIX e do cartão (ADMIN)

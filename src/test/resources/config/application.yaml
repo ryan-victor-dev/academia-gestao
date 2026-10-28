@@ -13,6 +13,10 @@ academia:
     # Os testes com token simulado são todos do mesmo usuário ("user"); o limite de verdade
     # é testado em LimiteDeRequisicoesTest, que define o próprio valor.
     por-minuto: 1000000
+  tokens-invalidos:
+    # Os testes mandam tokens inválidos do mesmo "IP" (127.0.0.1); o limite de verdade é
+    # testado em LimiteDeTokensInvalidosNaApiTest, que define o próprio valor.
+    por-minuto: 1000000
   cobranca:
     # Os testes geram as cobranças das matrículas antigas quando querem (ver
     # CobrancasDasMatriculasAntigasTest), e não a cada contexto novo do Spring.
