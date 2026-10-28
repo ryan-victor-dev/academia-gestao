@@ -58,6 +58,12 @@ stateDiagram-v2
 Qualquer transição fora do diagrama lança `TransicaoInvalidaException`. O estorno não
 apaga o pagamento: os dois ficam no registro de lançamentos, que só cresce (ADR 0025).
 
+**Uma instância só** (ADR 0042, B5): o sistema roda com um container da aplicação. Os limites por
+usuário (300 requisições/min) ficam na memória dela, e as tarefas
+periódicas (limpezas, retenção da trilha, consultas à empresa de pagamento) rodam nela. Duas
+instâncias contariam os limites em dobro e repetiriam as tarefas. Para escalar, primeiro esses
+limites vão para o banco e as tarefas ganham uma trava no banco (uma só roda por vez).
+
 As decisões de arquitetura e seus motivos estão registradas em
 [`docs/adr/`](docs/adr):
 
