@@ -81,3 +81,16 @@ conferida antes), mas com a CPU à vontade. O dono decidiu por um limite por IP 
   sozinha) e muito abaixo de um laço. Numa academia em que todos saem pelo mesmo IP (a rede da
   recepção), só um laço de verdade esgota o balde, e aí todos daquele IP esperam até a ficha voltar.
 - Não resolve a enxurrada vinda de muitos IPs (pendências, item 3), que continua com o dono.
+
+### B8 — Trivy atualizado (0.65 → 0.76) e as imagens reconferidas
+O Trivy local era o 0.65 (a base de vulnerabilidades se atualiza sozinha, mas a ferramenta também
+precisa). Atualizado para o 0.76 (`aquasec/trivy:0.76.0`; nada no repositório fixa a versão) e
+reconferidas, em 28/10, as imagens reconstruídas com as bases baixadas de novo (altas e críticas):
+
+| Imagem | Achado | Decisão |
+|---|---|---|
+| Aplicação (`eclipse-temurin:25-jre` + jar) | 0 | — |
+| Caddy, binário 2.11.7 (Go 1.26.8) | As 4 da biblioteca padrão do Go já conhecidas (ADR 0014) e 3 que o Trivy novo mostra: `x/net` (CVE-2026-78669, a mesma falha de HTTP/2) e `go-jose` v3/v4 (CVE-2026-116587, negação de serviço ao ler chaves JWK com RSA) | Risco aceito: o HTTP/2 está desligado, e o `go-jose` só é usado pelo cliente ACME, que conversa com o Let's Encrypt; nenhuma chave JWK de fora é lida. Ainda não há Caddy 2.11.8 nem 2.12 |
+| Backup (Postgres `17-alpine` + `age`) e Postgres | `gosu` com Go 1.24.6: 26 (1 crítica), como no ADR 0014. O `age` não trouxe nenhuma | Risco aceito, como no ADR 0014: no Postgres, o `gosu` roda um instante na subida, sem rede; no backup, nem roda (a rotina sobe direto como o usuário) |
+
+Reconferir quando o Dependabot abrir a atualização do Caddy ou do Postgres.
