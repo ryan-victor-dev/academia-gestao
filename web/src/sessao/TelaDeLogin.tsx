@@ -1,22 +1,43 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { entrar, ErroDaApi, opcoesDoLogin } from './api';
+import { entrar, ErroDaApi, opcoesDoLogin, type OpcoesDoLogin } from './api';
 import { EsqueciASenha } from './EsqueciASenha';
 import { PrimeiroAcesso } from './PrimeiroAcesso';
+
+/** Esperas (ms) antes de perguntar de novo pelas opções: dá tempo de o servidor terminar de subir. */
+export const ESPERAS_DAS_OPCOES = [2000, 5000];
 
 export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [opcoes, setOpcoes] = useState({ esqueciSenha: false, primeiroAcesso: false });
+  // null: ainda perguntando; 'falhou': nem depois das novas tentativas (o aviso diz, e não esconde calado).
+  const [opcoes, setOpcoes] = useState<OpcoesDoLogin | 'falhou' | null>(null);
+  const [perguntas, setPerguntas] = useState(0);
   const [outraTela, setOutraTela] = useState<'esqueci' | 'primeiro' | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
     let ativo = true;
-    opcoesDoLogin().then((o) => { if (ativo) setOpcoes(o); });
-    return () => { ativo = false; };
-  }, []);
+    let espera: ReturnType<typeof setTimeout> | undefined;
+    const perguntar = (tentativa: number) => {
+      opcoesDoLogin().then((o) => {
+        if (!ativo) return;
+        if (o !== null) {
+          setOpcoes(o);
+        } else if (tentativa < ESPERAS_DAS_OPCOES.length) {
+          espera = setTimeout(() => perguntar(tentativa + 1), ESPERAS_DAS_OPCOES[tentativa]);
+        } else {
+          setOpcoes('falhou');
+        }
+      });
+    };
+    perguntar(0);
+    return () => { ativo = false; clearTimeout(espera); };
+  }, [perguntas]);
+
+  const tentarDeNovo = () => { setOpcoes(null); setPerguntas((n) => n + 1); };
+  const oferece = opcoes !== null && opcoes !== 'falhou' ? opcoes : { esqueciSenha: false, primeiroAcesso: false };
 
   async function enviar(evento: FormEvent) {
     evento.preventDefault();
@@ -68,11 +89,17 @@ export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
         <button type="submit" disabled={enviando || !email || !senha}>
           {enviando ? 'Entrando…' : 'Entrar'}
         </button>
-        {opcoes.esqueciSenha && (
+        {oferece.esqueciSenha && (
           <button type="button" className="secundario" onClick={abrir('esqueci')}>Esqueci a senha</button>
         )}
-        {opcoes.primeiroAcesso && (
+        {oferece.primeiroAcesso && (
           <button type="button" className="secundario" onClick={abrir('primeiro')}>Primeiro acesso (aluno)</button>
+        )}
+        {opcoes === 'falhou' && (
+          <p className="suave">
+            Não foi possível conferir o "esqueci a senha" e o primeiro acesso.{' '}
+            <button type="button" className="secundario" onClick={tentarDeNovo}>Tentar de novo</button>
+          </p>
         )}
       </form>
     </main>

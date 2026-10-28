@@ -87,17 +87,18 @@ async function publico(caminho: string, corpo: unknown): Promise<void> {
 
 /**
  * O que a tela de login oferece: o "esqueci a senha" e o primeiro acesso do aluno só com o e-mail
- * ligado. Falhou, nada a mais.
+ * ligado. Falhou (sem conexão, servidor subindo): `null`, para a tela não confundir com "desligado".
  */
-export async function opcoesDoLogin(): Promise<{ esqueciSenha: boolean; primeiroAcesso: boolean }> {
-  const nada = { esqueciSenha: false, primeiroAcesso: false };
+export async function opcoesDoLogin(): Promise<OpcoesDoLogin | null> {
   try {
     const resposta = await buscar('/api/auth/opcoes', { method: 'GET' });
-    return resposta.ok ? { ...nada, ...(await resposta.json()) } : nada;
+    return resposta.ok ? { esqueciSenha: false, primeiroAcesso: false, ...(await resposta.json()) } : null;
   } catch {
-    return nada;
+    return null;
   }
 }
+
+export type OpcoesDoLogin = { esqueciSenha: boolean; primeiroAcesso: boolean };
 
 /** Pede o código da nova senha. A resposta é sempre a mesma, exista o e-mail ou não. */
 export function pedirCodigoDeSenha(email: string): Promise<void> {

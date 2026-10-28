@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TelaDeLogin } from './TelaDeLogin';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ESPERAS_DAS_OPCOES, TelaDeLogin } from './TelaDeLogin';
 
 const json = (status: number, corpo: unknown) =>
   new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/problem+json' } });
@@ -87,13 +87,86 @@ describe('esqueci a senha (ADR 0038)', () => {
     expect(screen.getByRole('button', { name: 'Salvar nova senha' })).toBeEnabled();
   });
 
-  it('as opções falharam (servidor com erro): o login não oferece', async () => {
-    const chamadas = api({ 'GET /api/auth/opcoes': () => json(500, {}) });
-    render(<TelaDeLogin aoEntrar={vi.fn()} />);
+  describe('as opções falharam', () => {
+    beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+    afterEach(() => vi.useRealTimers());
 
-    await vi.waitFor(() => expect(chamadas.map((c) => c.chave)).toContain('GET /api/auth/opcoes'));
-    await new Promise((r) => setTimeout(r, 50));
-    expect(screen.queryByRole('button', { name: 'Esqueci a senha' })).not.toBeInTheDocument();
+    /** Responde com cada resposta da lista, em ordem; depois, a última. */
+    const emOrdem = (...respostas: Array<() => Response>) => {
+      let i = 0;
+      return () => respostas[Math.min(i++, respostas.length - 1)]();
+    };
+    const perguntas = (chamadas: Array<{ chave: string }>) =>
+      chamadas.filter((c) => c.chave === 'GET /api/auth/opcoes').length;
+
+    it('uma vez (servidor subindo): pergunta de novo e oferece', async () => {
+      const chamadas = api({ 'GET /api/auth/opcoes': emOrdem(() => json(500, {}), () => json(200, { esqueciSenha: true })) });
+      render(<TelaDeLogin aoEntrar={vi.fn()} />);
+
+      await vi.waitFor(() => expect(perguntas(chamadas)).toBe(1));
+      expect(screen.queryByRole('button', { name: 'Esqueci a senha' })).not.toBeInTheDocument();
+      // Espera antes de perguntar de novo (a folga cobre o tempo real que corre junto).
+      await vi.advanceTimersByTimeAsync(ESPERAS_DAS_OPCOES[0] - 500);
+      expect(perguntas(chamadas)).toBe(1);
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(await screen.findByRole('button', { name: 'Esqueci a senha' })).toBeInTheDocument();
+      expect(perguntas(chamadas)).toBe(2);
+      expect(screen.queryByText(/Não foi possível conferir/)).not.toBeInTheDocument();
+    });
+
+    it('sem conexão até o fim das tentativas: avisa, não oferece, e tenta de novo quando pedem', async () => {
+      // Depois do aviso, a resposta fica pendurada até o teste soltá-la.
+      let conecta = false;
+      let soltar: (r: Response) => void = () => {};
+      const chamadas: string[] = [];
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        chamadas.push(url);
+        if (!conecta) throw new TypeError('Failed to fetch');
+        return new Promise<Response>((r) => { soltar = r; });
+      }));
+      render(<TelaDeLogin aoEntrar={vi.fn()} />);
+
+      for (const espera of ESPERAS_DAS_OPCOES) await vi.advanceTimersByTimeAsync(espera);
+      expect(await screen.findByText(/Não foi possível conferir/)).toBeInTheDocument();
+      expect(chamadas).toHaveLength(ESPERAS_DAS_OPCOES.length + 1);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(chamadas).toHaveLength(ESPERAS_DAS_OPCOES.length + 1);
+      expect(screen.queryByRole('button', { name: 'Esqueci a senha' })).not.toBeInTheDocument();
+
+      conecta = true;
+      await userEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+      // Enquanto pergunta, o aviso velho some.
+      await vi.waitFor(() => expect(chamadas).toHaveLength(ESPERAS_DAS_OPCOES.length + 2));
+      expect(screen.queryByText(/Não foi possível conferir/)).not.toBeInTheDocument();
+      soltar(json(200, { esqueciSenha: true }));
+
+      expect(await screen.findByRole('button', { name: 'Esqueci a senha' })).toBeInTheDocument();
+      expect(screen.queryByText(/Não foi possível conferir/)).not.toBeInTheDocument();
+    });
+
+    it('saiu da tela durante a espera: não pergunta mais', async () => {
+      const chamadas = api({ 'GET /api/auth/opcoes': () => json(503, {}) });
+      const { unmount } = render(<TelaDeLogin aoEntrar={vi.fn()} />);
+      await vi.waitFor(() => expect(perguntas(chamadas)).toBe(1));
+      await vi.advanceTimersByTimeAsync(100); // a resposta chega e a espera começa
+
+      unmount();
+      for (const espera of ESPERAS_DAS_OPCOES) await vi.advanceTimersByTimeAsync(espera);
+
+      expect(perguntas(chamadas)).toBe(1);
+    });
+
+    it('desligado não é falha: nem pergunta de novo nem avisa', async () => {
+      const chamadas = api({ 'GET /api/auth/opcoes': () => json(200, { esqueciSenha: false }) });
+      render(<TelaDeLogin aoEntrar={vi.fn()} />);
+
+      await vi.waitFor(() => expect(perguntas(chamadas)).toBe(1));
+      for (const espera of ESPERAS_DAS_OPCOES) await vi.advanceTimersByTimeAsync(espera);
+
+      expect(perguntas(chamadas)).toBe(1);
+      expect(screen.queryByText(/Não foi possível conferir/)).not.toBeInTheDocument();
+    });
   });
 
   it('código errado: mostra o erro da API e fica', async () => {
