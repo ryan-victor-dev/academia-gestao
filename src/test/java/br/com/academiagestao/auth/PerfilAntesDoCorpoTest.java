@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.MethodParameter;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -35,7 +36,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * Quem não tem o perfil recebe 403 antes de o corpo ser lido: sem isso, a validação do corpo
  * (que vem antes do @PreAuthorize) respondia 400 com as regras dos campos a quem nem podia usar
  * a rota (diagnóstico de 2026-10-18, S2; etapa 6, S5). Percorre todas as rotas com @PreAuthorize
- * e corpo, inclusive as que forem criadas depois.
+ * (no método ou na classe) e corpo, inclusive as que forem criadas depois.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -59,7 +60,10 @@ class PerfilAntesDoCorpoTest {
         List<String> erradas = new ArrayList<>();
         for (Map.Entry<RequestMappingInfo, HandlerMethod> rota : rotas.getHandlerMethods().entrySet()) {
             HandlerMethod metodo = rota.getValue();
-            PreAuthorize regra = metodo.getMethodAnnotation(PreAuthorize.class);
+            // A do método ou, sem ela, a da classe (UsuarioController, ExercicioController): diagnóstico de 27/10, B1.
+            PreAuthorize regra = metodo.hasMethodAnnotation(PreAuthorize.class)
+                    ? metodo.getMethodAnnotation(PreAuthorize.class)
+                    : AnnotatedElementUtils.findMergedAnnotation(metodo.getBeanType(), PreAuthorize.class);
             boolean temCorpo = Arrays.stream(metodo.getMethodParameters())
                     .anyMatch(p -> p.hasParameterAnnotation(RequestBody.class));
             if (regra == null || !temCorpo) {

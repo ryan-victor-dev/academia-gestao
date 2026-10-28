@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authorization.AuthorizationResult;
@@ -21,7 +22,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * avaliado na chamada do método: quem não tinha o perfil recebia 400 com as regras dos campos,
  * e não 403 (diagnóstico de 2026-10-18, S2; etapa 6, S5). A conferência na chamada continua,
  * como segunda barreira. As regras do projeto só usam o perfil (hasRole, hasAnyRole), nunca os
- * argumentos, que aqui ainda não existem.
+ * argumentos, que aqui ainda não existem. A regra pode estar no método ou na classe.
  */
 @Configuration
 @ConditionalOnWebApplication
@@ -36,7 +37,7 @@ class PerfilAntesDoCorpo implements WebMvcConfigurer, HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        if (handler instanceof HandlerMethod metodo && metodo.hasMethodAnnotation(PreAuthorize.class)) {
+        if (handler instanceof HandlerMethod metodo && temRegra(metodo)) {
             AuthorizationResult resultado = regras.authorize(SecurityContextHolder.getContext()::getAuthentication,
                     new SimpleMethodInvocation(metodo.getBean(), metodo.getMethod()));
             if (resultado != null && !resultado.isGranted()) {
@@ -44,5 +45,11 @@ class PerfilAntesDoCorpo implements WebMvcConfigurer, HandlerInterceptor {
             }
         }
         return true;
+    }
+
+    /** No método ou na classe (diagnóstico de 27/10, B1: a da classe passava sem ser vista). */
+    private static boolean temRegra(HandlerMethod metodo) {
+        return metodo.hasMethodAnnotation(PreAuthorize.class)
+                || AnnotatedElementUtils.hasAnnotation(metodo.getBeanType(), PreAuthorize.class);
     }
 }
