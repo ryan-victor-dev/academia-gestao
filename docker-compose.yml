@@ -119,9 +119,10 @@ services:
   # (BACKUP_PASTA, padrão ./backups), com 7 diários e 4 semanais. Usa o dono do banco: o
   # backup precisa do histórico das migrations, que o usuário da aplicação não lê (sem ele,
   # o banco restaurado não sobe). Não abre porta nenhuma. Copie a pasta para fora do
-  # servidor; restaure com scripts/restaurar-backup.sh.
+  # servidor; restaure com scripts/restaurar-backup.sh. Sai cifrado com a chave pública do .env
+  # (ADR 0041): só a chave privada, guardada fora do servidor, abre o backup.
   backup:
-    image: postgres:17-alpine
+    build: scripts/backup
     container_name: academia-backup
     restart: unless-stopped
     logging: *logs
@@ -146,6 +147,7 @@ services:
       PGUSER: academia
       PGPASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
       BACKUP_HORA: ${BACKUP_HORA:-3}
+      BACKUP_CHAVE_PUBLICA: ${BACKUP_CHAVE_PUBLICA:?defina BACKUP_CHAVE_PUBLICA no .env (veja o README, Backup)}
     volumes:
       - ./scripts/backup:/rotina:ro
       - ${BACKUP_PASTA:-./backups}:/backups

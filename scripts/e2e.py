@@ -381,15 +381,40 @@ confere("rotina de backup no ar", "Rotina de backup" in sh("docker", "logs", P +
 r = sh("docker", "compose", "run", "--rm", "-T", "backup", "agora")
 dumps = sorted(os.listdir(os.path.join(PASTA, "backups", "diario"))) if r.returncode == 0 else []
 confere("backup na hora gera um arquivo legível", r.returncode == 0 and len(dumps) == 1, (r.returncode, r.stdout[-200:], r.stderr[-300:]))
+# Cifrado e só do dono (ADR 0041, M2): nada do dump em claro (PGDMP) no arquivo.
+caminho = os.path.join(PASTA, "backups", "diario", dumps[0]) if dumps else None
+cabeca = b""
+if caminho:
+    with open(caminho, "rb") as f:
+        cabeca = f.read(64)
+confere("backup cifrado com o age", bool(dumps) and dumps[0].endswith(".dump.age")
+        and cabeca.startswith(b"age-encryption.org/v1") and b"PGDMP" not in cabeca, (dumps, cabeca[:30]))
+confere("só o dono lê o backup (pasta 700, arquivo 600)", bool(caminho)
+        and oct(os.stat(caminho).st_mode & 0o777) == "0o600"
+        and oct(os.stat(os.path.join(PASTA, "backups", "diario")).st_mode & 0o777) == "0o700"
+        and oct(os.stat(os.path.join(PASTA, "backups")).st_mode & 0o777) == "0o700",
+        caminho and oct(os.stat(caminho).st_mode & 0o777))
 alunos_antes = sql("SELECT count(*) FROM alunos")
 sql("INSERT INTO planos (id, nome, valor_mensal, duracao_meses) VALUES (gen_random_uuid(), 'Depois do backup', 1, 1)")
 ambiente = {**os.environ, "PG_CONTAINER": P + "postgres", "APP_PORTA": "18090"}
-r = subprocess.run(["scripts/restaurar-backup.sh", os.path.join("backups", "diario", dumps[0]) if dumps else "x", "--sim"],
-                   capture_output=True, text=True, cwd=PASTA, env=ambiente)
+arquivo = os.path.join("backups", "diario", dumps[0]) if dumps else "x"
+r = subprocess.run(["scripts/restaurar-backup.sh", arquivo, "--sim"], capture_output=True, text=True, cwd=PASTA, env=ambiente)
+confere("sem a chave privada, não restaura", r.returncode == 1 and "BACKUP_CHAVE" in r.stderr
+        and sql("SELECT count(*) FROM planos WHERE nome = 'Depois do backup'") == "1", (r.returncode, r.stderr[-300:]))
+with open(os.path.join(PASTA, "chave-errada.txt"), "w") as f:
+    f.write(sh("docker", "compose", "run", "--rm", "--no-deps", "-T", "--entrypoint", "age-keygen", "backup").stdout)
+r = subprocess.run(["scripts/restaurar-backup.sh", arquivo, "--sim"], capture_output=True, text=True, cwd=PASTA,
+                   env={**ambiente, "BACKUP_CHAVE": "chave-errada.txt"})
+confere("com a chave errada, não restaura nem para o app", r.returncode == 1 and "decifrar" in r.stderr
+        and sql("SELECT count(*) FROM planos WHERE nome = 'Depois do backup'") == "1"
+        and req("GET", "/actuator/health")[0] == 200, (r.returncode, r.stderr[-300:]))
+r = subprocess.run(["scripts/restaurar-backup.sh", arquivo, "--sim"], capture_output=True, text=True, cwd=PASTA,
+                   env={**ambiente, "BACKUP_CHAVE": "chave-backup.txt"})
 confere("restaurar sai com 0", r.returncode == 0, (r.returncode, r.stderr[-300:]))
 confere("o dado de depois do backup sumiu", sql("SELECT count(*) FROM planos WHERE nome = 'Depois do backup'") == "0")
 confere("os dados do backup voltaram", sql("SELECT count(*) FROM alunos") == alunos_antes, (alunos_antes, sql("SELECT count(*) FROM alunos")))
-confere("cópia de segurança do estado anterior", any(n.startswith("antes-de-restaurar-") for n in os.listdir(os.path.join(PASTA, "backups"))))
+confere("cópia de segurança do estado anterior, cifrada", any(n.startswith("antes-de-restaurar-") and n.endswith(".dump.age")
+                                                         for n in os.listdir(os.path.join(PASTA, "backups"))))
 confere("aplicação no ar depois de restaurar", req("GET", "/actuator/health")[0] == 200)
 confere("sem --sim, não restaura", subprocess.run(["scripts/restaurar-backup.sh", "x"], capture_output=True, text=True,
                                                    cwd=PASTA, env=ambiente).returncode == 1)

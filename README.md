@@ -133,6 +133,7 @@ versionado é o `.env.example`). O Docker Compose lê o arquivo sozinho.
 | `JWT_SEGREDO` | Chave que assina os tokens: Base64, mínimo de 32 bytes. **Obrigatória** |
 | `JWT_EXPIRACAO` | Validade do token (padrão `15m`) |
 | `DOMINIO` | Domínio do sistema, para o HTTPS de verdade. Vazio = `localhost` |
+| `BACKUP_CHAVE_PUBLICA` | Chave pública do age (`age1...`) que cifra o backup; a privada fica fora do servidor (veja **Backup e restauração**). **Obrigatória** |
 | `HTTP_PORTA`, `HTTPS_PORTA` | Portas públicas do Caddy (padrão 80 e 443; o Let's Encrypt exige essas duas) |
 | `APP_MEMORIA`, `APP_CPUS`, `POSTGRES_MEMORIA`, `POSTGRES_CPUS` | Teto de memória e de núcleos da aplicação e do banco (padrão 1 GiB e 2 núcleos cada); o Caddy e o backup têm tetos fixos |
 
@@ -393,18 +394,35 @@ desligado no horário, o backup é feito assim que ele voltar. Cada arquivo é c
 antes de valer, e o log mostra `Backup ok` ou `BACKUP FALHOU`
 (`docker logs academia-backup`).
 
-> **Copie a pasta de backups para fora do servidor** (HD externo, outro computador,
-> nuvem). Contra disco queimado ou servidor perdido, só uma cópia em outro lugar salva.
+O backup tem CPF, e-mail e telefone de todos os alunos, então **sai cifrado** (ADR 0041), com o
+[age](https://age-encryption.org): a chave pública fica no `.env` (`BACKUP_CHAVE_PUBLICA`) e só a
+chave privada abre o backup. Só o dono da pasta lê os arquivos (pasta `700`, arquivos `600`).
+Gere o par **uma vez, no seu computador** (não no servidor), com o Docker:
 
 ```bash
-docker compose run --rm backup agora                                      # backup na hora
-scripts/restaurar-backup.sh backups/diario/academia-AAAA-MM-DD.dump --sim  # restaurar
+docker run --rm alpine:3.22 sh -c 'apk add -q age && age-keygen'
 ```
 
-Restaurar **apaga os dados atuais**: o script salva antes o estado atual em
-`backups/antes-de-restaurar-*.dump` (para desfazer), para a aplicação, restaura numa
-transação só (se falhar, nada muda) e sobe a aplicação de novo. O `scripts/e2e.sh`
-testa o backup e a restauração numa instalação do zero.
+Saem duas linhas: `# public key: age1...` (copie o `age1...` para o `BACKUP_CHAVE_PUBLICA` do
+`.env`) e `AGE-SECRET-KEY-...`, a chave privada. **Guarde a chave privada fora do servidor**
+(gerenciador de senhas, pendrive guardado), de preferência em dois lugares: **sem ela, nenhum
+backup volta**, e ninguém consegue recuperá-la. Sem a chave pública no `.env`, o sistema não sobe.
+
+> **Copie a pasta de backups para fora do servidor** (HD externo, outro computador,
+> nuvem). Contra disco queimado ou servidor perdido, só uma cópia em outro lugar salva.
+> Como é cifrada, a cópia não expõe os dados de ninguém.
+
+```bash
+docker compose run --rm backup agora     # backup na hora
+# restaurar: traga a chave privada num arquivo só para isso e apague-o depois
+BACKUP_CHAVE=/caminho/da/chave.txt scripts/restaurar-backup.sh backups/diario/academia-AAAA-MM-DD.dump.age --sim
+```
+
+Restaurar **apaga os dados atuais**: o script decifra o backup (chave errada, nada muda), salva
+antes o estado atual em `backups/antes-de-restaurar-*.dump.age` (para desfazer), para a
+aplicação, restaura numa transação só (se falhar, nada muda) e sobe a aplicação de novo. Os
+backups de antes da criptografia (`.dump`, em claro) restauram sem a chave e saem com a rotação.
+O `scripts/e2e.sh` testa o backup e a restauração numa instalação do zero.
 
 ### Recuperar o acesso de um ADMIN
 

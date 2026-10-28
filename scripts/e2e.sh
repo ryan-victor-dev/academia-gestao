@@ -39,6 +39,12 @@ sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -base64 24)|; \
         s|^HTTP_PORTA=.*|HTTP_PORTA=$E2E_HTTP|; s|^HTTPS_PORTA=.*|HTTPS_PORTA=$E2E_HTTPS|; \
         s|^BACKUP_UID=.*|BACKUP_UID=$(id -u)|; s|^BACKUP_GID=.*|BACKUP_GID=$(id -g)|; \
         s|^PROXY_REDE=.*|PROXY_REDE=10.250.251.0/24|; s|^PROXY_IP_DO_CADDY=.*|PROXY_IP_DO_CADDY=10.250.251.10|" .env
+# Par de chaves do backup (ADR 0041), como o README manda; a privada fica na instalação de teste,
+# para o e2e restaurar, e some com ela.
+(umask 077; docker run --rm alpine:3.22 sh -c 'apk add -q age && age-keygen' > chave-backup.txt 2>/dev/null)
+PUBLICA=$(sed -n 's/^# public key: //p' chave-backup.txt)
+[ -n "$PUBLICA" ] || { echo "Não consegui gerar a chave do backup" >&2; exit 1; }
+sed -i "s|^BACKUP_CHAVE_PUBLICA=.*|BACKUP_CHAVE_PUBLICA=$PUBLICA|" .env
 
 echo "Subindo a instalação de teste (https://localhost:$E2E_HTTPS)..."
 docker compose up --build -d >/dev/null 2>&1
