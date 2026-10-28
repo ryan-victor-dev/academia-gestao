@@ -18,7 +18,8 @@ import java.util.UUID;
 /**
  * Os códigos de 6 dígitos mandados por e-mail (V50, ADR 0038): confirmar o e-mail, recuperar a
  * senha e o primeiro acesso do aluno (V51, ADR 0039). Valem 15 minutos, uma vez só, com até 5 tentativas; o novo encerra o anterior; no
- * máximo 5 por hora, com 1 minuto entre um e outro. Só o hash fica no banco.
+ * máximo 5 por hora e 10 em 24 horas (ADR 0041, M3: sem o teto diário, eram ~600 chutes por dia contra
+ * uma conta), com 1 minuto entre um e outro. Só o hash fica no banco.
  */
 @Component
 class CodigosDeEmail {
@@ -40,6 +41,7 @@ class CodigosDeEmail {
     static final Duration VALIDADE = Duration.ofMinutes(15);
     static final int TENTATIVAS = 5;
     static final int POR_HORA = 5;
+    static final int POR_DIA = 10;
     static final Duration INTERVALO = Duration.ofMinutes(1);
 
     private static final SecureRandom ALEATORIO = new SecureRandom();
@@ -73,15 +75,25 @@ class CodigosDeEmail {
             jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))::text", String.class,
                     "codigo-de-email:" + dono);
         }
-        List<Instant> ultimaHora = jdbc.queryForList("""
+        List<Instant> ultimoDia = jdbc.queryForList("""
                 SELECT criado_em FROM codigos_de_email WHERE %s = ? AND finalidade = ? AND criado_em > ?
                 ORDER BY criado_em DESC""".formatted(finalidade.dono), Timestamp.class, dono, finalidade.name(),
-                Timestamp.from(agora.minus(Duration.ofHours(1)))).stream().map(Timestamp::toInstant).toList();
-        if (!ultimaHora.isEmpty() && ultimaHora.get(0).plus(INTERVALO).isAfter(agora)) {
-            throw new MuitosCodigosException(Duration.between(agora, ultimaHora.get(0).plus(INTERVALO)));
+                Timestamp.from(agora.minus(Duration.ofDays(1)))).stream().map(Timestamp::toInstant).toList();
+        List<Instant> ultimaHora = ultimoDia.stream().filter(t -> t.isAfter(agora.minus(Duration.ofHours(1)))).toList();
+        if (!ultimoDia.isEmpty() && ultimoDia.get(0).plus(INTERVALO).isAfter(agora)) {
+            throw new MuitosCodigosException(Duration.between(agora, ultimoDia.get(0).plus(INTERVALO)));
         }
+        // Os dois tetos de uma vez: a espera é até o fim do que demora mais.
+        Duration esperar = Duration.ZERO;
         if (ultimaHora.size() >= POR_HORA) {
-            throw new MuitosCodigosException(Duration.between(agora, ultimaHora.getLast().plus(Duration.ofHours(1))));
+            esperar = Duration.between(agora, ultimaHora.getLast().plus(Duration.ofHours(1)));
+        }
+        if (ultimoDia.size() >= POR_DIA) {
+            Duration ateODia = Duration.between(agora, ultimoDia.getLast().plus(Duration.ofDays(1)));
+            esperar = ateODia.compareTo(esperar) > 0 ? ateODia : esperar;
+        }
+        if (esperar.isPositive()) {
+            throw new MuitosCodigosException(esperar);
         }
         jdbc.update("UPDATE codigos_de_email SET encerrado_em = ? WHERE " + finalidade.dono + " = ? AND finalidade = ? "
                 + "AND encerrado_em IS NULL", Timestamp.from(agora), dono, finalidade.name());

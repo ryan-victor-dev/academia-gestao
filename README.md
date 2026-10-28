@@ -322,7 +322,8 @@ o ADMIN vê a contestação (ADR 0037; consulta diária dos cartões dos último
 configurado no `.env` (`EMAIL_HOST` e afins). Sem servidor, o e-mail fica desligado, e nada que
 dependa dele é exigido. Para testar sem mandar nada para fora: `EMAIL_HOST=mailpit EMAIL_PORTA=1025
 EMAIL_TLS=false EMAIL_REMETENTE=teste@academia.local docker compose --profile email-de-teste up -d`,
-e os e-mails aparecem em http://localhost:8025.
+e os e-mails aparecem em http://localhost:8025. Cada código vale 15 minutos e 5 tentativas; cada pessoa
+recebe no máximo 1 por minuto, 5 por hora e 10 em 24 horas (ADR 0041).
 
 Esqueceu a senha (com o e-mail ligado¹³; aluno e equipe com o e-mail confirmado, não o ADMIN): `POST
 /api/auth/esqueci-senha` (`email`; sempre 202, sem revelar se o e-mail existe) manda um código de 6

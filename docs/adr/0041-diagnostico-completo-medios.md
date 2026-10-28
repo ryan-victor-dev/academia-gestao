@@ -50,3 +50,21 @@ Agora:
 Consequência: perder a chave privada é perder todos os backups. É o preço de a cópia fora do
 servidor não expor ninguém; a alternativa (só as permissões) deixava a cópia em claro.
 
+### M3 — Teto de 10 códigos por pessoa em 24 horas (decisão do dono)
+Antes: o código tem 6 dígitos e 5 tentativas, e cada pessoa recebia até 5 códigos por hora: 25
+chutes por hora, ~600 por dia, contra uma conta. A chance de acertar era ~1,8% em 30 dias de ataque
+contínuo e ~20% em um ano. A recepção recupera a senha por e-mail e vê o cadastro de todos os
+alunos; o limite por IP não segura quem troca de IP.
+
+Agora, além de 1 minuto entre um e outro e 5 por hora, **no máximo 10 códigos por pessoa em 24
+horas** (`CodigosDeEmail.POR_DIA`), contados na janela móvel. São 50 chutes por dia: ~0,15% em 30
+dias e ~1,8% em um ano. Quem esqueceu a senha de verdade pede um ou dois códigos; o teto só aparece
+para quem insiste. Com o teto da hora e o do dia estourados, a espera (`Retry-After`) vai até o fim
+do que demora mais.
+
+- Vale para as três finalidades (confirmar o e-mail, recuperar a senha, primeiro acesso do aluno),
+  cada uma com a sua conta: o primeiro acesso entrega uma conta do mesmo jeito que a recuperação.
+- No "esqueci a senha", a resposta continua a mesma (o 11º código só não sai, e fica no log):
+  responder 429 só para quem existe revelaria a conta.
+- Descartados: o bloqueio de um dia depois de N códigos errados (o atacante travaria de propósito a
+  recuperação da vítima) e o código de 8 dígitos (mais chato de digitar, para o mesmo ganho).

@@ -18,8 +18,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -226,6 +228,62 @@ class ConfirmacaoDeEmailTest {
             confirmar(token, primeiro).andExpect(status().isBadRequest());
         }
         confirmar(token, ultimo).andExpect(status().isNoContent());
+    }
+
+    /** Um código já mandado (e encerrado), criado {@code ha} antes de {@code agora}. */
+    private void emitidoHa(UUID usuarioId, Instant agora, Duration ha) {
+        Instant criado = agora.minus(ha);
+        jdbc.update("""
+                INSERT INTO codigos_de_email (id, usuario_id, finalidade, email, codigo_hash, criado_em, expira_em,
+                                              encerrado_em)
+                VALUES (?, ?, 'CONFIRMACAO', 'antigo@teste.local', 'x', ?, ?, ?)""", UUID.randomUUID(), usuarioId,
+                Timestamp.from(criado), Timestamp.from(criado.plus(Duration.ofMinutes(15))), Timestamp.from(criado));
+    }
+
+    /**
+     * Teto diário (ADR 0041, M3): 10 códigos em 24 horas, mesmo com a hora livre. A espera vai até o mais
+     * velho sair do dia; com os dois tetos estourados, até o fim do que demora mais.
+     */
+    @Test
+    void tetoDeDezCodigosEmVinteEQuatroHoras() throws Exception {
+        String email = email();
+        Usuario usuario = daEquipe(Perfil.INSTRUTOR, email);
+        String token = token(email);
+        Instant agora = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        relogio.fixar(agora);
+        // 9 nas últimas 24 horas, nenhum na última: o 10º sai.
+        for (int i = 0; i < 9; i++) {
+            emitidoHa(usuario.getId(), agora, Duration.ofHours(23).minusHours(2L * i));
+        }
+        codigo(token).andExpect(status().isNoContent());
+
+        // O 11º, já fora do intervalo de 1 minuto: o dia está cheio, e só abre quando o de 23 h atrás sai.
+        relogio.fixar(agora.plusSeconds(61));
+        codigo(token).andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", String.valueOf(3600 - 61)));
+        // Uma hora depois, o token do começo já venceu: entra de novo.
+        relogio.fixar(agora.plus(Duration.ofHours(1)).plusSeconds(1));
+        codigo(token(email)).andExpect(status().isNoContent());
+        assertThat(correio.para(email)).hasSize(2);
+    }
+
+    /** Os dois tetos estourados: espera o da hora (10 min), que acaba depois do do dia (5 min). */
+    @Test
+    void comOsDoisTetosEsperaOQueDemoraMais() throws Exception {
+        String email = email();
+        Usuario usuario = daEquipe(Perfil.INSTRUTOR, email);
+        String token = token(email);
+        Instant agora = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        relogio.fixar(agora);
+        emitidoHa(usuario.getId(), agora, Duration.ofHours(23).plusMinutes(55));
+        for (int i = 0; i < 4; i++) {
+            emitidoHa(usuario.getId(), agora, Duration.ofHours(10L + i));
+        }
+        for (int i = 0; i < 5; i++) {
+            emitidoHa(usuario.getId(), agora, Duration.ofMinutes(50L - 10L * i));
+        }
+
+        codigo(token).andExpect(status().isTooManyRequests()).andExpect(header().string("Retry-After", "600"));
     }
 
     /** Cinco tentativas erradas esgotam o código: nem o certo vale mais. */

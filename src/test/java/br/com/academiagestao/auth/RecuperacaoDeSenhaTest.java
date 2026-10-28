@@ -2,6 +2,7 @@ package br.com.academiagestao.auth;
 
 import br.com.academiagestao.CorreioDeTeste;
 import br.com.academiagestao.LimpezaDoBanco;
+import br.com.academiagestao.RelogioDeTeste;
 import br.com.academiagestao.TestcontainersConfiguration;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
@@ -17,6 +18,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -63,11 +68,15 @@ class RecuperacaoDeSenhaTest {
     @Autowired
     CorreioDeTeste correio;
 
+    @Autowired
+    RelogioDeTeste relogio;
+
     private final List<UUID> usuarios = new ArrayList<>();
     private final String ip = "10.77." + ThreadLocalRandom.current().nextInt(256) + "." + ThreadLocalRandom.current().nextInt(256);
 
     @AfterEach
     void limpar() {
+        relogio.restaurar();
         correio.falhar(false);
         for (UUID id : usuarios) {
             jdbc.update("DELETE FROM auditoria WHERE entidade_id = ?", id);
@@ -211,6 +220,42 @@ class RecuperacaoDeSenhaTest {
 
         Thread.sleep(500);
         assertThat(correio.para(email)).hasSize(1);
+    }
+
+    /**
+     * Teto diário (ADR 0041, M3): 10 códigos em 24 horas. Sem ele, eram 5 por hora, ~600 chutes por dia
+     * contra uma conta. O 11º não sai, com a mesma resposta (não revela a conta); passadas 24 horas do
+     * mais velho, sai de novo.
+     */
+    @Test
+    void tetoDeDezCodigosEmVinteEQuatroHoras() throws Exception {
+        String email = email();
+        Usuario usuario = usuario(Perfil.RECEPCAO, email, true);
+        Instant agora = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        relogio.fixar(agora);
+        // 9 nas últimas 24 horas (o mais velho, de 23 h atrás), nenhum na última.
+        for (int i = 0; i < 9; i++) {
+            Instant criado = agora.minus(Duration.ofHours(23L - 2L * i));
+            jdbc.update("""
+                    INSERT INTO codigos_de_email (id, usuario_id, finalidade, email, codigo_hash, criado_em, expira_em,
+                                                  encerrado_em)
+                    VALUES (?, ?, 'RECUPERACAO', ?, 'x', ?, ?, ?)""", UUID.randomUUID(), usuario.getId(), email,
+                    Timestamp.from(criado), Timestamp.from(criado.plus(Duration.ofMinutes(15))), Timestamp.from(criado));
+        }
+        pedir(email).andExpect(status().isAccepted());
+        codigoQueChegou(email).orElseThrow();
+
+        relogio.fixar(agora.plusSeconds(61));
+        pedir(email).andExpect(status().isAccepted());
+        Thread.sleep(500);
+        assertThat(correio.para(email)).hasSize(1);
+
+        relogio.fixar(agora.plus(Duration.ofHours(1)).plusSeconds(1));
+        pedir(email).andExpect(status().isAccepted());
+        for (int i = 0; i < 50 && correio.para(email).size() < 2; i++) {
+            Thread.sleep(100);
+        }
+        assertThat(correio.para(email)).hasSize(2);
     }
 
     /** Código errado conta como senha errada: no limite do login (3 aqui), trava (429), também o login. */
