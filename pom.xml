@@ -192,6 +192,7 @@
 								<param>br.com.academiagestao.matriculas.Trancamento</param>
 								<param>br.com.academiagestao.pagamentos.ConfiguracaoDoPagamentoOnline</param>
 								<param>br.com.academiagestao.pagamentos.PagamentoOnline</param>
+								<param>br.com.academiagestao.pagamentos.TravaDoSimulado</param>
 								<param>br.com.academiagestao.planos.Plano</param>
 								<param>br.com.academiagestao.treinos.DivisaoDaFicha</param>
 								<param>br.com.academiagestao.treinos.Exercicio</param>
@@ -222,6 +223,7 @@
 								<param>br.com.academiagestao.matriculas.MatriculaTest</param>
 								<param>br.com.academiagestao.pagamentos.ConfiguracaoDoPagamentoOnlineTest</param>
 								<param>br.com.academiagestao.pagamentos.PagamentoOnlineTest</param>
+								<param>br.com.academiagestao.pagamentos.TravaDoSimuladoTest</param>
 								<param>br.com.academiagestao.planos.PlanoTest</param>
 								<param>br.com.academiagestao.treinos.ExercicioTest</param>
 								<param>br.com.academiagestao.treinos.FichaTest</param>

@@ -83,6 +83,8 @@ services:
       # Pagamento online (ADR 0034): desligado, simulado (só testes) ou a empresa implementada.
       ACADEMIA_PAGAMENTOS_PROVEDOR: ${PAGAMENTOS_PROVEDOR:-desligado}
       ACADEMIA_PAGAMENTOS_TOKEN_DO_AVISO_SIMULADO: ${PAGAMENTOS_TOKEN_DO_AVISO_SIMULADO:-}
+      # O simulado recusa subir com um domínio de verdade (só o Caddy usava o DOMINIO).
+      ACADEMIA_DOMINIO: ${DOMINIO:-}
       # E-mail (ADR 0038): sem EMAIL_HOST, desligado (nada que dependa de e-mail é exigido).
       ACADEMIA_EMAIL_HOST: ${EMAIL_HOST:-}
       ACADEMIA_EMAIL_PORTA: ${EMAIL_PORTA:-587}

@@ -308,7 +308,7 @@ e-mail digitado, `LOGIN_BLOQUEADO` pelo limite) e cada senha atual errada na tro
 e não uma vez por tentativa. Fica 1 ano; o usuário da aplicação não apaga nem altera. Por
 isso a lista de alunos traz só o resumo: os dados pessoais saem só pelo cadastro aberto (ADR 0032).
 ¹² Pagamento online (ADRs 0034 a 0037): Pix, boleto e cartão de crédito ou débito (à vista, digitado na
-página da empresa; nenhum dado de cartão passa pelo sistema). Desligado por padrão (`PAGAMENTOS_PROVEDOR` no `.env`). O valor é
+página da empresa; nenhum dado de cartão passa pelo sistema). Desligado por padrão (`PAGAMENTOS_PROVEDOR` no `.env`; o `simulado` é só para testar e não sobe com um `DOMINIO` de verdade, ADR 0041). O valor é
 o do dia em que o aluno gerou; o Pix vale até o fim do dia, e o boleto até o vencimento (de uma
 cobrança vencida, 3 dias, configurável). Entra fora do caixa da recepção, como "Pix pelo app" ou
 "Boleto pelo app". O sistema confirma consultando a empresa (no aviso dela, a cada 2 minutos os em aberto e, de

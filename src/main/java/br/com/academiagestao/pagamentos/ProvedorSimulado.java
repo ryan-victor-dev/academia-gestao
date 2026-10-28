@@ -2,6 +2,7 @@ package br.com.academiagestao.pagamentos;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +21,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * botão de simular, que só existe com este provedor. Guarda tudo na memória: depois de
  * reiniciar, o que estava em aberto continua aguardando até expirar.
  *
- * <p>Nunca em produção: a mensalidade fica paga sem dinheiro nenhum.
+ * <p>Nunca em produção: a mensalidade fica paga sem dinheiro nenhum. Por isso não sobe com um
+ * domínio de verdade ({@code DOMINIO} no {@code .env}, diagnóstico de 27/10, M1): um {@code .env}
+ * copiado do ambiente de teste não vira fraude.
  */
 @Component
 @ConditionalOnProperty(prefix = "academia.pagamentos", name = "provedor", havingValue = PagamentosProperties.SIMULADO)
@@ -38,7 +41,9 @@ class ProvedorSimulado implements ProvedorDePagamento {
     private final byte[] tokenDoAviso;
     private final Clock relogio;
 
-    ProvedorSimulado(PagamentosProperties propriedades, Clock relogio) {
+    ProvedorSimulado(PagamentosProperties propriedades, @Value("${academia.dominio:}") String dominio,
+                     Clock relogio) {
+        TravaDoSimulado.conferir(dominio);
         String token = propriedades.tokenDoAvisoSimulado();
         this.tokenDoAviso = token == null || token.isBlank() ? null : token.getBytes(StandardCharsets.UTF_8);
         this.relogio = relogio;
