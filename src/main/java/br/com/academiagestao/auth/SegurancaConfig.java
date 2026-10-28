@@ -106,7 +106,14 @@ class SegurancaConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/trocar-senha").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
                         // Quem precisa confirmar o e-mail (ADR 0038) só confirma (ou corrige o
-                        // e-mail); a senha temporária vem antes.
+                        // e-mail); a senha temporária vem antes. Corrigir muda o cadastro: o aluno
+                        // inativo (só de leitura, ADR 0029) não corrige (diagnóstico de 27/10, B2).
+                        .requestMatchers(HttpMethod.PUT, "/api/auth/email").access(AuthorizationManagers.allOf(
+                                AuthenticatedAuthorizationManager.authenticated(),
+                                AuthorizationManagers.not(
+                                        AuthorityAuthorizationManager.hasAuthority(SENHA_TEMPORARIA)),
+                                AuthorizationManagers.not(
+                                        AuthorityAuthorizationManager.hasAuthority(SOMENTE_LEITURA))))
                         .requestMatchers("/api/auth/email/**").access(AuthorizationManagers.allOf(
                                 AuthenticatedAuthorizationManager.authenticated(),
                                 AuthorizationManagers.not(
@@ -240,11 +247,14 @@ class SegurancaConfig {
             if (Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.TROCAR_SENHA))) {
                 return List.of(new SimpleGrantedAuthority(SENHA_TEMPORARIA));
             }
-            // Como a senha temporária: sem o perfil, nenhuma regra de perfil deixa passar.
+            // Como a senha temporária: sem o perfil, nenhuma regra de perfil deixa passar. O só de
+            // leitura continua, para a correção do e-mail (diagnóstico de 27/10, B2).
+            List<GrantedAuthority> autoridades = new ArrayList<>();
             if (Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.CONFIRMAR_EMAIL))) {
-                return List.of(new SimpleGrantedAuthority(EMAIL_NAO_CONFIRMADO));
+                autoridades.add(new SimpleGrantedAuthority(EMAIL_NAO_CONFIRMADO));
+            } else {
+                autoridades.addAll(perfis.convert(jwt));
             }
-            List<GrantedAuthority> autoridades = new ArrayList<>(perfis.convert(jwt));
             if (Boolean.TRUE.equals(jwt.getClaimAsBoolean(ClaimsDoToken.SOMENTE_LEITURA))) {
                 autoridades.add(new SimpleGrantedAuthority(SOMENTE_LEITURA));
             }

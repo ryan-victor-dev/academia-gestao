@@ -80,7 +80,8 @@ export function App() {
         // E-mail não confirmado (ADR 0038): a API só libera a confirmação.
         return (
           <main className="pagina login">
-            <ConfirmarEmail email={estado.usuario.email} aoConfirmar={carregarUsuario} />
+            <ConfirmarEmail email={estado.usuario.email} aoConfirmar={carregarUsuario}
+                            somenteLeitura={estado.usuario.somenteLeitura} />
             <button type="button" className="secundario" onClick={encerrar}>Sair</button>
           </main>
         );

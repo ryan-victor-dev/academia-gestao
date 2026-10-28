@@ -4,9 +4,11 @@ import { confirmarEmail, corrigirEmail, enviarCodigoDeEmail } from './api';
 
 /**
  * A confirmação do e-mail no primeiro acesso (ADR 0038): um código de 6 dígitos chega no e-mail
- * e é digitado aqui. Até confirmar, é a única tela liberada. O e-mail errado se corrige aqui.
+ * e é digitado aqui. Até confirmar, é a única tela liberada. O e-mail errado se corrige aqui, menos
+ * pelo aluno inativo (só de leitura, ADR 0029): corrigir muda o cadastro, e quem corrige é a recepção.
  */
-export function ConfirmarEmail({ email, aoConfirmar }: { email: string; aoConfirmar: () => void }) {
+export function ConfirmarEmail({ email, aoConfirmar, somenteLeitura = false }:
+                                 { email: string; aoConfirmar: () => void; somenteLeitura?: boolean }) {
   const [enviadoPara, setEnviadoPara] = useState<string | null>(null);
   const [codigo, setCodigo] = useState('');
   const [corrigindo, setCorrigindo] = useState(false);
@@ -70,7 +72,9 @@ export function ConfirmarEmail({ email, aoConfirmar }: { email: string; aoConfir
           </div>
         </form>
       )}
-      {corrigindo ? (
+      {somenteLeitura ? (
+        <p className="suave">O e-mail está errado? Fale com a recepção da academia para corrigir.</p>
+      ) : corrigindo ? (
         <form onSubmit={corrigir} noValidate>
           <label>
             E-mail certo

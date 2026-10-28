@@ -318,6 +318,25 @@ class ConfirmacaoDeEmailTest {
         confirmar(tokenDepois, codigo).andExpect(status().isBadRequest());
     }
 
+    /**
+     * O aluno inativo só consulta (ADR 0029): sem o e-mail confirmado, ainda pede e confirma o código
+     * (para chegar aos próprios dados), mas não corrige o e-mail, que muda o cadastro (diagnóstico de
+     * 27/10, B2).
+     */
+    @Test
+    void alunoInativoNaoCorrigeOEmail() throws Exception {
+        String email = email();
+        Usuario aluno = aluno(email);
+        jdbc.update("UPDATE usuarios SET somente_leitura = true WHERE id = ?", aluno.getId());
+        String token = token(email);
+
+        corrigir(token, email()).andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("SELECT email FROM alunos WHERE id = ?", String.class, aluno.getAlunoId()))
+                .isEqualTo(email);
+        codigo(token).andExpect(status().isNoContent());
+        confirmar(token, correio.ultimoCodigo(email).orElseThrow()).andExpect(status().isNoContent());
+    }
+
     /** E-mail errado: o aluno corrige; o código vai para o novo, e o cadastro acompanha. */
     @Test
     void alunoCorrigeOEmail() throws Exception {

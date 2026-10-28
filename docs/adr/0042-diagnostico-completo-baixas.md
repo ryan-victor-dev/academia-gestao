@@ -17,3 +17,15 @@ método. `UsuarioController` e `ExercicioController` o põem na classe: quem nã
 recebia 400 com as regras dos campos (nada passava: com corpo válido, 403). Agora vale a regra do
 método ou, sem ela, a da classe. O `PerfilAntesDoCorpoTest` tinha o mesmo ponto cego (só lia a do
 método) e por isso não pegou: passa a ler as duas e acha as quatro rotas que escapavam.
+
+### B2 — O aluno inativo não corrige o e-mail
+As rotas de `/api/auth/email/**` tinham regra própria (quem ainda não confirmou o e-mail precisa
+delas) e não aplicavam o "só leitura" do ADR 0029: o aluno inativo que ainda não confirmara o
+e-mail podia corrigi-lo, e a correção muda o cadastro. Havia um segundo furo por trás: o token de
+quem precisa confirmar o e-mail ganhava só a autoridade `EMAIL_NAO_CONFIRMADO`, e a de só leitura
+se perdia.
+
+Agora o token leva as duas, e `PUT /api/auth/email` recusa o só de leitura (403). Pedir e
+confirmar o código continuam liberados: confirmar não muda o cadastro e é o caminho para o
+inativo chegar aos próprios dados (direito dele, ADR 0029). Na tela, o inativo não vê "O e-mail
+está errado?", e sim um aviso para falar com a recepção, que corrige o cadastro.

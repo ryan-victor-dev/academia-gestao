@@ -82,6 +82,15 @@ describe('confirmar o e-mail (ADR 0038)', () => {
     expect(chamadas.find((c) => c.chave === 'PUT /api/auth/email')?.corpo).toEqual({ email: 'Ana@Certo.com' });
   });
 
+  it('aluno inativo (só de leitura): não corrige o e-mail, fala com a recepção', async () => {
+    api({});
+    render(<ConfirmarEmail email="ana@errado.com" aoConfirmar={vi.fn()} somenteLeitura />);
+
+    expect(screen.queryByRole('button', { name: 'O e-mail está errado?' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Fale com a recepção/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar código' })).toBeInTheDocument();
+  });
+
   it('pediu de novo cedo demais: mostra o aviso da API', async () => {
     api({ 'POST /api/auth/email/codigo': () => json(429, { detail: 'Muitos códigos pedidos. Espere um pouco e peça de novo.' }) });
     render(<ConfirmarEmail email="ana@academia.com" aoConfirmar={vi.fn()} />);
