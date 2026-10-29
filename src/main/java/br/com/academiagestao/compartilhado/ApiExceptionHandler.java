@@ -112,6 +112,13 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problema;
     }
 
+    @ExceptionHandler(ExclusaoRecusadaException.class)
+    ProblemDetail exclusaoRecusada(ExclusaoRecusadaException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle(e.titulo());
+        return problema;
+    }
+
     @ExceptionHandler(IfMatchAusenteException.class)
     ProblemDetail ifMatchAusente(IfMatchAusenteException e) {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.PRECONDITION_REQUIRED, e.getMessage());

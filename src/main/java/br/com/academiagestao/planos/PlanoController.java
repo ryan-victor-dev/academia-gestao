@@ -16,6 +16,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -107,6 +108,14 @@ class PlanoController {
     @PreAuthorize("hasRole('ADMIN')")
     ResponseEntity<PlanoResponse> reativar(@PathVariable UUID id) {
         return comEtag(service.reativar(id));
+    }
+
+    /** Só o plano que nunca foi contratado (ADR 0043); com matrículas, 409: inative. */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    ResponseEntity<Void> excluir(@PathVariable UUID id) {
+        service.excluir(id);
+        return ResponseEntity.noContent().build();
     }
 
     private static ResponseEntity<PlanoResponse> comEtag(Plano plano) {

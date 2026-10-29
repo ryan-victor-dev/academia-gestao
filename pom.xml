@@ -184,6 +184,7 @@
 								<param>br.com.academiagestao.auth.Usuario</param>
 								<param>br.com.academiagestao.cobranca.dominio.*</param>
 								<param>br.com.academiagestao.compartilhado.Correio</param>
+								<param>br.com.academiagestao.compartilhado.ExclusaoRecusadaException</param>
 								<param>br.com.academiagestao.compartilhado.ProxyConfiavel</param>
 								<param>br.com.academiagestao.compartilhado.RecursoModificadoException</param>
 								<param>br.com.academiagestao.compartilhado.VersaoEsperada</param>
@@ -216,6 +217,7 @@
 								<param>br.com.academiagestao.auth.UsuarioTest</param>
 								<param>br.com.academiagestao.cobranca.dominio.*Test</param>
 								<param>br.com.academiagestao.compartilhado.CorreioTest</param>
+								<param>br.com.academiagestao.compartilhado.ExclusaoRecusadaExceptionTest</param>
 								<param>br.com.academiagestao.compartilhado.ProxyConfiavelTest</param>
 								<param>br.com.academiagestao.compartilhado.UsuarioDaAplicacaoNoBancoValidacaoTest</param>
 								<param>br.com.academiagestao.compartilhado.VersaoEsperadaTest</param>

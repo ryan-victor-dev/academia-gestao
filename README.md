@@ -204,6 +204,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/planos?incluirInativos=`, `GET /api/planos/{id}` | Todos os perfis³ |
 | `POST /api/planos`, `PUT /api/planos/{id}` (exige `If-Match`²; `fidelidade`, `percentualMulta` e `formaPagamento` opcionais⁵) | ADMIN |
 | `POST /api/planos/{id}/inativar`, `/reativar` | ADMIN |
+| `DELETE /api/planos/{id}` (só o nunca contratado; com matrícula, 409: inative¹⁴) | ADMIN |
 | `POST /api/matriculas` (`alunoId`, `planoId`, `inicio` opcional; copia nome, valor e duração do plano⁴) | ADMIN, RECEPCAO |
 | `GET /api/matriculas/{id}`, `GET /api/matriculas?alunoId=` (histórico) | ADMIN, RECEPCAO |
 | `POST /api/matriculas/{id}/cancelar` (`motivo` obrigatório; com fidelidade, grava a multa⁵) | ADMIN, RECEPCAO |
@@ -331,6 +332,9 @@ dependa dele é exigido. Para testar sem mandar nada para fora: `EMAIL_HOST=mail
 EMAIL_TLS=false EMAIL_REMETENTE=teste@academia.local docker compose --profile email-de-teste up -d`,
 e os e-mails aparecem em http://localhost:8025. Cada código vale 15 minutos e 5 tentativas; cada pessoa
 recebe no máximo 1 por minuto, 5 por hora e 10 em 24 horas (ADR 0041).
+
+¹⁴ Excluir (ADR 0043): só o cadastro que nunca foi usado sai, o feito por engano. Com histórico, 409,
+e o caminho é inativar. A trilha registra `EXCLUIDO` com o último retrato.
 
 Esqueceu a senha (com o e-mail ligado¹³; aluno e equipe com o e-mail confirmado, não o ADMIN): `POST
 /api/auth/esqueci-senha` (`email`; sempre 202, sem revelar se o e-mail existe) manda um código de 6

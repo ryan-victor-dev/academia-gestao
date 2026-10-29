@@ -68,8 +68,25 @@ class UsuarioDaAplicacaoNoBancoTest {
                 executar("DELETE FROM tentativas_login WHERE false");
             }).doesNotThrowAnyException();
         } finally {
-            // Apagar plano é só do dono do banco (a aplicação não apaga cadastros).
             jdbc.update("DELETE FROM planos WHERE nome LIKE ?", nome + "%");
+        }
+    }
+
+    /**
+     * O plano nunca contratado pode ser excluído (ADR 0043); o contratado, nem com uma injeção de
+     * SQL: a chave estrangeira das matrículas barra (o PlanoControllerTest confere). TRUNCATE, nunca.
+     */
+    @Test
+    void planoSaiComDeleteMasNuncaComTruncate() {
+        String nome = "Teste " + UUID.randomUUID();
+        jdbc.update("INSERT INTO planos (id, nome, valor_mensal, duracao_meses) VALUES (gen_random_uuid(), ?, 100, 1)", nome);
+        try {
+            assertThatCode(() -> executar("DELETE FROM planos WHERE nome = '" + nome + "'")).doesNotThrowAnyException();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM planos WHERE nome = ?", Long.class, nome)).isZero();
+            assertThatThrownBy(() -> executar("TRUNCATE planos")).isInstanceOf(SQLException.class)
+                    .hasMessageContaining("permission denied");
+        } finally {
+            jdbc.update("DELETE FROM planos WHERE nome = ?", nome);
         }
     }
 
@@ -126,12 +143,11 @@ class UsuarioDaAplicacaoNoBancoTest {
 
     /**
      * Cadastros não se apagam (revisão geral, B4): o usuário da aplicação não tem DELETE nem
-     * TRUNCATE em alunos, usuários, planos, matrículas e trancamentos, e o cronograma é só
-     * gravado e lido. "WHERE false": a permissão é conferida mesmo sem linhas.
+     * TRUNCATE em alunos, usuários, matrículas e trancamentos, e o cronograma é só gravado e lido. "WHERE false": a permissão é conferida mesmo sem linhas.
      */
     @Test
     void cadastrosNaoSaoApagados() {
-        for (String tabela : List.of("alunos", "usuarios", "planos", "matriculas", "trancamentos", "cronogramas")) {
+        for (String tabela : List.of("alunos", "usuarios", "matriculas", "trancamentos", "cronogramas")) {
             assertThatCode(() -> executar("SELECT count(*) FROM " + tabela)).as(tabela).doesNotThrowAnyException();
             for (String ataque : List.of("DELETE FROM " + tabela + " WHERE false", "TRUNCATE " + tabela)) {
                 assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
@@ -146,8 +162,9 @@ class UsuarioDaAplicacaoNoBancoTest {
     /**
      * Toda tabela nasce com DELETE para a aplicação (GRANT ... ON ALL TABLES). Só estas
      * precisam dele: os contadores do limite de login (limpos a cada minuto), as sessões vencidas
-     * (limpas a cada hora, ADR 0033) e as divisões e os exercícios da ficha atual (a correção
-     * troca os filhos). Uma tabela nova que apareça aqui
+     * (limpas a cada hora, ADR 0033), as divisões e os exercícios da ficha atual (a correção
+     * troca os filhos) e os cadastros que o ADMIN exclui quando nunca foram usados (ADR 0043:
+     * a chave estrangeira guarda os que têm histórico). Uma tabela nova que apareça aqui
      * pede a decisão: a aplicação apaga dela? Se não, REVOKE no UsuarioDaAplicacaoNoBanco.
      */
     @Test
@@ -155,7 +172,7 @@ class UsuarioDaAplicacaoNoBancoTest {
         List<String> comDelete = jdbc.queryForList("""
                 SELECT table_name FROM information_schema.role_table_grants
                 WHERE grantee = 'academia_app' AND privilege_type = 'DELETE' ORDER BY 1""", String.class);
-        assertThat(comDelete).containsExactly("ficha_divisoes", "ficha_exercicios", "sessoes", "tentativas_login");
+        assertThat(comDelete).containsExactly("ficha_divisoes", "ficha_exercicios", "planos", "sessoes", "tentativas_login");
     }
 
     /** O registro de acessos só cresce; o vencido sai pela função do dono (V38, ADR 0031). */

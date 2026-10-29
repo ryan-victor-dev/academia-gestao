@@ -2,6 +2,7 @@ package br.com.academiagestao.planos;
 
 import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
+import br.com.academiagestao.alunos.CpfsParaTeste;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -192,6 +194,50 @@ class PlanoControllerTest {
         assertThat(jdbc.queryForList("SELECT acao FROM auditoria WHERE entidade = 'PLANO' AND entidade_id = ?"
                 + " ORDER BY momento, id", String.class, UUID.fromString(id)))
                 .containsExactly("CRIADO", "INATIVADO", "REATIVADO");
+    }
+
+    // Excluir (ADR 0043)
+
+    @Test
+    void planoNuncaContratadoEhExcluidoEATrilhaGuardaOUltimoRetrato() throws Exception {
+        String id = cadastrarPlano("Mensal");
+
+        mvc.perform(delete("/api/planos/" + id).with(ADMIN)).andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/planos/" + id).with(ADMIN)).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForList("SELECT acao FROM auditoria WHERE entidade = 'PLANO' AND entidade_id = ?"
+                + " ORDER BY momento, id", String.class, UUID.fromString(id)))
+                .containsExactly("CRIADO", "EXCLUIDO");
+        String excluido = jdbc.queryForObject("SELECT alteracoes::text FROM auditoria WHERE entidade_id = ?"
+                + " AND acao = 'EXCLUIDO'", String.class, UUID.fromString(id));
+        assertThat(JsonPath.<String>read(excluido, "$.nome.antes")).isEqualTo("Mensal");
+        assertThat(JsonPath.<Object>read(excluido, "$.nome.depois")).isNull();
+    }
+
+    @Test
+    void planoContratadoNaoEhExcluido() throws Exception {
+        String id = cadastrarPlano("Mensal");
+        UUID aluno = UUID.randomUUID();
+        jdbc.update("INSERT INTO alunos (id, nome, cpf) VALUES (?, 'Aluno', ?)", aluno, CpfsParaTeste.aleatorio());
+        mvc.perform(post("/api/matriculas").with(ADMIN).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"alunoId\": \"%s\", \"planoId\": \"%s\"}".formatted(aluno, id)))
+                .andExpect(status().isCreated());
+
+        mvc.perform(delete("/api/planos/" + id).with(ADMIN))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Plano com matrículas"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("inative")));
+
+        mvc.perform(get("/api/planos/" + id).with(ADMIN)).andExpect(status().isOk());
+        assertThat(jdbc.queryForList("SELECT acao FROM auditoria WHERE entidade = 'PLANO' AND entidade_id = ?",
+                String.class, UUID.fromString(id))).containsExactly("CRIADO");
+    }
+
+    @Test
+    void excluirPlanoInexistenteDevolve404() throws Exception {
+        mvc.perform(delete("/api/planos/" + UUID.randomUUID()).with(ADMIN))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Plano não encontrado"));
     }
 
     @Test

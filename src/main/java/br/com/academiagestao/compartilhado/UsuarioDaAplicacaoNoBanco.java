@@ -73,12 +73,14 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             sql.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + usuario);
             // O histórico de migrations é só do dono: a aplicação não lê nem altera.
             sql.execute("REVOKE ALL ON TABLE flyway_schema_history FROM " + usuario);
-            // Cadastros não se apagam: aluno e usuário são inativados, plano sai de oferta,
-            // matrícula é cancelada ou trocada, trancamento ganha a volta. Sem o DELETE, nem uma
-            // injeção de SQL os apaga (revisão geral, B4). O cronograma de cobranças da matrícula
-            // é gravado uma vez e só lido.
-            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE alunos, usuarios, planos, matriculas, trancamentos FROM "
+            // Cadastros não se apagam: aluno e usuário são inativados, matrícula é cancelada ou
+            // trocada, trancamento ganha a volta. Sem o DELETE, nem uma injeção de SQL os apaga
+            // (revisão geral, B4). O cronograma de cobranças da matrícula é gravado uma vez e só
+            // lido. O plano nunca contratado pode ser excluído (ADR 0043): com matrícula, a chave
+            // estrangeira barra o DELETE, mesmo o de uma injeção.
+            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE alunos, usuarios, matriculas, trancamentos FROM "
                     + usuario);
+            sql.execute("REVOKE TRUNCATE ON TABLE planos FROM " + usuario);
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE cronogramas FROM " + usuario);
             // A trilha de auditoria só cresce: a aplicação insere e lê, mas não apaga nem
             // reescreve o histórico (nem com uma injeção de SQL).

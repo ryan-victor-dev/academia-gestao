@@ -27,6 +27,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -111,6 +112,9 @@ class PermissoesDePlanosTest {
                     .content("{\"nome\": \"Mensal\", \"valorMensal\": 129.90, \"duracaoMeses\": 1}");
             case "inativar" -> post("/api/planos/" + alvoDeStatus.getId() + "/inativar");
             case "reativar" -> post("/api/planos/" + alvoDeStatus.getId() + "/reativar");
+            // Um plano novo a cada vez: o do ADMIN sai, e os outros perfis nem chegam a ele.
+            case "excluir" -> delete("/api/planos/" + planoRepository.save(
+                    Plano.novo(new DadosPlano("Plano " + UUID.randomUUID(), new BigDecimal("100"), 1))).getId());
             default -> throw new IllegalArgumentException(operacao);
         };
     }
@@ -147,6 +151,11 @@ class PermissoesDePlanosTest {
             "reativar,  RECEPCAO,  403",
             "reativar,  INSTRUTOR, 403",
             "reativar,  ALUNO,     403",
+
+            "excluir,   ADMIN,     204",
+            "excluir,   RECEPCAO,  403",
+            "excluir,   INSTRUTOR, 403",
+            "excluir,   ALUNO,     403",
     })
     void matrizDePermissoes(String operacao, Perfil perfil, int statusEsperado) throws Exception {
         mvc.perform(requisicao(operacao).header("Authorization", "Bearer " + tokens.get(perfil)))
@@ -154,7 +163,7 @@ class PermissoesDePlanosTest {
     }
 
     @ParameterizedTest(name = "{0} sem token -> 401")
-    @CsvSource({"listar", "consultar", "cadastrar", "editar", "inativar", "reativar"})
+    @CsvSource({"listar", "consultar", "cadastrar", "editar", "inativar", "reativar", "excluir"})
     void semTokenNadaFunciona(String operacao) throws Exception {
         mvc.perform(requisicao(operacao)).andExpect(status().isUnauthorized());
     }

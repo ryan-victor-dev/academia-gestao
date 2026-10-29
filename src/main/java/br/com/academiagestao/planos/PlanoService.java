@@ -1,6 +1,7 @@
 package br.com.academiagestao.planos;
 
 import br.com.academiagestao.compartilhado.Auditoria;
+import br.com.academiagestao.compartilhado.ExclusaoRecusadaException;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import org.hibernate.exception.ConstraintViolationException;
@@ -87,6 +88,28 @@ class PlanoService {
         Map<String, Object> antes = retrato(plano);
         plano.reativar();
         return gravar(plano, "REATIVADO", antes);
+    }
+
+    /**
+     * Só o plano que nunca foi contratado sai (cadastrado por engano, ADR 0043). Quem barra é a
+     * chave estrangeira das matrículas, mesmo canceladas: com histórico, 409, e o caminho é
+     * inativar. A linha fica travada: uma matrícula ao mesmo tempo espera, ou é esperada.
+     */
+    @Transactional
+    void excluir(UUID id) {
+        Plano plano = repository.travarPorId(id).orElseThrow(() -> new PlanoNaoEncontradoException(id));
+        Map<String, Object> antes = retrato(plano);
+        try {
+            repository.delete(plano);
+            repository.flush();
+        } catch (DataIntegrityViolationException e) {
+            if (!ExclusaoRecusadaException.temHistorico(e)) {
+                throw e;
+            }
+            throw new ExclusaoRecusadaException("Plano com matrículas",
+                    "O plano já foi contratado e não pode ser excluído; inative-o para tirá-lo de oferta");
+        }
+        auditoria.registrar(PLANO, id, "EXCLUIDO", antes, Map.of());
     }
 
     private void garantirNomeLivre(String nome, UUID ignorar) {
