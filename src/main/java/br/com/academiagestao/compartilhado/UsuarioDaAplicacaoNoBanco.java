@@ -97,10 +97,12 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE fechamentos_de_caixa, reaberturas_de_caixa FROM "
                     + usuario);
             // O histórico de treinos não se apaga (ADR 0027): a ficha encerrada fica, e o
-            // exercício inativo continua nas fichas antigas. Divisões e exercícios da ficha
+            // exercício inativo continua nas fichas antigas. O exercício que nunca entrou numa
+            // ficha pode ser excluído (ADR 0043): nas fichas, a chave estrangeira barra o DELETE. Divisões e exercícios da ficha
             // nunca se alteram: a correção apaga os da atual e grava novos (o gatilho da V32
             // recusa apagar os de uma encerrada).
-            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE fichas, exercicios FROM " + usuario);
+            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE fichas FROM " + usuario);
+            sql.execute("REVOKE TRUNCATE ON TABLE exercicios FROM " + usuario);
             sql.execute("REVOKE UPDATE, TRUNCATE ON TABLE ficha_divisoes, ficha_exercicios FROM " + usuario);
             // O Pix e o boleto gerados ficam, com o que aconteceu com eles (ADR 0034).
             sql.execute("REVOKE DELETE, TRUNCATE ON TABLE pagamentos_online FROM " + usuario);

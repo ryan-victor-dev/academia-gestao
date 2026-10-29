@@ -132,13 +132,13 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   consulta ao cadastro grava o `subject` do token como UUID: token simulado (`jwt()`) que
   abre `GET /api/alunos/{id}` precisa de `.jwt(j -> j.subject(UUID...))`.
 - O usuário da aplicação só tem DELETE em `tentativas_login`, `sessoes`, `ficha_divisoes`,
-  `ficha_exercicios` e nos cadastros que o ADMIN exclui (`planos`, ADR 0043) (o
+  `ficha_exercicios` e nos cadastros que o ADMIN exclui (`planos`, `exercicios`, ADR 0043) (o
   `UsuarioDaAplicacaoNoBancoTest` confere a lista): tabela nova nasce com
   DELETE e o teste falha até você decidir. Os testes conectam como dono do banco, então um
   DELETE que a aplicação precise e não tenha só aparece no Docker ou no e2e.
 - Excluir (ADR 0043) só tira o cadastro sem histórico: quem barra é a chave estrangeira (`23503`,
   `ExclusaoRecusadaException.temHistorico`). Quem cria histórico lê o cadastro com trava (`FOR SHARE`,
-  como `PlanosParaMatricula`): sem ela, uma exclusão no meio dá 500 na chave estrangeira. Tabela nova
+  como `PlanosParaMatricula` e a ficha com os exercícios): sem ela, uma exclusão no meio dá 500 na chave estrangeira. Tabela nova
   que aponte para um cadastro já o protege; a que guarda o id sem chave estrangeira precisa de checagem.
 - `@PreAuthorize` só com perfil (`hasRole`, `hasAnyRole`): o `PerfilAntesDoCorpo` avalia a regra
   antes de ler o corpo, quando os argumentos do método ainda não existem.

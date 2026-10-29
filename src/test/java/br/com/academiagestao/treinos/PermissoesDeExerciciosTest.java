@@ -27,6 +27,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -110,6 +111,9 @@ class PermissoesDeExerciciosTest {
                     .content("{\"nome\": \"Supino\", \"grupoMuscular\": \"PEITO\"}");
             case "inativar" -> post("/api/exercicios/" + alvoDeStatus.getId() + "/inativar");
             case "reativar" -> post("/api/exercicios/" + alvoDeStatus.getId() + "/reativar");
+            // Um exercício novo a cada vez: o do ADMIN sai, e os outros perfis nem chegam a ele.
+            case "excluir" -> delete("/api/exercicios/" + exercicioRepository.save(Exercicio.novo(
+                    new DadosExercicio("Exercício " + UUID.randomUUID(), GrupoMuscular.PEITO, null), Instant.now())).getId());
             default -> throw new IllegalArgumentException(operacao);
         };
     }
@@ -146,6 +150,12 @@ class PermissoesDeExerciciosTest {
             "reativar,  INSTRUTOR, 200",
             "reativar,  RECEPCAO,  403",
             "reativar,  ALUNO,     403",
+
+            // O instrutor mantém o catálogo, mas excluir é só do ADMIN (decisão do dono, ADR 0043).
+            "excluir,   ADMIN,     204",
+            "excluir,   INSTRUTOR, 403",
+            "excluir,   RECEPCAO,  403",
+            "excluir,   ALUNO,     403",
     })
     void matrizDePermissoes(String operacao, Perfil perfil, int statusEsperado) throws Exception {
         mvc.perform(requisicao(operacao).header("Authorization", "Bearer " + tokens.get(perfil)))
@@ -153,7 +163,7 @@ class PermissoesDeExerciciosTest {
     }
 
     @ParameterizedTest(name = "{0} sem token -> 401")
-    @CsvSource({"listar", "consultar", "cadastrar", "editar", "inativar", "reativar"})
+    @CsvSource({"listar", "consultar", "cadastrar", "editar", "inativar", "reativar", "excluir"})
     void semTokenNadaFunciona(String operacao) throws Exception {
         mvc.perform(requisicao(operacao)).andExpect(status().isUnauthorized());
     }

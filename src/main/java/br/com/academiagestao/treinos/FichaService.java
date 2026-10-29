@@ -151,13 +151,16 @@ class FichaService {
     /**
      * Nome atual no catálogo de cada exercício citado. Inativo só entra se estiver em
      * {@code permitidosInativos}; o que não existe fica de fora, e a Ficha o recusa (400).
+     * Os exercícios ficam travados até o fim (FOR SHARE): uma exclusão ao mesmo tempo espera a
+     * ficha (e é recusada, 409) ou é esperada por ela (e o exercício não existe mais, 400).
+     * Sem a trava, a ficha esbarraria na chave estrangeira (500). ADR 0043.
      */
     private Map<UUID, String> nomesDosExercicios(DadosFicha dados, Set<UUID> permitidosInativos) {
         Map<UUID, String> nomes = new HashMap<>();
         if (dados == null) {
             return nomes;
         }
-        for (Exercicio exercicio : exercicios.findAllById(dados.exercicioIds())) {
+        for (Exercicio exercicio : exercicios.travarParaFicha(dados.exercicioIds())) {
             if (!exercicio.isAtivo() && !permitidosInativos.contains(exercicio.getId())) {
                 throw new FichaRecusadaException("Exercício inativo", "O exercício \"" + exercicio.getNome()
                         + "\" está inativo e não entra em fichas novas; reative-o no catálogo ou escolha outro");

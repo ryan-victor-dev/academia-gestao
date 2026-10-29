@@ -40,6 +40,9 @@ class FichaConcorrenciaTest {
     FichaService service;
 
     @Autowired
+    ExercicioService catalogo;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     private UUID instrutor;
@@ -144,6 +147,45 @@ class FichaConcorrenciaTest {
         }
         assertThat(correcoes).as("cada lado chegou antes em parte das rodadas")
                 .containsExactlyInAnyOrder("ok", "FichaRecusadaException");
+    }
+
+    /**
+     * Montar a ficha e excluir o exercício dela ao mesmo tempo (ADR 0043): a ficha lê o exercício
+     * com trava. Ou a exclusão chega antes (e a ficha não acha o exercício, 400), ou a ficha chega
+     * antes (e a exclusão é recusada, 409). Nunca um 500 da chave estrangeira.
+     */
+    @Test
+    void montarAFichaEExcluirOExercicioAoMesmoTempo() throws Exception {
+        Set<String> vencedores = new HashSet<>();
+        for (int rodada = 0; rodada < RODADAS * 2; rodada++) {
+            UUID aluno = novoAluno();
+            exercicio = UUID.randomUUID();
+            jdbc.update("INSERT INTO exercicios (id, nome, grupo_muscular, criado_em) VALUES (?, ?, 'PEITO', now())",
+                    exercicio, "Supino " + rodada);
+            UUID alvo = exercicio;
+            DadosFicha ficha = ficha("A");
+
+            long atraso = rodada % 3;
+            List<String> resultados = juntas(List.of(
+                    () -> { service.montar(aluno, ficha, instrutor); return "ok"; },
+                    () -> { Thread.sleep(atraso); catalogo.excluir(alvo); return "ok"; }));
+
+            int existe = jdbc.queryForObject("SELECT count(*) FROM exercicios WHERE id = ?", Integer.class, alvo);
+            int fichas = jdbc.queryForObject("SELECT count(*) FROM fichas WHERE aluno_id = ?", Integer.class, aluno);
+            if (resultados.get(1).equals("ok")) {
+                vencedores.add("exclusão");
+                assertThat(resultados.getFirst()).as("rodada %d: ficha", rodada).isEqualTo("DadosInvalidosException");
+                assertThat(existe).isZero();
+                assertThat(fichas).isZero();
+            } else {
+                vencedores.add("ficha");
+                assertThat(resultados).as("rodada %d", rodada).containsExactly("ok", "ExclusaoRecusadaException");
+                assertThat(existe).isOne();
+                assertThat(fichas).isOne();
+            }
+        }
+        assertThat(vencedores).as("cada lado chegou antes em parte das rodadas")
+                .containsExactlyInAnyOrder("exclusão", "ficha");
     }
 
     @Test

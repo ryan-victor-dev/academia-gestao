@@ -1,6 +1,7 @@
 package br.com.academiagestao.treinos;
 
 import br.com.academiagestao.compartilhado.Auditoria;
+import br.com.academiagestao.compartilhado.ExclusaoRecusadaException;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import org.hibernate.exception.ConstraintViolationException;
@@ -89,6 +90,28 @@ class ExercicioService {
         Map<String, Object> antes = retrato(exercicio);
         exercicio.reativar();
         return gravar(exercicio, "REATIVADO", antes);
+    }
+
+    /**
+     * Só o exercício que nunca entrou numa ficha sai (cadastrado por engano, ADR 0043). Quem barra
+     * é a chave estrangeira das fichas, mesmo encerradas: com histórico, 409, e o caminho é
+     * inativar. A linha fica travada: uma ficha ao mesmo tempo espera, ou é esperada.
+     */
+    @Transactional
+    void excluir(UUID id) {
+        Exercicio exercicio = repository.travarPorId(id).orElseThrow(() -> new ExercicioNaoEncontradoException(id));
+        Map<String, Object> antes = retrato(exercicio);
+        try {
+            repository.delete(exercicio);
+            repository.flush();
+        } catch (DataIntegrityViolationException e) {
+            if (!ExclusaoRecusadaException.temHistorico(e)) {
+                throw e;
+            }
+            throw new ExclusaoRecusadaException("Exercício em fichas",
+                    "O exercício já está em fichas e não pode ser excluído; inative-o para tirá-lo das fichas novas");
+        }
+        auditoria.registrar(EXERCICIO, id, "EXCLUIDO", antes, Map.of());
     }
 
     private void garantirNomeLivre(String nome, UUID ignorar) {

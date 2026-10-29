@@ -234,6 +234,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/caixas/relatorio?de=&ate=` (cada dia por forma, menos os estornos, com os fechamentos; até 366 dias) | ADMIN |
 | `GET /api/exercicios?grupoMuscular=&incluirInativos=`, `GET /api/exercicios/{id}` (catálogo⁸) | ADMIN, INSTRUTOR |
 | `POST /api/exercicios`, `PUT /api/exercicios/{id}` (exige `If-Match`²), `POST /api/exercicios/{id}/inativar`, `/reativar` | ADMIN, INSTRUTOR |
+| `DELETE /api/exercicios/{id}` (só o que nunca entrou numa ficha; numa ficha, mesmo encerrada, 409: inative¹⁴) | ADMIN |
 | `POST /api/fichas` (`alunoId`, `divisoes`, `revisaoEm` opcional, até 1 ano à frente; encerra a atual⁸) | ADMIN, INSTRUTOR |
 | `PUT /api/fichas/{id}` (corrige a atual; exige `If-Match`²) | ADMIN, INSTRUTOR |
 | `GET /api/fichas/{id}`, `GET /api/fichas/atual?alunoId=`, `GET /api/fichas?alunoId=&pagina=&tamanho=` (histórico, a mais nova primeiro; 10 por página, até 20) | ADMIN, INSTRUTOR, RECEPCAO |
@@ -286,7 +287,7 @@ parcelas dela; crédito maior que o plano novo inteiro recusa a troca (409). As 
 que já existiam antes da cobrança ganharam só as cobranças de hoje em diante. O valor
 mensal de um plano vai até R$ 100.000.
 ⁸ Treinos (ADR 0027): os instrutores mantêm o catálogo de exercícios (nome único entre os
-ativos, grupo muscular, observação de execução); exercício não se apaga, é inativado e sai
+ativos, grupo muscular, observação de execução); exercício usado não se apaga, é inativado e sai
 das fichas novas. A ficha tem de 1 a 7 divisões (Treino A, B…), cada uma com 1 a 20
 exercícios em ordem: séries (1 a 20), repetições e carga em texto ("8 a 12", "peso do
 corpo"), descanso (0 a 600 s) e observação. Ela copia o nome do exercício: renomear no

@@ -2,6 +2,7 @@ package br.com.academiagestao.treinos;
 
 import br.com.academiagestao.LimpezaDoBanco;
 import br.com.academiagestao.TestcontainersConfiguration;
+import br.com.academiagestao.alunos.CpfsParaTeste;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,9 +21,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -37,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ExercicioControllerTest {
 
     private static final RequestPostProcessor INSTRUTOR = jwt().authorities(new SimpleGrantedAuthority("ROLE_INSTRUTOR"));
+    private static final RequestPostProcessor ADMIN = jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
 
     @Autowired
     LimpezaDoBanco limpeza;
@@ -204,6 +208,58 @@ class ExercicioControllerTest {
                 .containsExactly("CRIADO", "EDITADO", "INATIVADO");
         assertThat(jdbc.queryForObject("SELECT alteracoes::text FROM auditoria WHERE entidade_id = ? AND acao = 'EDITADO'",
                 String.class, UUID.fromString(id))).contains("Supino reto");
+    }
+
+    // Excluir (ADR 0043)
+
+    @Test
+    void exercicioQueNuncaEntrouNumaFichaEhExcluidoEATrilhaGuardaOUltimoRetrato() throws Exception {
+        String id = cadastrarExercicio("Supino", "PEITO");
+
+        mvc.perform(delete("/api/exercicios/" + id).with(ADMIN)).andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/exercicios/" + id).with(ADMIN)).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForList("SELECT acao FROM auditoria WHERE entidade = 'EXERCICIO' AND entidade_id = ?"
+                + " ORDER BY momento, id", String.class, UUID.fromString(id)))
+                .containsExactly("CRIADO", "EXCLUIDO");
+        String excluido = jdbc.queryForObject("SELECT alteracoes::text FROM auditoria WHERE entidade_id = ?"
+                + " AND acao = 'EXCLUIDO'", String.class, UUID.fromString(id));
+        assertThat(JsonPath.<String>read(excluido, "$.nome.antes")).isEqualTo("Supino");
+        assertThat(JsonPath.<Object>read(excluido, "$.nome.depois")).isNull();
+    }
+
+    /** Mesmo numa ficha encerrada, o exercício fica: é o histórico de treino do aluno (ADR 0027). */
+    @Test
+    void exercicioNumaFichaEncerradaNaoEhExcluido() throws Exception {
+        String id = cadastrarExercicio("Supino", "PEITO");
+        UUID aluno = UUID.randomUUID();
+        jdbc.update("INSERT INTO alunos (id, nome, cpf) VALUES (?, 'Aluno', ?)", aluno, CpfsParaTeste.aleatorio());
+        UUID instrutor = UUID.randomUUID();
+        jdbc.update("INSERT INTO usuarios (id, nome, email, senha_hash, perfil) VALUES (?, 'I', ?, 'x', 'INSTRUTOR')",
+                instrutor, instrutor + "@academia.com");
+        // Ficha aberta, os filhos, e só então encerrada (V32).
+        UUID ficha = UUID.randomUUID();
+        UUID divisao = UUID.randomUUID();
+        jdbc.update("INSERT INTO fichas (id, aluno_id, montada_em, montada_por) VALUES (?, ?, now(), ?)", ficha, aluno, instrutor);
+        jdbc.update("INSERT INTO ficha_divisoes (id, ficha_id, posicao, nome) VALUES (?, ?, 1, 'A')", divisao, ficha);
+        jdbc.update("""
+                INSERT INTO ficha_exercicios (id, divisao_id, posicao, exercicio_id, nome, series, repeticoes)
+                VALUES (?, ?, 1, ?, 'Supino', 3, '10')""", UUID.randomUUID(), divisao, UUID.fromString(id));
+        jdbc.update("UPDATE fichas SET encerrada_em = now() WHERE id = ?", ficha);
+
+        mvc.perform(delete("/api/exercicios/" + id).with(ADMIN))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Exercício em fichas"))
+                .andExpect(jsonPath("$.detail").value(containsString("inative")));
+
+        mvc.perform(get("/api/exercicios/" + id).with(ADMIN)).andExpect(status().isOk());
+        assertThat(jdbc.queryForList("SELECT acao FROM auditoria WHERE entidade = 'EXERCICIO' AND entidade_id = ?",
+                String.class, UUID.fromString(id))).containsExactly("CRIADO");
+    }
+
+    @Test
+    void excluirExercicioInexistenteDevolve404() throws Exception {
+        mvc.perform(delete("/api/exercicios/" + UUID.randomUUID()).with(ADMIN)).andExpect(status().isNotFound());
     }
 
     /** Pendências baixas, item 14: repetir não muda nada, nem a versão, nem a trilha. */

@@ -172,7 +172,8 @@ class UsuarioDaAplicacaoNoBancoTest {
         List<String> comDelete = jdbc.queryForList("""
                 SELECT table_name FROM information_schema.role_table_grants
                 WHERE grantee = 'academia_app' AND privilege_type = 'DELETE' ORDER BY 1""", String.class);
-        assertThat(comDelete).containsExactly("ficha_divisoes", "ficha_exercicios", "planos", "sessoes", "tentativas_login");
+        assertThat(comDelete).containsExactly("exercicios", "ficha_divisoes", "ficha_exercicios", "planos", "sessoes",
+                "tentativas_login");
     }
 
     /** O registro de acessos só cresce; o vencido sai pela função do dono (V38, ADR 0031). */
@@ -239,8 +240,7 @@ class UsuarioDaAplicacaoNoBancoTest {
             executar("DELETE FROM ficha_divisoes WHERE false");
             executar("DELETE FROM ficha_exercicios WHERE false");
         }).doesNotThrowAnyException();
-        for (String ataque : List.of("DELETE FROM fichas WHERE false", "TRUNCATE fichas",
-                "DELETE FROM exercicios WHERE false", "TRUNCATE exercicios",
+        for (String ataque : List.of("DELETE FROM fichas WHERE false", "TRUNCATE fichas", "TRUNCATE exercicios",
                 "UPDATE ficha_divisoes SET nome = nome WHERE false",
                 "UPDATE ficha_exercicios SET series = series WHERE false")) {
             assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
