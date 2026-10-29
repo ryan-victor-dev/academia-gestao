@@ -3,3 +3,4 @@ target/
 .vscode/
 *.md
 .env
+revisao-local/
