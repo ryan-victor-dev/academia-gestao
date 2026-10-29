@@ -56,6 +56,12 @@ export function App() {
     };
   }, []);
 
+  /** Quem acabou de entrar começa no início: o endereço pode ser de quem saiu, de outro perfil. */
+  function entrou() {
+    window.history.replaceState(null, '', '/');
+    void carregarUsuario();
+  }
+
   async function encerrar() {
     await sair();
     setEstado({ tipo: 'fora' });
@@ -65,7 +71,7 @@ export function App() {
     case 'carregando':
       return <p className="carregando" role="status">Carregando…</p>;
     case 'fora':
-      return <TelaDeLogin aoEntrar={carregarUsuario} />;
+      return <TelaDeLogin aoEntrar={entrou} />;
     case 'dentro':
       if (estado.usuario.precisaTrocarSenha) {
         // Senha temporária: a API só libera a troca; nenhuma outra tela funcionaria.

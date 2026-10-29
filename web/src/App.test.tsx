@@ -53,6 +53,27 @@ describe('App', () => {
     expect(fetch.mock.calls.map((c) => c[0])).toContain('/api/auth/sair');
   });
 
+  it('quem entra pela tela de login começa no início, e não no endereço de quem saiu', async () => {
+    // A recepção sai no /caixa, que não existe para o instrutor: ele não pode cair em "não encontrada".
+    window.history.pushState({}, '', '/caixa');
+    let logado = false;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/auth/renovar') return json(401, {});
+      if (url === '/api/auth/opcoes') return json(200, { esqueciSenha: false, primeiroAcesso: false });
+      if (url === '/api/auth/login') { logado = true; return json(200, { token: 't' }); }
+      if (url === '/api/me' && logado) return json(200, usuario({ nome: 'Bia', perfil: 'INSTRUTOR' }));
+      return json(404, {});
+    }));
+    render(<App />);
+
+    await userEvent.type(await screen.findByLabelText('E-mail'), 'bia@academia.com');
+    await userEvent.type(screen.getByLabelText('Senha', { exact: true }), 'senha-da-bia-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    expect(await screen.findByRole('heading', { name: 'Olá, Bia' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/');
+  });
+
   it('senha temporária: só a troca de senha, sem menu; trocada, entra', async () => {
     comSessao(usuario({ precisaTrocarSenha: true }), usuario());
     render(<App />);
