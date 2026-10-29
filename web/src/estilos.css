@@ -273,6 +273,7 @@ label.curto { max-width: 280px; }
 
 .lista li.linha { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 12px 16px; }
 .acoes-linha { display: flex; gap: 8px; }
+.confirmar { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 details { margin: 8px 0; }
 summary { cursor: pointer; font-weight: 600; }

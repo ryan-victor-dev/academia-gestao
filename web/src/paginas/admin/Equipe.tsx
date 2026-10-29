@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Excluir } from '../../componentes/Excluir';
 import { FormularioDeAcao } from '../../componentes/FormularioDeAcao';
 import { Paginacao, type Pagina } from '../../componentes/Paginacao';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
@@ -12,7 +13,7 @@ type Acao = { tipo: 'novo' } | { tipo: 'editar'; usuario: Usuario };
 
 /**
  * A equipe (só o ADMIN): criar o login com senha temporária, mudar nome e perfil, desativar
- * quem saiu, reativar e gerar senha nova. A API nunca redefine a senha de um ADMIN e não deixa
+ * quem saiu, reativar, gerar senha nova e excluir o login nunca usado (ADR 0043). A API nunca redefine a senha de um ADMIN e não deixa
  * ninguém desativar a si mesmo nem mudar o próprio perfil; a tela nem oferece. Os logins de alunos, que
  * podem ser milhares, vêm à parte, paginados e com busca (diagnóstico de 27/10, B4).
  */
@@ -65,6 +66,10 @@ export function Equipe() {
           <button type="button" className="secundario" onClick={() => executar(async () => {
             setSenha(await chamar(`/api/usuarios/${u.id}/nova-senha`, { metodo: 'POST' }));
           })}>Senha nova</button>
+        )}
+        {/* O login de aluno sai com o aluno, pelo cadastro dele. */}
+        {u.id !== eu.id && u.perfil !== 'ALUNO' && (
+          <Excluir nome={u.nome} aoExcluir={() => executar(() => chamar(`/api/usuarios/${u.id}`, { metodo: 'DELETE' }))} />
         )}
       </span>
     </li>

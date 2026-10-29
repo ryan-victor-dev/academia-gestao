@@ -101,4 +101,30 @@ describe('equipe', () => {
 
     expect(await screen.findByText('Nova-789')).toBeInTheDocument();
   });
+
+  it('excluir: não para si mesmo nem para login de aluno; confirma e manda o DELETE', async () => {
+    const api = apiFalsa({ 'GET /api/usuarios': json(200, lista), 'DELETE /api/usuarios/u2': new Response(null, { status: 204 }),
+      'GET /api/usuarios/alunos': json(200, paginaDeAlunos([usuario('u4', 'Aluno Ana', 'ALUNO')])) });
+    renderizar(<Equipe />, { perfil: 'ADMIN' });
+    await screen.findByText('Rita');
+
+    expect(within(linha('Eu Admin')).queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('Mostrar também os logins de alunos'));
+    await screen.findByText('Aluno Ana');
+    expect(within(linha('Aluno Ana')).queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
+
+    await userEvent.click(within(linha('Rita')).getByRole('button', { name: 'Excluir' }));
+    await userEvent.click(within(linha('Rita')).getByRole('button', { name: 'Sim, excluir' }));
+    expect(api.de('DELETE /api/usuarios/u2')).toHaveLength(1);
+  });
+
+  it('excluir quem já entrou: mostra o motivo', async () => {
+    apiFalsa({ 'GET /api/usuarios': json(200, lista),
+      'DELETE /api/usuarios/u2': json(409, { title: 'Usuário com histórico', detail: 'O usuário já entrou ou registrou algo e não pode ser excluído; desative-o' }) });
+    renderizar(<Equipe />, { perfil: 'ADMIN' });
+    await userEvent.click(within(await screen.findByText('Rita').then((e) => e.closest('li')!)).getByRole('button', { name: 'Excluir' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sim, excluir' }));
+
+    expect(await screen.findByText(/desative-o/)).toBeInTheDocument();
+  });
 });

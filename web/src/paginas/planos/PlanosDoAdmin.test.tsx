@@ -66,4 +66,33 @@ describe('planos (ADMIN)', () => {
 
     expect(api.de('POST /api/planos/p2/reativar')).toHaveLength(1);
   });
+
+  it('excluir: só o ADMIN; confirma, manda o DELETE e recarrega; com matrícula, mostra o motivo', async () => {
+    apiFalsa({ 'GET /api/planos': json(200, [mensal]) });
+    const { unmount } = renderizar(<ListaDePlanos />, { perfil: 'RECEPCAO' });
+    await screen.findByText('Mensal');
+    expect(screen.queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
+    unmount();
+
+    let excluido = false;
+    const api = apiFalsa({ 'GET /api/planos': () => json(200, excluido ? [] : [mensal]),
+      'DELETE /api/planos/p1': () => { excluido = true; return new Response(null, { status: 204 }); } });
+    renderizar(<ListaDePlanos />, { perfil: 'ADMIN' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sim, excluir' }));
+
+    expect(api.de('DELETE /api/planos/p1')).toHaveLength(1);
+    expect(await screen.findByText('Nenhum plano disponível.')).toBeInTheDocument();
+  });
+
+  it('excluir plano contratado: mostra o motivo da API', async () => {
+    apiFalsa({ 'GET /api/planos': json(200, [mensal]),
+      'DELETE /api/planos/p1': json(409, { title: 'Plano com matrículas', detail: 'O plano já foi contratado e não pode ser excluído; inative-o para tirá-lo de oferta' }) });
+    renderizar(<ListaDePlanos />, { perfil: 'ADMIN' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sim, excluir' }));
+
+    expect(await screen.findByText(/inative-o para tirá-lo de oferta/)).toBeInTheDocument();
+    expect(screen.getByText('Mensal')).toBeInTheDocument();
+  });
 });

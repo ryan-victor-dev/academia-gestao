@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
+import { Excluir } from '../../componentes/Excluir';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { cpf, data, dataHora, telefone } from '../../formato';
 import { chamar, chamarComVersao, ErroDaApi } from '../../sessao/api';
+import { useUsuario } from '../../sessao/contexto';
 import { AcessoDoAluno } from './AcessoDoAluno';
 import { FormularioDoAluno } from './FormularioDoAluno';
 import { MatriculasDoAluno } from './MatriculasDoAluno';
@@ -23,6 +25,8 @@ export function CadastroDoAluno() {
 }
 
 function Cadastro({ id }: { id: string }) {
+  const admin = useUsuario().perfil === 'ADMIN';
+  const navegar = useNavigate();
   const [aluno, setAluno] = useState<Aluno | AlunoParaInstrutor | null>(null);
   const [versao, setVersao] = useState<string | null>(null);
   const [podeTreinar, setPodeTreinar] = useState<boolean | null>(null);
@@ -58,6 +62,17 @@ function Cadastro({ id }: { id: string }) {
       const { dados, versao } = await chamarComVersao<Aluno>(`/api/alunos/${id}/${acao}`, { metodo: 'POST' });
       setAluno(dados);
       setVersao(versao);
+    } catch (e) {
+      setErro(e);
+    }
+  }
+
+  // Só o ADMIN, e só o aluno nunca usado (ADR 0043): com histórico, a API recusa e manda inativar.
+  async function excluir() {
+    setErro(null);
+    try {
+      await chamar(`/api/alunos/${id}`, { metodo: 'DELETE' });
+      navegar('/alunos');
     } catch (e) {
       setErro(e);
     }
@@ -126,6 +141,7 @@ function Cadastro({ id }: { id: string }) {
           {aluno.ativo
             ? <button type="button" className="secundario" onClick={() => mudarSituacao('inativar')}>Inativar</button>
             : <button type="button" className="secundario" onClick={() => mudarSituacao('reativar')}>Reativar</button>}
+          {admin && <Excluir nome={aluno.nome} aoExcluir={excluir} />}
         </div>
       )}
 

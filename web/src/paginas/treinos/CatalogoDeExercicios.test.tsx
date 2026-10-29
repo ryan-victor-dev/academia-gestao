@@ -61,4 +61,32 @@ describe('catálogo de exercícios', () => {
     expect(api.de('POST /api/exercicios/e1/inativar')).toHaveLength(1);
     expect(api.de('POST /api/exercicios/e2/reativar')).toHaveLength(1);
   });
+
+  it('excluir: o instrutor não vê; o ADMIN confirma e manda o DELETE', async () => {
+    apiFalsa({ 'GET /api/exercicios': json(200, [supino]) });
+    const { unmount } = renderizar(<CatalogoDeExercicios />, { perfil: 'INSTRUTOR' });
+    await screen.findByText('Supino');
+    expect(screen.queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
+    unmount();
+
+    let excluido = false;
+    const api = apiFalsa({ 'GET /api/exercicios': () => json(200, excluido ? [] : [supino]),
+      'DELETE /api/exercicios/e1': () => { excluido = true; return new Response(null, { status: 204 }); } });
+    renderizar(<CatalogoDeExercicios />, { perfil: 'ADMIN' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sim, excluir' }));
+
+    expect(api.de('DELETE /api/exercicios/e1')).toHaveLength(1);
+    expect(await screen.findByText('Nenhum exercício.')).toBeInTheDocument();
+  });
+
+  it('excluir exercício em fichas: mostra o motivo', async () => {
+    apiFalsa({ 'GET /api/exercicios': json(200, [supino]),
+      'DELETE /api/exercicios/e1': json(409, { title: 'Exercício em fichas', detail: 'O exercício já está em fichas e não pode ser excluído; inative-o' }) });
+    renderizar(<CatalogoDeExercicios />, { perfil: 'ADMIN' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sim, excluir' }));
+
+    expect(await screen.findByText(/já está em fichas/)).toBeInTheDocument();
+  });
 });

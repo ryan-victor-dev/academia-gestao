@@ -132,4 +132,31 @@ describe('cadastro do aluno', () => {
     expect(await screen.findByRole('heading', { name: 'Treino' })).toBeInTheDocument();
     expect(await screen.findByText('Nenhuma ficha montada.')).toBeInTheDocument();
   });
+
+  it('excluir: só o ADMIN; depois de excluir, volta à lista', async () => {
+    apiFalsa(base);
+    const { unmount } = abrir('RECEPCAO');
+    await screen.findByRole('heading', { name: 'Ana Souza' });
+    expect(screen.queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
+    unmount();
+
+    const api = apiFalsa({ ...base, 'DELETE /api/alunos/00000000-0000-0000-0000-0000000000a1': new Response(null, { status: 204 }) });
+    abrir('ADMIN');
+    await userEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sim, excluir' }));
+
+    expect(api.de('DELETE /api/alunos/00000000-0000-0000-0000-0000000000a1')).toHaveLength(1);
+    expect(await screen.findByText(/Fora da tela/)).toBeInTheDocument();
+  });
+
+  it('excluir aluno com histórico: fica no cadastro e mostra o motivo', async () => {
+    apiFalsa({ ...base, 'DELETE /api/alunos/00000000-0000-0000-0000-0000000000a1': json(409, { title: 'Aluno com histórico',
+      detail: 'O aluno já tem matrícula, ficha, pagamento ou pedido de primeiro acesso e não pode ser excluído; inative-o' }) });
+    abrir('ADMIN');
+    await userEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sim, excluir' }));
+
+    expect(await screen.findByText(/não pode ser excluído; inative-o/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Ana Souza' })).toBeInTheDocument();
+  });
 });

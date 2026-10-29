@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Excluir } from '../../componentes/Excluir';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { dinheiro } from '../../formato';
 import { chamar, chamarComVersao, ErroDaApi } from '../../sessao/api';
@@ -21,7 +22,7 @@ export const meses = (n: number) => (n === 1 ? '1 mês' : `${n} meses`);
 
 /**
  * Os planos. O aluno vê só os ativos (a API manda só esses a ele); o ADMIN também cria, edita
- * (com a versão lida), inativa e reativa. Mudar um plano não muda as matrículas já feitas (o
+ * (com a versão lida), inativa, reativa e exclui o nunca contratado (ADR 0043). Mudar um plano não muda as matrículas já feitas (o
  * preço fica congelado na matrícula).
  */
 export function ListaDePlanos() {
@@ -54,6 +55,16 @@ export function ListaDePlanos() {
     setErro(null);
     try {
       await chamar(`/api/planos/${p.id}/${p.ativo ? 'inativar' : 'reativar'}`, { metodo: 'POST' });
+      await carregar();
+    } catch (e) {
+      setErro(e);
+    }
+  }
+
+  async function excluir(p: Plano) {
+    setErro(null);
+    try {
+      await chamar(`/api/planos/${p.id}`, { metodo: 'DELETE' });
       await carregar();
     } catch (e) {
       setErro(e);
@@ -109,6 +120,7 @@ export function ListaDePlanos() {
               <div className="acoes">
                 <button type="button" className="secundario" onClick={() => abrirEdicao(p.id)}>Editar</button>
                 <button type="button" className="secundario" onClick={() => mudarSituacao(p)}>{p.ativo ? 'Inativar' : 'Reativar'}</button>
+                <Excluir nome={p.nome} aoExcluir={() => excluir(p)} />
               </div>
             )}
           </li>

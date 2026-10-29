@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Excluir } from '../../componentes/Excluir';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { chamar, chamarComVersao, ErroDaApi } from '../../sessao/api';
+import { useUsuario } from '../../sessao/contexto';
 import { NOME_DO_GRUPO, type Exercicio, type GrupoMuscular } from './tipos';
 
 interface DadosDoExercicio { nome: string; grupoMuscular: GrupoMuscular | ''; observacao: string }
 
-/** Catálogo de exercícios (professor e ADMIN): o que entra nas fichas. Nome único entre os ativos. */
+/**
+ * Catálogo de exercícios (professor e ADMIN): o que entra nas fichas. Nome único entre os ativos.
+ * Só o ADMIN exclui, e só o que nunca entrou numa ficha (ADR 0043).
+ */
 export function CatalogoDeExercicios() {
+  const admin = useUsuario().perfil === 'ADMIN';
   const [grupo, setGrupo] = useState<GrupoMuscular | ''>('');
   const [inativos, setInativos] = useState(false);
   const [lista, setLista] = useState<Exercicio[] | null>(null);
@@ -39,6 +45,16 @@ export function CatalogoDeExercicios() {
     setErro(null);
     try {
       await chamar(`/api/exercicios/${e.id}/${e.ativo ? 'inativar' : 'reativar'}`, { metodo: 'POST' });
+      await carregar();
+    } catch (falha) {
+      setErro(falha);
+    }
+  }
+
+  async function excluir(e: Exercicio) {
+    setErro(null);
+    try {
+      await chamar(`/api/exercicios/${e.id}`, { metodo: 'DELETE' });
       await carregar();
     } catch (falha) {
       setErro(falha);
@@ -98,6 +114,7 @@ export function CatalogoDeExercicios() {
             <span className="acoes-linha">
               <button type="button" className="secundario" onClick={() => abrirEdicao(e.id)}>Editar</button>
               <button type="button" className="secundario" onClick={() => mudarSituacao(e)}>{e.ativo ? 'Inativar' : 'Reativar'}</button>
+              {admin && <Excluir nome={e.nome} aoExcluir={() => excluir(e)} />}
             </span>
           </li>
         ))}
