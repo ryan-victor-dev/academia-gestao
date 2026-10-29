@@ -32,6 +32,11 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
             + "and (lower(u.nome) like :padrao escape '\\' or u.email like :padrao escape '\\')")
     Page<Usuario> buscarLoginsDeAlunos(String padrao, Pageable pagina);
 
+    /** SELECT ... FOR UPDATE: a linha fica travada até o fim da transação (excluir). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from Usuario u where u.id = :id")
+    Optional<Usuario> travarPorId(UUID id);
+
     /** ADMINs ativos, com as linhas travadas até o fim da transação (SELECT ... FOR UPDATE). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from Usuario u where u.perfil = br.com.academiagestao.auth.Perfil.ADMIN "

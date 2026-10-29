@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -74,6 +75,13 @@ class UsuarioController {
     @PostMapping("/{id}/desativar")
     UsuarioResponse desativar(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         return equipeService.desativar(id, UUID.fromString(jwt.getSubject()));
+    }
+
+    /** Login criado por engano e nunca usado (ADR 0043); usado, 409: desative. */
+    @DeleteMapping("/{id}")
+    ResponseEntity<Void> excluir(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        equipeService.excluir(id, UUID.fromString(jwt.getSubject()));
+        return ResponseEntity.noContent().build();
     }
 
     /**

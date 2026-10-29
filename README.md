@@ -192,6 +192,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/usuarios` (ADMIN, RECEPCAO ou INSTRUTOR, com senha temporária) | ADMIN |
 | `PUT /api/usuarios/{id}` (nome e perfil; mudar o perfil derruba as sessões da pessoa) | ADMIN |
 | `POST /api/usuarios/{id}/desativar`, `/reativar` | ADMIN |
+| `DELETE /api/usuarios/{id}` (só o login da equipe nunca usado; quem já entrou ou registrou algo, 409: desative¹⁴) | ADMIN |
 | `POST /api/usuarios/{id}/nova-senha` (senha temporária; nunca para um ADMIN) | ADMIN |
 | `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` (só o resumo: id, nome, data de nascimento e se está ativo¹¹) | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `GET /api/alunos/{id}` (o cadastro; cada abertura vai para o registro de acessos¹¹) | ADMIN, RECEPCAO, INSTRUTOR¹ |
@@ -357,7 +358,7 @@ renova o token, que sai sem a restrição.
 Quem entra com senha temporária (login recém-criado ou senha redefinida) só
 consegue trocar a senha (`POST /api/auth/trocar-senha`) e consultar `/api/me`.
 
-Na gestão da equipe, ninguém desativa a si mesmo nem muda o próprio perfil, e o
+Na gestão da equipe, ninguém desativa nem exclui a si mesmo nem muda o próprio perfil, e o
 sistema nunca deixa a academia sem pelo menos um ADMIN ativo.
 
 Desativar, reativar, mudar o perfil, trocar ou redefinir a senha de um usuário

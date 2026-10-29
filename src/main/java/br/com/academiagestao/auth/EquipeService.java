@@ -21,11 +21,14 @@ class EquipeService {
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
     private final TrilhaDeUsuarios trilha;
+    private final ExclusaoDeLogin exclusao;
 
-    EquipeService(UsuarioRepository repository, PasswordEncoder passwordEncoder, TrilhaDeUsuarios trilha) {
+    EquipeService(UsuarioRepository repository, PasswordEncoder passwordEncoder, TrilhaDeUsuarios trilha,
+                  ExclusaoDeLogin exclusao) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.trilha = trilha;
+        this.exclusao = exclusao;
     }
 
     /**
@@ -92,6 +95,26 @@ class EquipeService {
         usuario.desativar();
         trilha.alterado(usuario, "DESATIVADO", antes);
         return UsuarioResponse.de(usuario);
+    }
+
+    /**
+     * Login da equipe criado por engano (ADR 0043): só sai o que nunca foi usado (nunca entrou,
+     * não é autor na trilha, nada aponta para ele); usado, 409, e o caminho é desativar. Ninguém
+     * exclui a si mesmo. A regra do último ADMIN não entra: quem pede é ADMIN e continua, e o ADMIN
+     * excluído nunca entrou. A linha fica travada antes do retrato.
+     */
+    @Transactional
+    void excluir(UUID id, UUID quemPede) {
+        if (id.equals(quemPede)) {
+            throw new OperacaoNaoPermitidaException("Você não pode excluir o seu próprio login");
+        }
+        Usuario usuario = repository.travarPorId(id)
+                .orElseThrow(() -> new UsuarioNaoEncontradoException("Usuário não encontrado"));
+        if (usuario.getPerfil() == Perfil.ALUNO) {
+            throw new DadosInvalidosException("login de aluno acompanha o aluno: exclua o aluno (/api/alunos/{id})");
+        }
+        exclusao.excluir(usuario, "Usuário com histórico",
+                "O usuário já entrou ou registrou algo e não pode ser excluído; desative-o");
     }
 
     /**
