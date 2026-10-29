@@ -25,6 +25,19 @@ SEMANAIS=4
 
 log() { echo "$(date '+%F %T') $*"; }
 
+# Ao religar a máquina, o Docker sobe todos os containers juntos, sem esperar o banco (o
+# depends_on só vale no "compose up"), e o backup atrasado saía antes do banco aceitar conexões:
+# "BACKUP FALHOU" no log, à toa, até a nova tentativa em 5 minutos. Espera até 2 minutos; depois,
+# deixa o pg_dump falhar e dizer o motivo.
+esperar_banco() {
+    tentativas=60
+    until pg_isready --quiet; do
+        tentativas=$((tentativas - 1))
+        [ "$tentativas" -gt 0 ] || return 0
+        sleep 2
+    done
+}
+
 # Só o dono lê a pasta e os arquivos, inclusive os de antes desta regra.
 fechar_permissoes() {
     chmod 700 "$PASTA" "$PASTA/diario" "$PASTA/semanal" 2>/dev/null
@@ -44,6 +57,7 @@ gerar_dump() {
         log "BACKUP FALHOU: sem permissão para gravar em $(dirname "$1") (confira BACKUP_UID/BACKUP_GID no .env)"
         return 1
     fi
+    esperar_banco
     if ! pg_dump --format=custom --file="$claro"; then
         log "BACKUP FALHOU: pg_dump"; rm -f "$parcial" "$claro"; return 1
     fi

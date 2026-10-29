@@ -406,7 +406,8 @@ paga quando a empresa de pagamento confirma.
 O serviço `backup` do Compose faz um `pg_dump` do banco todo dia, a partir das 3h
 (`BACKUP_HORA`), na pasta `BACKUP_PASTA` (padrão `./backups`, fora do Git). Guarda 7
 diários (`backups/diario`) e 4 semanais (`backups/semanal`). Se o servidor estiver
-desligado no horário, o backup é feito assim que ele voltar. Cada arquivo é conferido
+desligado no horário, o backup é feito assim que ele voltar, depois de esperar o banco
+aceitar conexões (até 2 minutos, ADR 0044). Cada arquivo é conferido
 antes de valer, e o log mostra `Backup ok` ou `BACKUP FALHOU`
 (`docker logs academia-backup`).
 
