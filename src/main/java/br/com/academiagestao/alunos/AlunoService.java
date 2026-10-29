@@ -5,6 +5,7 @@ import br.com.academiagestao.auth.LoginsDeAlunos;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import br.com.academiagestao.compartilhado.EmailDoAlunoCorrigido;
+import br.com.academiagestao.compartilhado.ExclusaoRecusadaException;
 import br.com.academiagestao.compartilhado.RecursoModificadoException;
 import br.com.academiagestao.compartilhado.VersaoEsperada;
 import org.hibernate.exception.ConstraintViolationException;
@@ -72,10 +73,13 @@ class AlunoService {
         return repository.findAll(AlunoRepository.filtro(busca, incluirInativos, buscaPorCpf), pageRequest);
     }
 
-    /** O login usa o e-mail do cadastro do aluno, e nasce com senha temporária. */
+    /**
+     * O login usa o e-mail do cadastro do aluno, e nasce com senha temporária. A linha do aluno
+     * fica travada: uma exclusão ao mesmo tempo espera, ou é esperada (ADR 0043).
+     */
     @Transactional
     CredenciaisTemporarias criarLogin(UUID id) {
-        Aluno aluno = buscar(id);
+        Aluno aluno = repository.travarPorId(id).orElseThrow(() -> new AlunoNaoEncontradoException(id));
         if (!aluno.isAtivo()) {
             throw new AlunoInativoException();
         }
@@ -127,6 +131,30 @@ class AlunoService {
         interessados.forEach(i -> i.reativado(id));
         auditoria.registrar(ALUNO, id, "REATIVADO", antes, retrato(aluno));
         return aluno;
+    }
+
+    /**
+     * Só o aluno que nunca foi usado sai (cadastrado por engano, ADR 0043), com o login dele, se
+     * nunca entrou. Quem barra é a chave estrangeira de matrículas, cobranças, fichas, pagamentos e
+     * códigos do primeiro acesso: com histórico, 409, e o caminho é inativar. A linha fica
+     * travada, como na inativação: matrícula, ficha e login ao mesmo tempo esperam, ou são esperados.
+     */
+    @Transactional
+    void excluir(UUID id) {
+        Aluno aluno = repository.travarPorId(id).orElseThrow(() -> new AlunoNaoEncontradoException(id));
+        Map<String, Object> antes = retrato(aluno);
+        loginsDeAlunos.excluir(id);
+        try {
+            repository.delete(aluno);
+            repository.flush();
+        } catch (DataIntegrityViolationException e) {
+            if (!ExclusaoRecusadaException.temHistorico(e)) {
+                throw e;
+            }
+            throw new ExclusaoRecusadaException("Aluno com histórico",
+                    "O aluno já tem matrícula, ficha, pagamento ou pedido de primeiro acesso e não pode ser excluído; inative-o");
+        }
+        auditoria.registrar(ALUNO, id, "EXCLUIDO", antes, Map.of());
     }
 
     /** Só altera se o If-Match bater com a versão atual do aluno (ver VersaoEsperada). */

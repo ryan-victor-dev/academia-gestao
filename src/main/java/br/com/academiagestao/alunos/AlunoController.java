@@ -22,6 +22,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -156,6 +157,17 @@ class AlunoController {
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
     ResponseEntity<AlunoResponse> inativar(@PathVariable UUID id) {
         return comEtag(service.inativar(id));
+    }
+
+    /**
+     * Só o ADMIN (decisão do dono, ADR 0043), e só o aluno que nunca foi usado: com matrícula,
+     * ficha, pagamento ou login já usado, 409: inative.
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    ResponseEntity<Void> excluir(@PathVariable UUID id) {
+        service.excluir(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/reativar")

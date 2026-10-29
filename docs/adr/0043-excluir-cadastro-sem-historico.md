@@ -26,11 +26,13 @@ duplicado, exercício com o nome errado) fica para sempre nas listas de inativos
 | Plano | alguma matrícula foi feita nele (mesmo cancelada ou trocada) |
 | Exercício | está em alguma ficha (mesmo encerrada) |
 | Aluno | tem matrícula, cobrança, ficha, pagamento online, código de primeiro acesso, ou um login já usado |
-| Usuário | registrou algo (caixa, pagamento, matrícula cancelada, ficha...), é autor na trilha, ou tem acessos registrados (entrou alguma vez) |
+| Usuário | registrou algo (caixa, pagamento, matrícula cancelada, ficha...), é autor na trilha, entrou alguma vez ou abriu um cadastro |
 
 O usuário que já entrou fica: o registro de acessos e a trilha mostram o nome dele pelo id, e o
 nome sumiria. Pelo mesmo motivo, o login de aluno já usado impede excluir o aluno. O login nunca
-usado sai junto com o aluno.
+usado sai junto com o aluno, e as sessões dele, em cascata. Uma senha errada (`LOGIN_FALHO`) não
+conta como uso: qualquer pessoa que tentasse adivinhar a senha impediria a exclusão. O registro
+dela fica, com a conta digitada.
 
 ## Como funciona
 
@@ -44,6 +46,12 @@ usado sai junto com o aluno.
   trava (`FOR SHARE`, a matrícula no plano). Assim uma matrícula feita ao mesmo tempo espera a
   exclusão e não acha o plano (400), ou a exclusão espera a matrícula e é recusada (409). Sem a
   trava, a matrícula esbarrava na chave estrangeira e respondia 500.
+- **Corridas que ficam:** o primeiro acesso do aluno (ADR 0039) e o login não travam o cadastro.
+  Se o ADMIN excluir o aluno no mesmo instante em que ele pede o código ou cria a senha, ou o
+  usuário no mesmo instante em que ele entra, a chave estrangeira barra, e aquele pedido responde
+  com erro (500 ou 409), em vez de 202 ou 200. Os dados continuam certos. Exige excluir um cadastro
+  nunca usado no instante em que a pessoa o usa pela primeira vez: não vale a trava em rotas sem
+  login.
 - **A trilha registra `EXCLUIDO`** com o último retrato do cadastro, na mesma transação. Os
   registros anteriores do cadastro ficam (retenção de 5 anos, ADR 0022).
 - **O banco:** o usuário da aplicação ganha `DELETE` nas tabelas desses cadastros. Uma injeção de

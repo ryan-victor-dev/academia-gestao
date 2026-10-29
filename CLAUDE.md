@@ -132,7 +132,7 @@ Leia os ADRs em `docs/adr/` antes de mudar uma decisão; mudanças de decisão v
   consulta ao cadastro grava o `subject` do token como UUID: token simulado (`jwt()`) que
   abre `GET /api/alunos/{id}` precisa de `.jwt(j -> j.subject(UUID...))`.
 - O usuário da aplicação só tem DELETE em `tentativas_login`, `sessoes`, `ficha_divisoes`,
-  `ficha_exercicios` e nos cadastros que o ADMIN exclui (`planos`, `exercicios`, ADR 0043) (o
+  `ficha_exercicios` e nos cadastros que o ADMIN exclui (`planos`, `exercicios`, `alunos`, `usuarios`, ADR 0043) (o
   `UsuarioDaAplicacaoNoBancoTest` confere a lista): tabela nova nasce com
   DELETE e o teste falha até você decidir. Os testes conectam como dono do banco, então um
   DELETE que a aplicação precise e não tenha só aparece no Docker ou no e2e.

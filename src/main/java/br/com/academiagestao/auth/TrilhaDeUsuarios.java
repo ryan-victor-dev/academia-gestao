@@ -31,6 +31,11 @@ class TrilhaDeUsuarios {
         auditoria.registrar(USUARIO, usuario.getId(), acao, antes, retrato(usuario));
     }
 
+    /** Login excluído (ADR 0043): fica o último retrato. */
+    void excluido(Usuario usuario, Map<String, Object> antes) {
+        auditoria.registrar(USUARIO, usuario.getId(), "EXCLUIDO", antes, Map.of());
+    }
+
     /** Ato sem campo a mostrar, como uma senha redefinida: fica quem fez e quando. */
     void ato(Usuario usuario, String acao) {
         auditoria.registrar(USUARIO, usuario.getId(), acao, Map.of(), Map.of());

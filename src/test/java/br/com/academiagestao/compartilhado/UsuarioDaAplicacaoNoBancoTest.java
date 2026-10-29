@@ -143,11 +143,16 @@ class UsuarioDaAplicacaoNoBancoTest {
 
     /**
      * Cadastros não se apagam (revisão geral, B4): o usuário da aplicação não tem DELETE nem
-     * TRUNCATE em alunos, usuários, matrículas e trancamentos, e o cronograma é só gravado e lido. "WHERE false": a permissão é conferida mesmo sem linhas.
+     * TRUNCATE em matrículas e trancamentos, e o cronograma é só gravado e lido. Aluno, usuário e
+     * plano nunca usados podem ser excluídos (ADR 0043), mas TRUNCATE, nunca. "WHERE false": a permissão é conferida mesmo sem linhas.
      */
     @Test
     void cadastrosNaoSaoApagados() {
-        for (String tabela : List.of("alunos", "usuarios", "matriculas", "trancamentos", "cronogramas")) {
+        for (String tabela : List.of("alunos", "usuarios")) {
+            assertThatThrownBy(() -> executar("TRUNCATE " + tabela)).as(tabela).isInstanceOf(SQLException.class)
+                    .hasMessageContaining("permission denied");
+        }
+        for (String tabela : List.of("matriculas", "trancamentos", "cronogramas")) {
             assertThatCode(() -> executar("SELECT count(*) FROM " + tabela)).as(tabela).doesNotThrowAnyException();
             for (String ataque : List.of("DELETE FROM " + tabela + " WHERE false", "TRUNCATE " + tabela)) {
                 assertThatThrownBy(() -> executar(ataque)).as(ataque).isInstanceOf(SQLException.class)
@@ -172,8 +177,8 @@ class UsuarioDaAplicacaoNoBancoTest {
         List<String> comDelete = jdbc.queryForList("""
                 SELECT table_name FROM information_schema.role_table_grants
                 WHERE grantee = 'academia_app' AND privilege_type = 'DELETE' ORDER BY 1""", String.class);
-        assertThat(comDelete).containsExactly("exercicios", "ficha_divisoes", "ficha_exercicios", "planos", "sessoes",
-                "tentativas_login");
+        assertThat(comDelete).containsExactly("alunos", "exercicios", "ficha_divisoes", "ficha_exercicios", "planos",
+                "sessoes", "tentativas_login", "usuarios");
     }
 
     /** O registro de acessos só cresce; o vencido sai pela função do dono (V38, ADR 0031). */

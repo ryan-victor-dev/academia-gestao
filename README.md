@@ -198,6 +198,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/alunos` | ADMIN, RECEPCAO |
 | `PUT /api/alunos/{id}` (exige `If-Match`²) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/inativar`, `/reativar` (inativar deixa o login só de leitura⁹, reativar o libera; inativar com matrícula vigente ou agendada dá 409) | ADMIN, RECEPCAO |
+| `DELETE /api/alunos/{id}` (só o nunca usado, com o login dele se nunca entrou; com matrícula, ficha, pagamento ou login já usado, 409: inative¹⁴) | ADMIN |
 | `POST /api/alunos/{id}/login` (cria o login com senha temporária) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/login/nova-senha` ("esqueci minha senha") | ADMIN, RECEPCAO |
 | `GET /api/alunos/me` | ALUNO (o próprio cadastro) |

@@ -3,6 +3,7 @@ package br.com.academiagestao.auth;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
@@ -19,13 +20,15 @@ public class LoginsDeAlunos {
     private final PasswordEncoder passwordEncoder;
     private final RedefinicaoDeSenha redefinicaoDeSenha;
     private final TrilhaDeUsuarios trilha;
+    private final ExclusaoDeLogin exclusao;
 
     LoginsDeAlunos(UsuarioRepository repository, PasswordEncoder passwordEncoder,
-                   RedefinicaoDeSenha redefinicaoDeSenha, TrilhaDeUsuarios trilha) {
+                   RedefinicaoDeSenha redefinicaoDeSenha, TrilhaDeUsuarios trilha, ExclusaoDeLogin exclusao) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.redefinicaoDeSenha = redefinicaoDeSenha;
         this.trilha = trilha;
+        this.exclusao = exclusao;
     }
 
     /**
@@ -74,6 +77,16 @@ public class LoginsDeAlunos {
             usuario.restringirALeitura();
             trilha.alterado(usuario, "SOMENTE_LEITURA", antes);
         });
+    }
+
+    /**
+     * Aluno excluído (ADR 0043): o login dele (se existir) sai junto, desde que nunca tenha sido
+     * usado. Usado, 409: o aluno que já entrou no app é inativado, e não excluído.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void excluir(UUID alunoId) {
+        repository.findByAlunoId(alunoId).ifPresent(usuario -> exclusao.excluir(usuario, "Aluno com histórico",
+                "O aluno já entrou no app e não pode ser excluído; inative-o"));
     }
 
     /** Aluno reativado: o login dele (se existir) volta ao uso normal. */

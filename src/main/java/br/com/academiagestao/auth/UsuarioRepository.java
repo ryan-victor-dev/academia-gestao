@@ -38,6 +38,15 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
             + "and u.ativo = true order by u.id")
     List<Usuario> travarAdminsAtivos();
 
+    /**
+     * O login já foi usado (ADR 0043)? Entrou ou abriu um cadastro (registro de acessos), ou é autor
+     * na trilha. Uma senha errada não conta: qualquer um que tentasse adivinhar impediria a exclusão.
+     */
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM acessos WHERE usuario_id = :id AND tipo IN ('LOGIN', 'CONSULTA_ALUNO'))
+                OR EXISTS (SELECT 1 FROM auditoria WHERE autor = CAST(:id AS text))""", nativeQuery = true)
+    boolean foiUsado(UUID id);
+
     /** Versão atual dos tokens do usuário, se ele existe e está ativo. */
     @Query("select u.versaoToken from Usuario u where u.id = :id and u.ativo = true")
     Optional<Integer> versaoTokenSeAtivo(UUID id);
