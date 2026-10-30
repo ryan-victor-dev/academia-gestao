@@ -217,7 +217,9 @@ class CobrancasDaMatriculaTest {
         assertThat(vencimentos(atual.getId(), "PENDENTE")).containsExactly(hoje);
         assertThat(vencimentos(atual.getId(), "CANCELADA")).containsExactly(hoje.plusMonths(1), hoje.plusMonths(2));
         assertThat(nova.getPrimeiroVencimento()).isEqualTo(hoje.plusMonths(1));
-        assertThat(vencimentos(nova.getId(), "PENDENTE")).containsExactly(hoje.plusMonths(1), hoje.plusMonths(2));
+        // A nova conta os meses do início dela: começando num dia 30 (depois de um 31), o próximo é dia 30.
+        assertThat(vencimentos(nova.getId(), "PENDENTE"))
+                .containsExactly(hoje.plusMonths(1), hoje.plusMonths(1).plusMonths(1));
     }
 
     @Test
