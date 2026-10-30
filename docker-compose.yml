@@ -107,7 +107,7 @@ services:
   # do sistema sem mandar nada para fora, e mostra numa página (http://localhost:8025, só nesta
   # máquina). Para usar: EMAIL_HOST=mailpit EMAIL_PORTA=1025 EMAIL_TLS=false e um EMAIL_REMETENTE.
   mailpit:
-    image: axllent/mailpit:v1.31.3
+    image: axllent/mailpit:v1.32.0
     container_name: academia-mailpit
     profiles: [email-de-teste]
     restart: unless-stopped
