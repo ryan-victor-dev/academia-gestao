@@ -45,7 +45,30 @@ describe('equipe', () => {
     expect(within(linha('Eu Admin')).queryByRole('button', { name: 'Desativar' })).not.toBeInTheDocument();
     expect(within(linha('Outro Admin')).queryByRole('button', { name: 'Senha nova' })).not.toBeInTheDocument();
     expect(within(linha('Rita')).getByRole('button', { name: 'Senha nova' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Membros da equipe inativos' }));
     expect(within(linha('Paulo')).getByRole('button', { name: 'Reativar' })).toBeInTheDocument();
+  });
+
+  it('desativado sai da lista e aparece só na aba dos inativos (ADR 0047)', async () => {
+    apiFalsa({ 'GET /api/usuarios': json(200, lista) });
+    renderizar(<Equipe />, { perfil: 'ADMIN' });
+    await screen.findByText('Rita');
+
+    expect(screen.queryByText('Paulo')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Membros da equipe inativos' }));
+    expect(screen.getByText('Paulo')).toBeInTheDocument();
+    expect(screen.queryByText('Rita')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Ativos' }));
+    expect(screen.getByText('Rita')).toBeInTheDocument();
+    expect(screen.queryByText('Paulo')).not.toBeInTheDocument();
+  });
+
+  it('aba dos inativos vazia avisa', async () => {
+    apiFalsa({ 'GET /api/usuarios': json(200, lista.filter((u) => u.ativo)) });
+    renderizar(<Equipe />, { perfil: 'ADMIN' });
+    await screen.findByText('Rita');
+    await userEvent.click(screen.getByRole('tab', { name: 'Membros da equipe inativos' }));
+    expect(screen.getByText('Nenhum membro da equipe inativo.')).toBeInTheDocument();
   });
 
   it('novo login mostra a senha temporária uma vez', async () => {

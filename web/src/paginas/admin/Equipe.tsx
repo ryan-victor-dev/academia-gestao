@@ -15,12 +15,14 @@ type Acao = { tipo: 'novo' } | { tipo: 'editar'; usuario: Usuario };
  * A equipe (só o ADMIN): criar o login com senha temporária, mudar nome e perfil, desativar
  * quem saiu, reativar, gerar senha nova e excluir o login nunca usado (ADR 0043). A API nunca redefine a senha de um ADMIN e não deixa
  * ninguém desativar a si mesmo nem mudar o próprio perfil; a tela nem oferece. Os logins de alunos, que
- * podem ser milhares, vêm à parte, paginados e com busca (diagnóstico de 27/10, B4).
+ * podem ser milhares, vêm à parte, paginados e com busca (diagnóstico de 27/10, B4). Quem foi desativado
+ * sai da lista e aparece só na aba "Inativos" (ADR 0047).
  */
 export function Equipe() {
   const eu = useUsuario();
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null);
   const [comAlunos, setComAlunos] = useState(false);
+  const [inativos, setInativos] = useState(false);
   // Muda a cada ação, para a lista dos alunos recarregar também.
   const [versao, setVersao] = useState(0);
   const [acao, setAcao] = useState<Acao | null>(null);
@@ -118,13 +120,23 @@ export function Equipe() {
         </div>
       )}
 
+      <div className="abas" role="tablist" aria-label="Situação da equipe">
+        <button type="button" role="tab" aria-selected={!inativos} className={inativos ? 'aba' : 'aba ativa'}
+                onClick={() => setInativos(false)}>Ativos</button>
+        <button type="button" role="tab" aria-selected={inativos} className={inativos ? 'aba ativa' : 'aba'}
+                onClick={() => setInativos(true)}>Membros da equipe inativos</button>
+      </div>
+      <ul className="lista">
+        {usuarios?.filter((u) => u.ativo !== inativos).map(linha)}
+      </ul>
+      {usuarios?.length !== undefined && !usuarios.some((u) => u.ativo !== inativos) && (
+        <p className="suave">{inativos ? 'Nenhum membro da equipe inativo.' : 'Nenhum membro da equipe ativo.'}</p>
+      )}
+
       <label className="marcar">
         <input type="checkbox" checked={comAlunos} onChange={(e) => setComAlunos(e.target.checked)} />
         Mostrar também os logins de alunos
       </label>
-      <ul className="lista">
-        {usuarios?.map(linha)}
-      </ul>
       {comAlunos && <LoginsDeAlunos linha={linha} versao={versao} />}
     </>
   );
