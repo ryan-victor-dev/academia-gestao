@@ -63,8 +63,9 @@ class MatriculaService {
     }
 
     /**
-     * O que a trilha guarda da matrícula. Sem dados pessoais além do id do aluno; o motivo do
-     * trancamento e o do cancelamento entram (são a justificativa da alteração).
+     * O que a trilha guarda da matrícula. Sem dados pessoais além do id do aluno. O motivo do
+     * cancelamento entra (é a justificativa da alteração); o do trancamento, não: pode ter dado de
+     * saúde, e a trilha fica 5 anos (ADR 0046, item 9). Ele continua no próprio trancamento.
      */
     private static Map<String, Object> retrato(Matricula m) {
         Trancamento ultimo = m.getTrancamentos().isEmpty() ? null : m.getTrancamentos().getLast();
@@ -75,8 +76,7 @@ class MatriculaService {
                 "credito", m.getCredito().signum() == 0 ? null : m.getCredito(),
                 "diasTrancados", m.getDiasTrancados(), "trancamentos", m.getTrancamentos().size(),
                 "ultimoTrancamento", ultimo == null ? null : Auditoria.campos("inicio", texto(ultimo.getInicio()),
-                        "voltaPrevista", texto(ultimo.getVoltaPrevista()), "volta", texto(ultimo.getVolta()),
-                        "motivo", ultimo.getMotivo()),
+                        "voltaPrevista", texto(ultimo.getVoltaPrevista()), "volta", texto(ultimo.getVolta())),
                 "canceladaEm", m.getCanceladaEm() == null ? null : m.getCanceladaEm().toString(),
                 "motivoCancelamento", m.getMotivoCancelamento(), "multa", m.getMulta(),
                 "trocadaEm", texto(m.getTrocadaEm()),

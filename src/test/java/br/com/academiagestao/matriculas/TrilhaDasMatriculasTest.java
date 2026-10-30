@@ -137,9 +137,10 @@ class TrilhaDasMatriculasTest {
 
         String trancada = (String) linhas.get(1).get("alteracoes");
         assertThat(trancada).contains("\"fim\": {\"antes\": \"" + fim + "\", \"depois\": \"" + fim.plusDays(15) + "\"}")
-                .contains("\"motivo\": \"Viagem\"")
                 .contains("\"voltaPrevista\": \"" + hoje().plusDays(20) + "\"")
-                .doesNotContain("\"plano\"");
+                .doesNotContain("\"plano\"")
+                // O motivo do trancamento pode ter dado de saúde: fica fora da trilha (ADR 0046, item 9).
+                .doesNotContain("Viagem").doesNotContain("\"motivo\"");
 
         String volta = (String) linhas.get(2).get("alteracoes");
         assertThat(volta).contains("\"fim\": {\"antes\": \"" + fim.plusDays(15) + "\", \"depois\": \"" + fim + "\"}")
