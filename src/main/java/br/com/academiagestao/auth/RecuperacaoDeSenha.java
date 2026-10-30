@@ -75,7 +75,9 @@ class RecuperacaoDeSenha {
         try {
             codigo = transacao.execute(t -> codigos.emitir(u.getId(), Finalidade.RECUPERACAO, u.getEmail()));
         } catch (MuitosCodigosException e) {
-            // Responder 429 só para quem existe revelaria a conta: fica no log, e nada sai.
+            // Responder 429 só para quem existe revelaria a conta: fica no log, e nada sai. O código
+            // é recusado antes do BCrypt; sem o falso, a resposta rápida contaria que a conta existe.
+            passwordEncoder.encode("000000");
             log.warn("Recuperação de senha: muitos códigos pedidos para a conta {}", conta);
             return;
         }

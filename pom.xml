@@ -231,6 +231,7 @@
 								<param>br.com.academiagestao.auth.SenhasComTetoTest</param>
 								<param>br.com.academiagestao.auth.SessaoPropertiesTest</param>
 								<param>br.com.academiagestao.auth.SoConsultaSeSomenteLeituraTest</param>
+								<param>br.com.academiagestao.auth.TempoDoPedidoDeCodigoTest</param>
 								<param>br.com.academiagestao.auth.UsuarioTest</param>
 								<param>br.com.academiagestao.cobranca.dominio.*Test</param>
 								<param>br.com.academiagestao.compartilhado.CorreioTest</param>

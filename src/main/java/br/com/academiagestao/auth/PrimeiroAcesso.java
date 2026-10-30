@@ -90,7 +90,9 @@ class PrimeiroAcesso {
         try {
             codigo = transacao.execute(t -> codigos.emitir(a.id(), Finalidade.PRIMEIRO_ACESSO, a.email()));
         } catch (MuitosCodigosException e) {
-            // Responder 429 só para quem é aluno revelaria o cadastro: fica no log, e nada sai.
+            // Responder 429 só para quem é aluno revelaria o cadastro: fica no log, e nada sai. O código
+            // é recusado antes do BCrypt; sem o falso, a resposta rápida contaria que o aluno existe.
+            passwordEncoder.encode("000000");
             log.warn("Primeiro acesso: muitos códigos pedidos para a conta {}", conta);
             return;
         }
