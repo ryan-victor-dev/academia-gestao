@@ -45,6 +45,23 @@ export function telefone(valor: string | null | undefined): string {
   return valor;
 }
 
+/**
+ * Anos completos de quem nasceu na data ("1990-05-10"), hoje no fuso da academia (ADR 0048). Quem nasceu em 29/02
+ * completa em 01/03 nos anos comuns, como no servidor. Sem data, nulo.
+ */
+export function idade(nascimento: string | null | undefined, dia: string = hoje()): number | null {
+  if (!nascimento) return null;
+  const [a, m, d] = nascimento.split('-').map(Number);
+  const [ha, hm, hd] = dia.split('-').map(Number);
+  return ha - a - (hm < m || (hm === m && hd < d) ? 1 : 0);
+}
+
+/** "35 anos", "1 ano"; sem data, "—". */
+export function anos(nascimento: string | null | undefined): string {
+  const n = idade(nascimento);
+  return n === null ? '—' : `${n} ${n === 1 ? 'ano' : 'anos'}`;
+}
+
 /** Hoje no fuso da academia, no formato dos campos de data ("2026-10-23"). */
 export function hoje(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: FUSO }).format(new Date());

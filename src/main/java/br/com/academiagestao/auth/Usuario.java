@@ -1,6 +1,8 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.Cpf;
+import br.com.academiagestao.compartilhado.Nascimento;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -9,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
@@ -29,6 +32,10 @@ public class Usuario {
     // Só da equipe, e nulo em quem foi cadastrado antes do ADR 0047 (o login de aluno nunca tem).
     @Column(length = 11)
     private String cpf;
+
+    // Só da equipe, e nulo em quem foi cadastrado antes do ADR 0048 (o do aluno fica no cadastro dele).
+    @Column(name = "data_nascimento")
+    private LocalDate dataNascimento;
 
     @Column(name = "senha_hash", nullable = false, length = 100)
     private String senhaHash;
@@ -126,6 +133,16 @@ public class Usuario {
             throw new IllegalArgumentException("CPF inválido");
         }
         this.cpf = Cpf.normalizar(novoCpf);
+    }
+
+    /** A data de nascimento de alguém da equipe (ADR 0048): nem no futuro, nem mais de 120 anos atrás. */
+    public void informarNascimento(LocalDate data, Instant agora) {
+        if (perfil == Perfil.ALUNO) {
+            throw new IllegalStateException("a data de nascimento do aluno fica no cadastro do aluno");
+        }
+        Objects.requireNonNull(data, "data de nascimento é obrigatória");
+        Nascimento.conferir(data, Calendario.hoje(agora));
+        this.dataNascimento = data;
     }
 
     /**
@@ -241,6 +258,7 @@ public class Usuario {
     public String getNome() { return nome; }
     public String getEmail() { return email; }
     public String getCpf() { return cpf; }
+    public LocalDate getDataNascimento() { return dataNascimento; }
     public String getSenhaHash() { return senhaHash; }
     public Perfil getPerfil() { return perfil; }
     public UUID getAlunoId() { return alunoId; }

@@ -118,7 +118,7 @@ ADM = b["token"]
 
 secao("confirmação do e-mail no primeiro acesso da equipe")
 OLGA = "olga.email@academia.local"
-s, b = req("POST", "/api/usuarios", {"nome": "Olga", "email": OLGA, "cpf": cpf(), "perfil": "RECEPCAO"}, ADM)
+s, b = req("POST", "/api/usuarios", {"nome": "Olga", "email": OLGA, "cpf": cpf(), "dataNascimento": "1990-05-10", "perfil": "RECEPCAO"}, ADM)
 confere("ADMIN cria a recepcionista", s == 201, (s, b))
 temporaria = b.get("senhaTemporaria", "nenhuma")
 s, b = login(OLGA, temporaria)

@@ -97,16 +97,19 @@ ADM = ativar("admin@academia.local", "senha-primeiro-acesso-123", "senha-definit
 
 secao("equipe")
 tokens = {}
-# O CPF é obrigatório no login novo da equipe (ADR 0047), e não repete.
+# O CPF (ADR 0047, sem repetir) e a data de nascimento (ADR 0048) são obrigatórios no login novo da equipe.
 for nome, perfil, cpf_ in [("Rita", "RECEPCAO", "516.879.548-01"), ("Caio", "INSTRUTOR", "66906010484")]:
-    s, b, h = req("POST", "/api/usuarios", {"nome": nome, "email": f"{nome.lower()}@academia.local", "cpf": cpf_, "perfil": perfil}, ADM)
+    s, b, h = req("POST", "/api/usuarios", {"nome": nome, "email": f"{nome.lower()}@academia.local", "cpf": cpf_, "dataNascimento": "1990-05-10", "perfil": perfil}, ADM)
     confere(f"criar {perfil}", s == 201 and h.get("Cache-Control") == "no-store", (s, b))
     tokens[perfil] = ativar(f"{nome.lower()}@academia.local", b["senhaTemporaria"], f"senha-definitiva-{nome.lower()}-1")
 REC, INS = tokens["RECEPCAO"], tokens["INSTRUTOR"]
 confere("login da equipe sem CPF é recusado",
         req("POST", "/api/usuarios", {"nome": "Sem", "email": "sem@academia.local", "perfil": "INSTRUTOR"}, ADM)[0] == 400)
+confere("login da equipe sem data de nascimento é recusado",
+        req("POST", "/api/usuarios", {"nome": "Sem", "email": "sem@academia.local", "cpf": "85730855923", "perfil": "INSTRUTOR"}, ADM)[0] == 400)
 confere("CPF repetido na equipe dá 409",
-        req("POST", "/api/usuarios", {"nome": "Rep", "email": "rep@academia.local", "cpf": "51687954801", "perfil": "INSTRUTOR"}, ADM)[0] == 409)
+        req("POST", "/api/usuarios", {"nome": "Rep", "email": "rep@academia.local", "cpf": "51687954801",
+                                      "dataNascimento": "1990-05-10", "perfil": "INSTRUTOR"}, ADM)[0] == 409)
 confere("recepção não cria usuário",
         req("POST", "/api/usuarios", {"nome": "X", "email": "x@academia.local", "cpf": "78059633805", "perfil": "ADMIN"}, REC)[0] == 403)
 

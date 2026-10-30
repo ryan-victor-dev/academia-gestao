@@ -1,6 +1,7 @@
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
+import { hoje } from '../../formato';
 import { apiFalsa, json, renderizar } from '../../testes/ajudantes';
 import { Equipe } from './Equipe';
 
@@ -80,10 +81,11 @@ describe('equipe', () => {
     await userEvent.type(screen.getByLabelText('Nome'), 'Nova');
     await userEvent.type(screen.getByLabelText('E-mail (é o login)'), 'nova@x.com');
     await userEvent.type(screen.getByLabelText('CPF'), '516.879.548-01');
+    fireEvent.change(screen.getByLabelText('Data de nascimento'), { target: { value: '1990-05-10' } });
     await userEvent.selectOptions(screen.getByLabelText('Perfil'), 'RECEPCAO');
     await userEvent.click(screen.getByRole('button', { name: 'Criar' }));
 
-    expect(api.de('POST /api/usuarios')[0].corpo).toEqual({ nome: 'Nova', email: 'nova@x.com', cpf: '516.879.548-01', perfil: 'RECEPCAO' });
+    expect(api.de('POST /api/usuarios')[0].corpo).toEqual({ nome: 'Nova', email: 'nova@x.com', cpf: '516.879.548-01', dataNascimento: '1990-05-10', perfil: 'RECEPCAO' });
     expect(await screen.findByText('Tmp-123')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Já passei, esconder' }));
     expect(screen.queryByText('Tmp-123')).not.toBeInTheDocument();
@@ -100,7 +102,7 @@ describe('equipe', () => {
     await userEvent.type(screen.getByLabelText('Nome'), 'Eu Mesmo');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
-    expect(api.de('PUT /api/usuarios/u1')[0].corpo).toEqual({ nome: 'Eu Mesmo', perfil: 'ADMIN', cpf: '' });
+    expect(api.de('PUT /api/usuarios/u1')[0].corpo).toEqual({ nome: 'Eu Mesmo', perfil: 'ADMIN', cpf: '', dataNascimento: null });
   });
 
   it('mudar o perfil de outro; desativar; recusa da API aparece', async () => {
@@ -111,7 +113,7 @@ describe('equipe', () => {
     await userEvent.click(within(linha('Rita')).getByRole('button', { name: 'Editar' }));
     await userEvent.selectOptions(screen.getByLabelText('Perfil'), 'INSTRUTOR');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
-    expect(api.de('PUT /api/usuarios/u2')[0].corpo).toEqual({ nome: 'Rita', perfil: 'INSTRUTOR', cpf: '' });
+    expect(api.de('PUT /api/usuarios/u2')[0].corpo).toEqual({ nome: 'Rita', perfil: 'INSTRUTOR', cpf: '', dataNascimento: null });
 
     await userEvent.click(within(linha('Outro Admin')).getByRole('button', { name: 'Desativar' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('pelo menos um ADMIN ativo');
@@ -171,12 +173,41 @@ describe('equipe', () => {
     expect(screen.getByLabelText('CPF')).not.toBeRequired();
     await userEvent.type(screen.getByLabelText('CPF'), '66906010484');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
-    expect(api.de('PUT /api/usuarios/u2')[0].corpo).toEqual({ nome: 'Rita', perfil: 'RECEPCAO', cpf: '66906010484' });
+    expect(api.de('PUT /api/usuarios/u2')[0].corpo).toEqual({ nome: 'Rita', perfil: 'RECEPCAO', cpf: '66906010484', dataNascimento: null });
 
     // Quem já tem CPF não o apaga: o campo vem preenchido e é obrigatório.
     await userEvent.click(within(linha('Bruno')).getByRole('button', { name: 'Editar' }));
     expect(screen.getByLabelText('CPF')).toBeRequired();
     expect(screen.getByLabelText('CPF')).toHaveValue('516.879.548-01');
+  });
+
+  it('nascimento (ADR 0048): o novo login exige; a linha mostra a idade ou "Sem nascimento"; quem é de antes ganha pela edição', async () => {
+    const nascimento = `${Number(hoje().slice(0, 4)) - 30}-01-01`;
+    const comData = usuario('u6', 'Bruno', 'INSTRUTOR', { dataNascimento: nascimento });
+    const api = apiFalsa({ 'GET /api/usuarios': json(200, [...lista, comData]),
+      'PUT /api/usuarios/u2': json(200, lista[1]), 'PUT /api/usuarios/u6': json(200, comData) });
+    renderizar(<Equipe />, { perfil: 'ADMIN' });
+    await screen.findByText('Rita');
+
+    expect(within(linha('Rita')).getByText('Sem nascimento')).toBeInTheDocument();
+    expect(within(linha('Bruno')).queryByText('Sem nascimento')).not.toBeInTheDocument();
+    expect(within(linha('Bruno')).getByText('30 anos')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Novo login' }));
+    expect(screen.getByLabelText('Data de nascimento')).toBeRequired();
+    expect(screen.getByLabelText('Data de nascimento')).toHaveAttribute('max', hoje());
+    await userEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+
+    await userEvent.click(within(linha('Rita')).getByRole('button', { name: 'Editar' }));
+    expect(screen.getByLabelText('Data de nascimento')).not.toBeRequired();
+    fireEvent.change(screen.getByLabelText('Data de nascimento'), { target: { value: '1985-01-31' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(api.de('PUT /api/usuarios/u2')[0].corpo).toEqual({ nome: 'Rita', perfil: 'RECEPCAO', cpf: '', dataNascimento: '1985-01-31' });
+
+    // Quem já tem a data não a apaga: o campo vem preenchido e é obrigatório.
+    await userEvent.click(within(linha('Bruno')).getByRole('button', { name: 'Editar' }));
+    expect(screen.getByLabelText('Data de nascimento')).toBeRequired();
+    expect(screen.getByLabelText('Data de nascimento')).toHaveValue(nascimento);
   });
 
   it('identidade (ADR 0047): o ADMIN vê e registra a de alguém da equipe ao editar', async () => {

@@ -78,12 +78,13 @@ try {
   });
 
   await menu(adm, 'Equipe');
-  // O CPF é obrigatório no login novo da equipe (ADR 0047).
+  // O CPF (ADR 0047) e a data de nascimento (ADR 0048) são obrigatórios no login novo da equipe.
   const criarLogin = async (nome, email, perfil, cpf) => {
     await adm.getByRole('button', { name: 'Novo login' }).click();
     await adm.getByLabel('Nome', { exact: true }).fill(nome);
     await adm.getByLabel('E-mail (é o login)').fill(email);
     await adm.getByLabel('CPF', { exact: true }).fill(cpf);
+    await adm.getByLabel('Data de nascimento', { exact: true }).fill('1990-05-10');
     await adm.getByLabel('Perfil', { exact: true }).selectOption(perfil);
     await adm.getByRole('button', { name: 'Criar' }).click();
     const senha = await senhaNaTela(adm);

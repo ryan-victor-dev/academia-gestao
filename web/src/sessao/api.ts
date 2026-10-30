@@ -13,6 +13,8 @@ export interface Usuario {
   email: string;
   /** Só da equipe, sem pontuação; nulo em quem foi cadastrado antes do ADR 0047 e no login de aluno. */
   cpf?: string | null;
+  /** Só da equipe ("1990-05-10"); nulo em quem foi cadastrado antes do ADR 0048 e no login de aluno. */
+  dataNascimento?: string | null;
   perfil: Perfil;
   ativo: boolean;
   precisaTrocarSenha: boolean;

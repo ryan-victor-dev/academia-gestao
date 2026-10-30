@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cpf, data, dataHora, diaDe, diaSeguinte, dinheiro, instanteDaAcademia, paraCampoDeDataHora, telefone } from './formato';
+import { anos, cpf, data, dataHora, diaDe, diaSeguinte, dinheiro, hoje, idade, instanteDaAcademia, paraCampoDeDataHora, telefone } from './formato';
 
 describe('formatos', () => {
   it('data pura não muda de dia por causa do fuso', () => {
@@ -25,6 +25,20 @@ describe('formatos', () => {
     expect(telefone('11999990000')).toBe('(11) 99999-0000');
     expect(telefone('1133334444')).toBe('(11) 3333-4444');
     expect(telefone(null)).toBe('—');
+  });
+
+  it('idade em anos completos: muda no dia do aniversário; 29/02 completa em 01/03 nos anos comuns (ADR 0048)', () => {
+    expect(idade('1990-05-10', '2026-05-09')).toBe(35);
+    expect(idade('1990-05-10', '2026-05-10')).toBe(36);
+    expect(idade('1990-05-10', '2026-04-30')).toBe(35);
+    expect(idade('1990-05-10', '2026-06-01')).toBe(36);
+    expect(idade('2000-02-29', '2025-02-28')).toBe(24);
+    expect(idade('2000-02-29', '2025-03-01')).toBe(25);
+    expect(idade('2026-10-30', '2026-10-30')).toBe(0);
+    expect(idade(null)).toBeNull();
+    expect(anos(null)).toBe('—');
+    expect(anos(`${Number(hoje().slice(0, 4)) - 1}-01-01`)).toBe('1 ano');
+    expect(anos(`${Number(hoje().slice(0, 4)) - 2}-01-01`)).toBe('2 anos');
   });
 
   it('dia seguinte vira o mês e o ano', () => {

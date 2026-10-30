@@ -80,7 +80,7 @@ class CpfDaEquipeTest {
         String cpfJson = cpf == null ? "null" : "\"" + cpf + "\"";
         return mvc.perform(post("/api/usuarios").header("Authorization", "Bearer " + tokenDoAdmin)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nome\": \"Rita\", \"email\": \"%s\", \"cpf\": %s, \"perfil\": \"RECEPCAO\"}".formatted(email, cpfJson)));
+                .content("{\"nome\": \"Rita\", \"email\": \"%s\", \"cpf\": %s, \"dataNascimento\": \"1990-05-10\", \"perfil\": \"RECEPCAO\"}".formatted(email, cpfJson)));
     }
 
     private ResultActions editar(UUID id, String nome, String cpf) throws Exception {

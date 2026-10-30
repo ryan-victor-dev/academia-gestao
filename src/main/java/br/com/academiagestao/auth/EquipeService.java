@@ -11,6 +11,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -26,13 +28,15 @@ class EquipeService {
     private final PasswordEncoder passwordEncoder;
     private final TrilhaDeUsuarios trilha;
     private final ExclusaoDeLogin exclusao;
+    private final Clock relogio;
 
     EquipeService(UsuarioRepository repository, PasswordEncoder passwordEncoder, TrilhaDeUsuarios trilha,
-                  ExclusaoDeLogin exclusao) {
+                  ExclusaoDeLogin exclusao, Clock relogio) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.trilha = trilha;
         this.exclusao = exclusao;
+        this.relogio = relogio;
     }
 
     /**
@@ -55,9 +59,12 @@ class EquipeService {
         return repository.buscarLoginsDeAlunos(padrao, PageRequest.of(pagina, tamanho, Sort.by("nome", "id")));
     }
 
-    /** O CPF é obrigatório em todo login novo da equipe (ADR 0047); quem já existia fica sem até o ADMIN preencher. */
+    /**
+     * O CPF (ADR 0047) e a data de nascimento (ADR 0048) são obrigatórios em todo login novo da equipe; quem já
+     * existia fica sem até alguém preencher.
+     */
     @Transactional
-    UsuarioCriado criar(String nome, String email, String cpf, Perfil perfil) {
+    UsuarioCriado criar(String nome, String email, String cpf, LocalDate dataNascimento, Perfil perfil) {
         if (perfil == Perfil.ALUNO) {
             throw new DadosInvalidosException("login de aluno é criado pelo cadastro do aluno: POST /api/alunos/{id}/login");
         }
@@ -72,6 +79,7 @@ class EquipeService {
         String senhaTemporaria = GeradorDeSenhaTemporaria.gerar();
         Usuario usuario = Usuario.daEquipe(nome, emailNormalizado, passwordEncoder.encode(senhaTemporaria), perfil);
         usuario.informarCpf(cpf);
+        usuario.informarNascimento(dataNascimento, relogio.instant());
         usuario.exigirTrocaDeSenha();
         try {
             repository.saveAndFlush(usuario);
@@ -128,12 +136,12 @@ class EquipeService {
     }
 
     /**
-     * Muda nome, perfil e CPF de alguém da equipe. Ninguém muda o próprio perfil, e rebaixar um
-     * ADMIN passa pela mesma proteção da desativação (A rebaixa B enquanto B rebaixa A). Sem CPF no
-     * pedido, o atual fica: o CPF se corrige, mas não se apaga (ADR 0047).
+     * Muda nome, perfil, CPF e data de nascimento de alguém da equipe. Ninguém muda o próprio perfil, e
+     * rebaixar um ADMIN passa pela mesma proteção da desativação (A rebaixa B enquanto B rebaixa A). Sem CPF
+     * ou sem data no pedido, o atual fica: os dois se corrigem, mas não se apagam (ADRs 0047 e 0048).
      */
     @Transactional
-    UsuarioResponse editar(UUID id, String nome, Perfil perfil, String cpf, UUID quemPede) {
+    UsuarioResponse editar(UUID id, String nome, Perfil perfil, String cpf, LocalDate dataNascimento, UUID quemPede) {
         if (perfil == Perfil.ALUNO) {
             throw new DadosInvalidosException("o perfil ALUNO não é dado por aqui: login de aluno nasce do cadastro do aluno");
         }
@@ -153,6 +161,9 @@ class EquipeService {
         Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
         usuario.renomear(nome);
         usuario.mudarPerfil(perfil);
+        if (dataNascimento != null) {
+            usuario.informarNascimento(dataNascimento, relogio.instant());
+        }
         if (mudaCpf) {
             usuario.informarCpf(cpf);
             try {
@@ -163,6 +174,16 @@ class EquipeService {
             }
         }
         trilha.alterado(usuario, "EDITADO", antes);
+        return UsuarioResponse.de(usuario);
+    }
+
+    /** A própria pessoa da equipe informa ou corrige a sua data de nascimento (ADR 0048), como faz com o gênero. */
+    @Transactional
+    UsuarioResponse informarMeuNascimento(UUID id, LocalDate dataNascimento) {
+        Usuario usuario = buscarDaEquipe(id);
+        Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
+        usuario.informarNascimento(dataNascimento, relogio.instant());
+        trilha.alterado(usuario, "NASCIMENTO_INFORMADO", antes);
         return UsuarioResponse.de(usuario);
     }
 

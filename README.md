@@ -189,11 +189,12 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /actuator/health` | Público |
 | `GET /api/me` | Qualquer perfil logado |
 | `GET`, `PUT /api/me/identidade` (identidade de gênero e orientação sexual da própria pessoa, opcionais; dado sensível, ADR 0047) | ADMIN, RECEPCAO, INSTRUTOR |
+| `PUT /api/me/nascimento` (`dataNascimento` da própria pessoa da equipe; a do aluno fica no cadastro, ADR 0048) | ADMIN, RECEPCAO, INSTRUTOR |
 | `GET`, `PUT /api/usuarios/{id}/identidade` (a de alguém da equipe) | ADMIN |
 | `GET /api/usuarios` (a equipe, sem os logins de alunos) | ADMIN |
 | `GET /api/usuarios/alunos` (logins de alunos, paginados; `busca` por parte do nome ou do e-mail, `pagina`, `tamanho` até 100) | ADMIN |
-| `POST /api/usuarios` (ADMIN, RECEPCAO ou INSTRUTOR, com senha temporária; `cpf` obrigatório e sem repetir na equipe, 409, ADR 0047) | ADMIN |
-| `PUT /api/usuarios/{id}` (nome, perfil e `cpf` opcional: sem ele, o atual fica; mudar o perfil derruba as sessões da pessoa) | ADMIN |
+| `POST /api/usuarios` (ADMIN, RECEPCAO ou INSTRUTOR, com senha temporária; `cpf` obrigatório e sem repetir na equipe, 409, ADR 0047; `dataNascimento` obrigatória, ADR 0048) | ADMIN |
+| `PUT /api/usuarios/{id}` (nome, perfil, `cpf` e `dataNascimento` opcionais: sem eles, os atuais ficam; mudar o perfil derruba as sessões da pessoa) | ADMIN |
 | `POST /api/usuarios/{id}/desativar`, `/reativar` | ADMIN |
 | `DELETE /api/usuarios/{id}` (só o login da equipe nunca usado; quem já entrou ou registrou algo, 409: desative¹⁴) | ADMIN |
 | `POST /api/usuarios/{id}/nova-senha` (senha temporária; nunca para um ADMIN) | ADMIN |

@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,7 +65,8 @@ class UsuarioController {
      */
     @PostMapping
     ResponseEntity<UsuarioCriadoResponse> criar(@Valid @RequestBody NovoUsuarioRequest request) {
-        EquipeService.UsuarioCriado criado = equipeService.criar(request.nome(), request.email(), request.cpf(), request.perfil());
+        EquipeService.UsuarioCriado criado = equipeService.criar(request.nome(), request.email(), request.cpf(),
+                request.dataNascimento(), request.perfil());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(criado.usuario().getId()).toUri();
         return ResponseEntity.created(location)
@@ -92,7 +94,8 @@ class UsuarioController {
     @PutMapping("/{id}")
     UsuarioResponse editar(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt,
                            @Valid @RequestBody EdicaoDeUsuarioRequest request) {
-        return equipeService.editar(id, request.nome(), request.perfil(), request.cpf(), UUID.fromString(jwt.getSubject()));
+        return equipeService.editar(id, request.nome(), request.perfil(), request.cpf(), request.dataNascimento(),
+                UUID.fromString(jwt.getSubject()));
     }
 
     @PostMapping("/{id}/reativar")
@@ -118,6 +121,9 @@ class UsuarioController {
             // Com ou sem pontuação (no máximo 14: "000.000.000-00"), obrigatório no login novo (ADR 0047).
             @NotBlank(message = "é obrigatório") @Size(max = 14, message = "pode ter no máximo {max} caracteres") @CpfValido
             String cpf,
+            // Obrigatória no login novo (ADR 0048).
+            @NotNull(message = "é obrigatório")
+            LocalDate dataNascimento,
             @NotNull(message = "é obrigatório")
             Perfil perfil) {
     }
@@ -129,7 +135,9 @@ class UsuarioController {
             Perfil perfil,
             // Opcional: sem ele, o CPF atual fica (quem é de antes do ADR 0047 ganha o seu por aqui).
             @Size(max = 14, message = "pode ter no máximo {max} caracteres") @CpfValido
-            String cpf) {
+            String cpf,
+            // Opcional pelo mesmo motivo: sem ela, a atual fica (ADR 0048).
+            LocalDate dataNascimento) {
     }
 
     record UsuarioCriadoResponse(UUID id, String nome, String email, Perfil perfil, String senhaTemporaria) {

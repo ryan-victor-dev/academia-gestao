@@ -3,6 +3,7 @@ package br.com.academiagestao.alunos;
 import br.com.academiagestao.compartilhado.Cpf;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import br.com.academiagestao.compartilhado.Nascimento;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -23,8 +24,6 @@ public class Aluno {
 
     static final int TAMANHO_MAXIMO_NOME = 150;
     static final int TAMANHO_MAXIMO_EMAIL = 150;
-    /** Nascimento mais antigo aceito (decisão do dono, revisão de 2026-10-17): pega erro de digitação. */
-    static final int IDADE_MAXIMA_ANOS = 120;
 
     @Id
     private UUID id;
@@ -131,12 +130,8 @@ public class Aluno {
         }
         // No fuso da academia: o do servidor (UTC) aceitava, depois das 21h, nascer "amanhã".
         LocalDate hoje = Calendario.hoje(agora);
-        if (dados.dataNascimento() != null && dados.dataNascimento().isAfter(hoje)) {
-            throw new DadosInvalidosException("data de nascimento não pode estar no futuro");
-        }
-        if (dados.dataNascimento() != null && dados.dataNascimento().isBefore(hoje.minusYears(IDADE_MAXIMA_ANOS))) {
-            throw new DadosInvalidosException("data de nascimento pode ser de no máximo " + IDADE_MAXIMA_ANOS
-                    + " anos atrás");
+        if (dados.dataNascimento() != null) {
+            Nascimento.conferir(dados.dataNascimento(), hoje);
         }
 
         this.nome = nomeLimpo;

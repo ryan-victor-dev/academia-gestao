@@ -5,7 +5,7 @@ import { Paginacao, type Pagina } from '../../componentes/Paginacao';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { Identidade } from '../../componentes/Identidade';
 import { NOME_DO_PERFIL } from '../../estrutura/menu';
-import { cpf } from '../../formato';
+import { anos, cpf, hoje } from '../../formato';
 import { chamar, type Perfil, type Usuario } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
 
@@ -19,7 +19,8 @@ type Acao = { tipo: 'novo' } | { tipo: 'editar'; usuario: Usuario };
  * ninguém desativar a si mesmo nem mudar o próprio perfil; a tela nem oferece. Os logins de alunos, que
  * podem ser milhares, vêm à parte, paginados e com busca (diagnóstico de 27/10, B4). Quem foi desativado
  * sai da lista e aparece só na aba "Inativos" (ADR 0047). O CPF é obrigatório no login novo; quem é de antes
- * aparece com o aviso "Sem CPF" até o ADMIN preencher (ADR 0047).
+ * aparece com o aviso "Sem CPF" até o ADMIN preencher (ADR 0047). A data de nascimento, igual (ADR 0048): a linha
+ * mostra a idade, ou "Sem nascimento".
  */
 export function Equipe() {
   const eu = useUsuario();
@@ -58,8 +59,10 @@ export function Equipe() {
       <span className="principal">{u.nome}{u.id === eu.id && ' (você)'}</span>
       <span className="suave">{u.email}</span>
       {u.cpf && <span className="suave">CPF {cpf(u.cpf)}</span>}
+      {u.dataNascimento && <span className="suave">{anos(u.dataNascimento)}</span>}
       <span className="etiqueta">{NOME_DO_PERFIL[u.perfil]}</span>
       {u.perfil !== 'ALUNO' && !u.cpf && <span className="etiqueta alerta">Sem CPF</span>}
+      {u.perfil !== 'ALUNO' && !u.dataNascimento && <span className="etiqueta alerta">Sem nascimento</span>}
       {!u.ativo && <span className="etiqueta alerta">Desativado</span>}
       {u.precisaTrocarSenha && <span className="etiqueta">Senha temporária</span>}
       <span className="acoes-linha">
@@ -93,12 +96,14 @@ export function Equipe() {
         <FormularioDeAcao titulo="Novo login da equipe" rotulo="Criar" aoCancelar={() => setAcao(null)}
                           aoEnviar={(f) => executar(async () => {
                             const criado = await chamar<{ email: string; senhaTemporaria: string }>('/api/usuarios',
-                              { metodo: 'POST', corpo: { nome: f.get('nome'), email: f.get('email'), cpf: f.get('cpf'), perfil: f.get('perfil') } });
+                              { metodo: 'POST', corpo: { nome: f.get('nome'), email: f.get('email'), cpf: f.get('cpf'),
+                                dataNascimento: f.get('dataNascimento'), perfil: f.get('perfil') } });
                             setSenha(criado);
                           })}>
           <label>Nome<input name="nome" required maxLength={150} /></label>
           <label>E-mail (é o login)<input name="email" type="email" required maxLength={150} /></label>
           <label>CPF<input name="cpf" required maxLength={14} inputMode="numeric" autoComplete="off" /></label>
+          <label>Data de nascimento<input name="dataNascimento" type="date" required max={hoje()} /></label>
           <label>Perfil<SeletorDePerfil /></label>
         </FormularioDeAcao>
       )}
@@ -107,7 +112,7 @@ export function Equipe() {
                           aoEnviar={(f) => executar(async () => {
                             await chamar(`/api/usuarios/${acao.usuario.id}`,
                               { metodo: 'PUT', corpo: { nome: f.get('nome'), perfil: f.get('perfil') ?? acao.usuario.perfil,
-                                ...(acao.usuario.perfil !== 'ALUNO' && { cpf: f.get('cpf') }) } });
+                                ...(acao.usuario.perfil !== 'ALUNO' && { cpf: f.get('cpf'), dataNascimento: f.get('dataNascimento') || null }) } });
                           })}>
           <label>Nome<input name="nome" required maxLength={150} defaultValue={acao.usuario.nome} /></label>
           {/* O CPF se corrige, mas não se apaga: quem já tem precisa mandar um; quem é de antes pode deixar em branco. */}
@@ -115,19 +120,24 @@ export function Equipe() {
             <label>CPF<input name="cpf" required={!!acao.usuario.cpf} maxLength={14} inputMode="numeric" autoComplete="off"
                              defaultValue={acao.usuario.cpf ? cpf(acao.usuario.cpf) : ''} /></label>
           )}
+          {/* A data, igual: se corrige, mas não se apaga (ADR 0048). */}
+          {acao.usuario.perfil !== 'ALUNO' && (
+            <label>Data de nascimento<input name="dataNascimento" type="date" required={!!acao.usuario.dataNascimento}
+                                            max={hoje()} defaultValue={acao.usuario.dataNascimento ?? ''} /></label>
+          )}
           {acao.usuario.id !== eu.id && acao.usuario.perfil !== 'ALUNO' && (
             <label>Perfil<SeletorDePerfil inicial={acao.usuario.perfil} /></label>
           )}
           <p className="suave">Mudar o perfil encerra as sessões da pessoa: ela entra de novo com o perfil novo.</p>
         </FormularioDeAcao>
       )}
-      {/* A identidade (ADR 0047) salva à parte: o formulário acima é só nome, CPF e perfil. */}
+      {/* A identidade (ADR 0047) salva à parte: o formulário acima é só nome, CPF, nascimento e perfil. */}
       {acao?.tipo === 'editar' && acao.usuario.perfil !== 'ALUNO' && (
         <Identidade key={acao.usuario.id} caminho={`/api/usuarios/${acao.usuario.id}/identidade`}
                     titulo={`Identidade de gênero e orientação sexual de ${acao.usuario.nome}`} />
       )}
 
-      <MensagemDeErro erro={erro} rotulos={{ nome: 'Nome', email: 'E-mail', cpf: 'CPF', perfil: 'Perfil' }} />
+      <MensagemDeErro erro={erro} rotulos={{ nome: 'Nome', email: 'E-mail', cpf: 'CPF', dataNascimento: 'Data de nascimento', perfil: 'Perfil' }} />
       {senha && (
         <div className="credenciais" role="status">
           <p><strong>Passe agora: a senha não aparece de novo.</strong> No primeiro acesso a pessoa cria a dela.</p>

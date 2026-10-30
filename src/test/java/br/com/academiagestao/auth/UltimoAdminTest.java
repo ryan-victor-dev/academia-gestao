@@ -43,14 +43,14 @@ class UltimoAdminTest {
 
     @Test
     void rebaixamentoCruzadoSimultaneoNuncaDeixaAAcademiaSemAdmin() throws Exception {
-        corrida((a, b) -> equipeService.editar(b, "B", Perfil.RECEPCAO, null, a),
-                (a, b) -> equipeService.editar(a, "A", Perfil.RECEPCAO, null, b));
+        corrida((a, b) -> equipeService.editar(b, "B", Perfil.RECEPCAO, null, null, a),
+                (a, b) -> equipeService.editar(a, "A", Perfil.RECEPCAO, null, null, b));
     }
 
     @Test
     void desativacaoERebaixamentoSimultaneosNuncaDeixamAAcademiaSemAdmin() throws Exception {
         corrida((a, b) -> equipeService.desativar(b, a),
-                (a, b) -> equipeService.editar(a, "A", Perfil.INSTRUTOR, null, b));
+                (a, b) -> equipeService.editar(a, "A", Perfil.INSTRUTOR, null, null, b));
     }
 
     /** 30 rodadas: com dois ADMINs, cada um tenta tirar o outro ao mesmo tempo. Sempre sobra um. */
