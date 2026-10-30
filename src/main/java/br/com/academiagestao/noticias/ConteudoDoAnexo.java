@@ -6,11 +6,15 @@ import java.io.InputStream;
 import java.util.UUID;
 
 /**
- * O conteúdo de um anexo, lido do banco pedaço a pedaço (1 MB por vez, cada um numa consulta curta), sem carregar o
- * arquivo inteiro na memória. Como recurso do Spring, atende o Range (o vídeo começa a tocar sem baixar tudo, e
- * pula para o meio): o {@code skip} avança direto para o pedaço certo.
+ * O conteúdo de um anexo, lido do banco em trechos de {@value #TRECHO} bytes (cada um numa consulta curta), sem
+ * carregar o arquivo inteiro na memória. O trecho fica abaixo da metade da região do G1 (1 MB num heap de até 2 GB):
+ * com 1 MB por leitura, cada uma virava um objeto "gigante", e 20 downloads de 40 MB ao mesmo tempo levaram o
+ * container a 958 MB de 1 GB (diagnóstico do ADR 0047). Como recurso do Spring, atende o Range (o vídeo começa a
+ * tocar sem baixar tudo, e pula para o meio): o {@code skip} só muda a posição.
  */
 class ConteudoDoAnexo extends AbstractResource {
+
+    static final int TRECHO = 256 * 1024;
 
     private final Anexos anexos;
     private final Anexos.Anexo anexo;
@@ -46,8 +50,8 @@ class ConteudoDoAnexo extends AbstractResource {
         private final UUID id;
         private final long tamanho;
         private long posicao;
-        private byte[] parte = new byte[0];
-        private int ordemDaParte = -1;
+        private byte[] trecho = new byte[0];
+        private long inicioDoTrecho = -1;
 
         Leitura(Anexos anexos, UUID id, long tamanho) {
             this.anexos = anexos;
@@ -69,14 +73,18 @@ class ConteudoDoAnexo extends AbstractResource {
             if (quantos == 0) {
                 return 0;
             }
-            int ordem = (int) (posicao / AnexoService.TAMANHO_DA_PARTE);
-            if (ordem != ordemDaParte) {
-                parte = anexos.parte(id, ordem).orElseThrow(() -> new IllegalStateException("pedaço " + ordem + " do anexo " + id + " sumiu"));
-                ordemDaParte = ordem;
+            // A leitura só anda para a frente (o skip só avança): basta ver se passou do fim do trecho.
+            if (inicioDoTrecho < 0 || posicao >= inicioDoTrecho + trecho.length) {
+                int ordem = (int) (posicao / AnexoService.TAMANHO_DA_PARTE);
+                int dentroDaParte = (int) (posicao % AnexoService.TAMANHO_DA_PARTE);
+                trecho = anexos.trecho(id, ordem, dentroDaParte, TRECHO)
+                        .filter(t -> t.length > 0)
+                        .orElseThrow(() -> new IllegalStateException("pedaço " + ordem + " do anexo " + id + " sumiu"));
+                inicioDoTrecho = posicao;
             }
-            int dentro = (int) (posicao % AnexoService.TAMANHO_DA_PARTE);
-            int lidos = Math.min(quantos, parte.length - dentro);
-            System.arraycopy(parte, dentro, destino, inicio, lidos);
+            int dentro = (int) (posicao - inicioDoTrecho);
+            int lidos = Math.min(quantos, trecho.length - dentro);
+            System.arraycopy(trecho, dentro, destino, inicio, lidos);
             posicao += lidos;
             return lidos;
         }

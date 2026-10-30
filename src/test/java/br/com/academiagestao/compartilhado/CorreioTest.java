@@ -75,6 +75,34 @@ class CorreioTest {
         }
     }
 
+    /**
+     * Injeção de cabeçalho (diagnóstico do ADR 0047): um assunto com quebra de linha e um "Bcc:" não pode criar um
+     * destinatário escondido. O Jakarta Mail neutraliza a quebra; este teste avisa se uma troca de biblioteca mudar isso.
+     */
+    @Test
+    void quebraDeLinhaNoAssuntoNaoAbreOutroCabecalho() throws Exception {
+        try (var mailpit = new GenericContainer<>(DockerImageName.parse("axllent/mailpit:v1.31.3"))
+                .withExposedPorts(1025, 8025).waitingFor(Wait.forHttp("/livez").forPort(8025))) {
+            mailpit.start();
+            Correio correio = config.correio(propriedades(mailpit.getHost(), mailpit.getMappedPort(1025),
+                    "Academia <nao-responda@academia.local>", Duration.ofSeconds(10)));
+
+            correio.enviar(new Correio.Mensagem("aluna@exemplo.com", "Aviso\r\nBcc: espiao@exemplo.com\nX-Falso: 1", "Texto"));
+
+            String api = "http://" + mailpit.getHost() + ":" + mailpit.getMappedPort(8025) + "/api/v1/";
+            HttpClient http = HttpClient.newHttpClient();
+            JsonNode resumo = JSON.readTree(http.send(HttpRequest.newBuilder(URI.create(api + "messages")).build(),
+                    HttpResponse.BodyHandlers.ofString()).body()).get("messages").get(0);
+            assertThat(resumo.get("Subject").asText()).isEqualTo("Aviso Bcc: espiao@exemplo.com X-Falso: 1");
+            assertThat(resumo.get("To")).hasSize(1);
+            assertThat(resumo.get("Bcc").isNull() || resumo.get("Bcc").isEmpty()).as("sem Bcc escondido").isTrue();
+            JsonNode cabecalhos = JSON.readTree(http.send(HttpRequest.newBuilder(
+                    URI.create(api + "message/" + resumo.get("ID").asText() + "/headers")).build(), HttpResponse.BodyHandlers.ofString()).body());
+            assertThat(cabecalhos.has("X-Falso")).isFalse();
+            assertThat(cabecalhos.has("Bcc")).isFalse();
+        }
+    }
+
     @Test
     void servidorForaDoArViraIndisponivel() throws Exception {
         int portaFechada;

@@ -75,10 +75,13 @@ class Anexos {
         return porPublicacao;
     }
 
-    /** Um pedaço (de até 1 MB); vazio depois do último. */
-    Optional<byte[]> parte(UUID anexoId, int ordem) {
-        return jdbc.query("SELECT dados FROM anexo_partes WHERE anexo_id = ? AND ordem = ?",
-                (rs, n) -> rs.getBytes(1), anexoId, ordem).stream().findFirst();
+    /**
+     * Um trecho de um pedaço ({@code inicio} contado de 0 dentro dele). Com o pedaço guardado sem compressão (STORAGE
+     * EXTERNAL, V58), o banco lê só o trecho, e não o pedaço inteiro. Vazio se o pedaço não existe.
+     */
+    Optional<byte[]> trecho(UUID anexoId, int ordem, int inicio, int tamanho) {
+        return jdbc.query("SELECT substring(dados FROM ? FOR ?) FROM anexo_partes WHERE anexo_id = ? AND ordem = ?",
+                (rs, n) -> rs.getBytes(1), inicio + 1, tamanho, anexoId, ordem).stream().findFirst();
     }
 
     /** Os pedaços saem junto (chave estrangeira em cascata). @return se existia */

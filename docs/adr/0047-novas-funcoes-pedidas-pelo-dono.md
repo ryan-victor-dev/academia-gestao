@@ -227,3 +227,15 @@ avisa ninguém).
 - **Limite conhecido:** a fila é montada logo depois do commit, numa transação nova (uma conexão a mais por um
   instante, ADR 0020); se ela falhar, a publicação fica sem aviso (o erro vai para o log). A fila não é apagada (cresce
   com alunos × publicações avisadas; para uma academia, milhares de linhas por ano).
+
+### Correções do diagnóstico das funções novas
+O diagnóstico de 30/10, numa instalação isolada e de fora, pelo Caddy, achou dois pontos técnicos, corrigidos aqui:
+
+- **Memória dos downloads:** cada leitura de anexo trazia o pedaço inteiro de 1 MB para a memória, e no G1 (com região
+  de 1 MB) isso é um objeto "gigante". 20 downloads simultâneos de um vídeo de 40 MB levaram o container a 958 MB de
+  1 GB. Agora a leitura é em trechos de 256 KB (`substring`, que, com o pedaço sem compressão, lê só o trecho). Na mesma
+  medida, ficou em 389 MB.
+- **Quebra de linha no título:** o título, o local do evento e o nome do link aceitavam quebra de linha, e o título vira
+  o assunto do e-mail do aviso. O teste com um servidor SMTP de verdade mostrou que o Jakarta Mail já neutraliza a
+  quebra (um `Bcc:` injetado não vira cabeçalho). Mesmo assim, esses campos passam a ser de uma linha só (400), e o
+  teste fica para avisar se uma troca de biblioteca mudar o comportamento.

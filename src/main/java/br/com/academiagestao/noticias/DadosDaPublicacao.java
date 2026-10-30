@@ -32,9 +32,9 @@ record DadosDaPublicacao(Tipo tipo, String titulo, String texto, Instant eventoI
         if (tipo == null) {
             throw new DadosInvalidosException("tipo: é obrigatório");
         }
-        titulo = obrigatorio("titulo", titulo, TAMANHO_MAXIMO_TITULO);
+        titulo = numaLinha("titulo", obrigatorio("titulo", titulo, TAMANHO_MAXIMO_TITULO));
         texto = obrigatorio("texto", texto == null ? null : texto.strip(), TAMANHO_MAXIMO_TEXTO);
-        eventoLocal = opcional("eventoLocal", eventoLocal, TAMANHO_MAXIMO_LOCAL);
+        eventoLocal = numaLinha("eventoLocal", opcional("eventoLocal", eventoLocal, TAMANHO_MAXIMO_LOCAL));
         if (tipo == Tipo.EVENTO) {
             if (eventoInicio == null) {
                 throw new DadosInvalidosException("eventoInicio: o evento precisa de data e hora");
@@ -59,7 +59,7 @@ record DadosDaPublicacao(Tipo tipo, String titulo, String texto, Instant eventoI
         if (!ehEnderecoDaWeb(url)) {
             throw new DadosInvalidosException("links: endereço inválido (use http:// ou https://): " + url);
         }
-        return new Link(url, opcional("links", link.rotulo(), TAMANHO_MAXIMO_ROTULO));
+        return new Link(url, numaLinha("links", opcional("links", link.rotulo(), TAMANHO_MAXIMO_ROTULO)));
     }
 
     /**
@@ -75,6 +75,17 @@ record DadosDaPublicacao(Tipo tipo, String titulo, String texto, Instant eventoI
         } catch (URISyntaxException e) {
             return false;
         }
+    }
+
+    /**
+     * O título, o local e o nome do link são de uma linha só: o título vira o assunto do e-mail do aviso, e uma quebra
+     * de linha num cabeçalho abriria outro (diagnóstico do ADR 0047). O texto, que é o corpo, pode ter várias linhas.
+     */
+    private static String numaLinha(String campo, String valor) {
+        if (valor != null && (valor.indexOf('\n') >= 0 || valor.indexOf('\r') >= 0)) {
+            throw new DadosInvalidosException(campo + ": não pode ter quebra de linha");
+        }
+        return valor;
     }
 
     private static String obrigatorio(String campo, String valor, int maximo) {

@@ -95,4 +95,20 @@ class DadosDaPublicacaoTest {
     void aceitaEnderecosDaWeb(String url) {
         assertThat(noticia(List.of(new Link(url, null))).links().getFirst().url()).isEqualTo(url);
     }
+
+    /** O título vira o assunto do e-mail do aviso: uma quebra de linha nele abriria outro cabeçalho (diagnóstico). */
+    @Test
+    void tituloLocalENomeDoLinkSaoDeUmaLinhaSo() {
+        for (String quebra : new String[] {"\n", "\r", "\r\n"}) {
+            assertThatThrownBy(() -> new DadosDaPublicacao(Tipo.NOTICIA, "Assunto" + quebra + "Bcc: todos@x.com", "X", null, null, null, null))
+                    .isInstanceOf(DadosInvalidosException.class).hasMessage("titulo: não pode ter quebra de linha");
+            assertThatThrownBy(() -> new DadosDaPublicacao(Tipo.EVENTO, "T", "X", INICIO, null, "Sala" + quebra + "2", null))
+                    .hasMessage("eventoLocal: não pode ter quebra de linha");
+            assertThatThrownBy(() -> noticia(List.of(new Link("https://a.exemplo", "a" + quebra + "b"))))
+                    .hasMessage("links: não pode ter quebra de linha");
+        }
+        // O texto (o corpo) pode ter várias linhas; nas pontas, o título perde a quebra junto com os espaços.
+        assertThat(new DadosDaPublicacao(Tipo.NOTICIA, "T", "linha 1\nlinha 2", null, null, null, null).texto()).isEqualTo("linha 1\nlinha 2");
+        assertThat(new DadosDaPublicacao(Tipo.NOTICIA, "\nTítulo\n", "X", null, null, null, null).titulo()).isEqualTo("Título");
+    }
 }

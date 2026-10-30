@@ -86,6 +86,8 @@ class CorreioConfig {
             SimpleMailMessage email = new SimpleMailMessage();
             email.setFrom(remetente);
             email.setTo(mensagem.para());
+            // Uma quebra de linha no assunto não abre outro cabeçalho: o Jakarta Mail a neutraliza (o CorreioTest confere
+            // com um servidor de verdade, diagnóstico do ADR 0047).
             email.setSubject(mensagem.assunto());
             email.setText(mensagem.texto());
             try {
