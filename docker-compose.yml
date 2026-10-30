@@ -99,6 +99,8 @@ services:
       ACADEMIA_SENHAS_TETO: ${SENHAS_TETO:-0}
       # Espaço total dos anexos das notícias (ADR 0047), que ficam no banco e no backup.
       ACADEMIA_ANEXOS_ESPACO_TOTAL: ${ANEXOS_ESPACO_TOTAL:-5GB}
+      # SMS dos avisos (ADR 0047): desligado ou simulado (só desenvolvimento).
+      ACADEMIA_SMS_PROVEDOR: ${SMS_PROVEDOR:-desligado}
     ports:
       # Só nesta máquina (diagnóstico); quem vem da rede entra pelo Caddy, com HTTPS.
       - "127.0.0.1:8090:8090"

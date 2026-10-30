@@ -58,6 +58,25 @@ final class TextosDosAvisos {
                 + " úteis para confirmar o pagamento." + fim);
     }
 
+    /**
+     * A versão curta, para SMS (até uns 200 caracteres, duas mensagens no máximo): o mesmo conteúdo, sem a despedida.
+     * Começa por "Academia:" (o SMS chega de um número que a pessoa não conhece).
+     */
+    static String sms(Marco marco, Fatura f, Regras r) {
+        String nome = primeiroNome(f.nomeDoAluno());
+        if (!marco.atrasada()) {
+            String quando = marco == Marco.VENCE_HOJE ? "vence hoje" : "vence em " + dias(-marco.diasDepoisDoPrazo())
+                    + " (" + DATA.format(f.prazo()).substring(0, 5) + ")";
+            return "Academia: oi, " + nome + "! Sua " + nome(f) + " de " + dinheiro(f.valor()) + " " + quando
+                    + ". Pague até lá sem acréscimo e com o acesso liberado. O atraso aumenta o valor e bloqueia o acesso"
+                    + " após " + dias(r.diasParaBloquear()) + ".";
+        }
+        long faltam = r.diasParaBloquear() - f.diasDeAtraso();
+        return "Academia: " + nome + ", sua " + nome(f) + " está atrasada há " + dias(f.diasDeAtraso()) + ". Hoje: "
+                + dinheiro(f.devidoHoje()) + ". O atraso aumenta o valor e bloqueia o acesso"
+                + (faltam > 0 ? " em " + dias(faltam) : " (já bloqueado)") + ". Pagou por boleto há pouco? Desconsidere.";
+    }
+
     /** "mensalidade 3", "multa por sair antes", "plano à vista". */
     static String nome(Fatura f) {
         return switch (f.tipo()) {

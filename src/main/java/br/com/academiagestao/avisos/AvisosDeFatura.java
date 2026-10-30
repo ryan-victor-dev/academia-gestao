@@ -6,6 +6,7 @@ import br.com.academiagestao.cobranca.CobrancasParaAvisos;
 import br.com.academiagestao.cobranca.CobrancasParaAvisos.FaturaEmAberto;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.Correio;
+import br.com.academiagestao.compartilhado.MensageiroSms;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -48,15 +49,17 @@ class AvisosDeFatura {
     private final CobrancasParaAvisos cobrancas;
     private final AlunosParaOutrosModulos alunos;
     private final Correio correio;
+    private final MensageiroSms sms;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transacao;
     private final Clock relogio;
 
-    AvisosDeFatura(CobrancasParaAvisos cobrancas, AlunosParaOutrosModulos alunos, Correio correio, JdbcTemplate jdbc,
-                   PlatformTransactionManager transacoes, Clock relogio) {
+    AvisosDeFatura(CobrancasParaAvisos cobrancas, AlunosParaOutrosModulos alunos, Correio correio, MensageiroSms sms,
+                   JdbcTemplate jdbc, PlatformTransactionManager transacoes, Clock relogio) {
         this.cobrancas = cobrancas;
         this.alunos = alunos;
         this.correio = correio;
+        this.sms = sms;
         this.jdbc = jdbc;
         this.transacao = new TransactionTemplate(transacoes);
         this.relogio = relogio;
@@ -65,7 +68,7 @@ class AvisosDeFatura {
     @Scheduled(fixedDelayString = "${academia.avisos.intervalo:PT10M}", initialDelayString = "${academia.avisos.primeira-vez:PT1M}")
     void executar() {
         Instant agora = relogio.instant();
-        if (!correio.ligado() || agora.atZone(Calendario.FUSO).toLocalTime().isBefore(HORA)) {
+        if (!correio.ligado() && !sms.ligado() || agora.atZone(Calendario.FUSO).toLocalTime().isBefore(HORA)) {
             return;
         }
         int enviados = enviarOsDeHoje(Calendario.hoje(agora));
@@ -88,25 +91,40 @@ class AvisosDeFatura {
         for (FaturaEmAberto fatura : faturas) {
             Optional<Marco> marco = Marco.de(fatura.prazo(), hoje);
             Contato contato = contatos.get(fatura.alunoId());
-            if (marco.isEmpty() || contato == null || !contato.ativo() || contato.email() == null) {
+            if (marco.isEmpty() || contato == null || !contato.ativo()) {
                 continue;
             }
-            if (!reservar(fatura.id(), marco.get(), Canal.EMAIL)) {
-                continue;
-            }
-            TextosDosAvisos.Texto texto = TextosDosAvisos.email(marco.get(), new TextosDosAvisos.Fatura(contato.nome(),
-                    fatura.tipo(), fatura.parcela(), fatura.prazo(), fatura.valor(), fatura.devidoHoje(), fatura.diasDeAtraso()), regras);
-            try {
+            TextosDosAvisos.Fatura dados = new TextosDosAvisos.Fatura(contato.nome(), fatura.tipo(), fatura.parcela(),
+                    fatura.prazo(), fatura.valor(), fatura.devidoHoje(), fatura.diasDeAtraso());
+            if (correio.ligado() && contato.email() != null && enviar(fatura.id(), marco.get(), Canal.EMAIL, () -> {
+                TextosDosAvisos.Texto texto = TextosDosAvisos.email(marco.get(), dados, regras);
                 correio.enviar(new Correio.Mensagem(contato.email(), texto.assunto(), texto.corpo()));
-                marcar(fatura.id(), marco.get(), Canal.EMAIL, "ENVIADO");
+            })) {
                 enviados++;
-            } catch (RuntimeException e) {
-                // O motivo fica no log, sem o endereço; a próxima rodada tenta de novo (até 3 vezes no dia).
-                log.warn("Aviso de fatura {} ({}) não saiu por e-mail: {}", fatura.id(), marco.get(), e.getMessage());
-                marcar(fatura.id(), marco.get(), Canal.EMAIL, "FALHOU");
+            }
+            if (sms.ligado() && MensageiroSms.ehCelular(contato.telefone()) && enviar(fatura.id(), marco.get(), Canal.SMS,
+                    () -> sms.enviar(contato.telefone(), TextosDosAvisos.sms(marco.get(), dados, regras)))) {
+                enviados++;
             }
         }
         return enviados;
+    }
+
+    /** Reserva, envia e marca. @return se saiu agora */
+    private boolean enviar(UUID faturaId, Marco marco, Canal canal, Runnable envio) {
+        if (!reservar(faturaId, marco, canal)) {
+            return false;
+        }
+        try {
+            envio.run();
+            marcar(faturaId, marco, canal, "ENVIADO");
+            return true;
+        } catch (RuntimeException e) {
+            // O motivo fica no log, sem o endereço nem o número; a próxima rodada tenta de novo (até 3 vezes no dia).
+            log.warn("Aviso de fatura {} ({}) não saiu por {}: {}", faturaId, marco, canal, e.getMessage());
+            marcar(faturaId, marco, canal, "FALHOU");
+            return false;
+        }
     }
 
     /**

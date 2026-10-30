@@ -193,3 +193,17 @@ por prazo, com o devido de hoje, as regras do atraso e a conferência com trava)
   pela recepção. O aviso de fatura não se desliga (decisão 7).
 - **Falha:** o servidor de e-mail fora do ar marca `FALHOU`, e a rodada seguinte tenta de novo, até 3 vezes no dia.
   Sem e-mail configurado, nada roda.
+
+### SMS (decisão 9)
+Porta `MensageiroSms` no `compartilhado`, como o `Correio`: `SMS_PROVEDOR=desligado` (o padrão) ou `simulado`. A
+empresa (Zenvia, Twilio, AWS SNS...) ainda será escolhida pelo dono e entra como mais uma opção, numa classe que
+implementa a porta. O simulado guarda o que mandaria na tabela `sms_simulados` (V60), para quem testa conferir, e
+**não sobe com um `DOMINIO` de verdade** (como o pagamento simulado, ADR 0041): lá, o sistema acharia que avisou
+quem nunca recebeu nada.
+
+- **Avisos de fatura:** cada aviso vai também por SMS, com texto curto (até ~200 caracteres, começando por
+  "Academia:", porque o número é desconhecido de quem recebe) e o mesmo conteúdo: valor, prazo, que o atraso aumenta o
+  valor e bloqueia o acesso, e, em atraso, o valor de hoje e quantos dias faltam para o bloqueio.
+- **Só celular:** 11 dígitos com o 9 depois do DDD; telefone fixo não recebe SMS.
+- **Cada canal com a sua reserva** em `avisos_de_fatura`: o e-mail fora do ar não segura o SMS, e um não repete o
+  outro. Os avisos rodam se houver e-mail ou SMS ligado.

@@ -118,6 +118,7 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE anexo_partes FROM " + usuario);
             // Avisos de fatura (ADR 0047): o registro do que saiu fica (é o que impede o aviso repetido).
             sql.execute("REVOKE DELETE, TRUNCATE ON TABLE avisos_de_fatura FROM " + usuario);
+            sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE sms_simulados FROM " + usuario);
             // O registro de acessos também só cresce (V38, ADR 0031).
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE acessos FROM " + usuario);
             // A única saída da trilha e dos acessos: as funções do dono que só apagam o que

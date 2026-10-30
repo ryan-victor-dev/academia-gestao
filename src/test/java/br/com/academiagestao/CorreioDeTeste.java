@@ -23,6 +23,7 @@ public class CorreioDeTeste implements Correio {
 
     private final List<Mensagem> mensagens = new CopyOnWriteArrayList<>();
     private volatile boolean falhar;
+    private volatile boolean desligado;
 
     @TestConfiguration
     public static class Config {
@@ -35,7 +36,7 @@ public class CorreioDeTeste implements Correio {
 
     @Override
     public boolean ligado() {
-        return true;
+        return !desligado;
     }
 
     @Override
@@ -48,6 +49,11 @@ public class CorreioDeTeste implements Correio {
 
     public void falhar(boolean falhar) {
         this.falhar = falhar;
+    }
+
+    /** Finge que não há servidor de e-mail configurado (ligado() falso). */
+    public void desligar(boolean desligado) {
+        this.desligado = desligado;
     }
 
     public List<Mensagem> para(String email) {

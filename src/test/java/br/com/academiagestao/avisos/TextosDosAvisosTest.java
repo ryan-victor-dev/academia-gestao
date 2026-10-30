@@ -94,4 +94,23 @@ class TextosDosAvisosTest {
         assertThat(TextosDosAvisos.dias(1)).isEqualTo("1 dia");
         assertThat(TextosDosAvisos.dias(0)).isEqualTo("0 dias");
     }
+
+    @Test
+    void smsCurtoComOEssencial() {
+        String antes = TextosDosAvisos.sms(Marco.VENCE_EM_5, fatura(new BigDecimal("120.00"), 0), PADRAO);
+        assertThat(antes).isEqualTo("Academia: oi, Ana! Sua mensalidade 3 de R$ 120,00 vence em 5 dias (15/11). Pague até lá sem "
+                + "acréscimo e com o acesso liberado. O atraso aumenta o valor e bloqueia o acesso após 10 dias.");
+        assertThat(TextosDosAvisos.sms(Marco.VENCE_HOJE, fatura(new BigDecimal("120.00"), 0), PADRAO))
+                .contains("de R$ 120,00 vence hoje. Pague até lá");
+
+        String atrasada = TextosDosAvisos.sms(Marco.ATRASADA_3, fatura(new BigDecimal("122.52"), 3), PADRAO);
+        assertThat(atrasada).isEqualTo("Academia: Ana, sua mensalidade 3 está atrasada há 3 dias. Hoje: R$ 122,52. O atraso "
+                + "aumenta o valor e bloqueia o acesso em 7 dias. Pagou por boleto há pouco? Desconsidere.");
+        TextosDosAvisos.Regras curtas = new TextosDosAvisos.Regras(true, BigDecimal.ONE, BigDecimal.ONE, 3);
+        assertThat(TextosDosAvisos.sms(Marco.ATRASADA_5, fatura(new BigDecimal("125"), 5), curtas)).contains("bloqueia o acesso (já bloqueado)");
+        // No dia exato do bloqueio (faltam 0 dias), já bloqueado.
+        assertThat(TextosDosAvisos.sms(Marco.ATRASADA_3, fatura(new BigDecimal("125"), 3), curtas)).contains("(já bloqueado)");
+        assertThat(antes.length()).isLessThanOrEqualTo(200);
+        assertThat(atrasada.length()).isLessThanOrEqualTo(200);
+    }
 }
