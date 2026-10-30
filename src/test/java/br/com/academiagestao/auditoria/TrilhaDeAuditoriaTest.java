@@ -182,7 +182,8 @@ class TrilhaDeAuditoriaTest {
     @Test
     void equipeESenhasFicamNaTrilhaSemNenhumaSenha() throws Exception {
         UUID ana = criado(enviar(post("/api/usuarios"), """
-                {"nome": "Ana", "email": "ana-%s@teste.local", "perfil": "RECEPCAO"}""".formatted(UUID.randomUUID()))
+                {"nome": "Ana", "email": "ana-%s@teste.local", "cpf": "%s", "perfil": "RECEPCAO"}"""
+                .formatted(UUID.randomUUID(), CpfsParaTeste.aleatorio()))
                 .andExpect(status().isCreated()));
         enviar(put("/api/usuarios/" + ana), """
                 {"nome": "Ana Maria", "perfil": "INSTRUTOR"}""").andExpect(status().isOk());

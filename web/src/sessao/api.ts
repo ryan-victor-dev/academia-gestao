@@ -11,6 +11,8 @@ export interface Usuario {
   id: string;
   nome: string;
   email: string;
+  /** Só da equipe, sem pontuação; nulo em quem foi cadastrado antes do ADR 0047 e no login de aluno. */
+  cpf?: string | null;
   perfil: Perfil;
   ativo: boolean;
   precisaTrocarSenha: boolean;

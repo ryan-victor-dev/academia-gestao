@@ -97,13 +97,18 @@ ADM = ativar("admin@academia.local", "senha-primeiro-acesso-123", "senha-definit
 
 secao("equipe")
 tokens = {}
-for nome, perfil in [("Rita", "RECEPCAO"), ("Caio", "INSTRUTOR")]:
-    s, b, h = req("POST", "/api/usuarios", {"nome": nome, "email": f"{nome.lower()}@academia.local", "perfil": perfil}, ADM)
+# O CPF é obrigatório no login novo da equipe (ADR 0047), e não repete.
+for nome, perfil, cpf_ in [("Rita", "RECEPCAO", "516.879.548-01"), ("Caio", "INSTRUTOR", "66906010484")]:
+    s, b, h = req("POST", "/api/usuarios", {"nome": nome, "email": f"{nome.lower()}@academia.local", "cpf": cpf_, "perfil": perfil}, ADM)
     confere(f"criar {perfil}", s == 201 and h.get("Cache-Control") == "no-store", (s, b))
     tokens[perfil] = ativar(f"{nome.lower()}@academia.local", b["senhaTemporaria"], f"senha-definitiva-{nome.lower()}-1")
 REC, INS = tokens["RECEPCAO"], tokens["INSTRUTOR"]
+confere("login da equipe sem CPF é recusado",
+        req("POST", "/api/usuarios", {"nome": "Sem", "email": "sem@academia.local", "perfil": "INSTRUTOR"}, ADM)[0] == 400)
+confere("CPF repetido na equipe dá 409",
+        req("POST", "/api/usuarios", {"nome": "Rep", "email": "rep@academia.local", "cpf": "51687954801", "perfil": "INSTRUTOR"}, ADM)[0] == 409)
 confere("recepção não cria usuário",
-        req("POST", "/api/usuarios", {"nome": "X", "email": "x@academia.local", "perfil": "ADMIN"}, REC)[0] == 403)
+        req("POST", "/api/usuarios", {"nome": "X", "email": "x@academia.local", "cpf": "78059633805", "perfil": "ADMIN"}, REC)[0] == 403)
 
 secao("alunos")
 s, b, h = req("POST", "/api/alunos", {"nome": "José Antônio", "cpf": "529.982.247-25", "email": "jose@email.com",

@@ -1,4 +1,4 @@
-package br.com.academiagestao.alunos;
+package br.com.academiagestao.compartilhado;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

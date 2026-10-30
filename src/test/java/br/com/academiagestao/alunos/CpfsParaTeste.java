@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.compartilhado.Cpf;
 import java.util.concurrent.ThreadLocalRandom;
 
 /** Gera CPFs válidos (com dígitos verificadores certos) para os testes não colidirem. */

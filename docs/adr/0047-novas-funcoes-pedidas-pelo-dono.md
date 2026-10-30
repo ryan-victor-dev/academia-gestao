@@ -54,3 +54,25 @@ que é pequena), e a tela separa pela situação. Os logins de alunos continuam 
 dois. A regra do ADR 0043 continua: só sai o exercício que nunca entrou numa ficha, mesmo encerrada (a
 chave estrangeira barra, 409, e o caminho é inativar), com a trava contra a ficha montada no mesmo
 instante e o registro `EXCLUIDO` na trilha. Aluno, plano e equipe continuam só com o ADMIN.
+
+### CPF da equipe (decisão 1)
+`usuarios` ganhou a coluna `cpf` (V55): só os 11 dígitos (`ck_usuarios_cpf`), nunca no login de aluno, cujo
+CPF fica no cadastro dele (`ck_usuarios_cpf_so_da_equipe`), e sem repetir (`uq_usuarios_cpf`). A coluna
+aceita nulo, e a obrigação fica na aplicação: um CHECK, mesmo `NOT VALID`, valeria também no UPDATE, e
+renomear alguém de antes passaria a falhar.
+
+- `POST /api/usuarios` exige o `cpf` (com ou sem pontuação, conferido pelos dígitos); repetido, 409 "CPF já
+  cadastrado". `PUT /api/usuarios/{id}` aceita o `cpf` opcional: sem ele (ou em branco), o atual fica. O CPF
+  se corrige, mas não se apaga.
+- A resposta traz o `cpf` (só o ADMIN lista a equipe). A trilha registra o CPF, como já fazia com o do aluno.
+- A tela pede o CPF no login novo; quem é de antes aparece com "Sem CPF" e ganha o seu pela edição.
+- As classes `Cpf` e `CpfValido` saíram do módulo de alunos para o `compartilhado`: o `auth` não depende de
+  outros módulos (ADR 0015).
+- O primeiro ADMIN, criado a partir do `.env` na instalação (ADR 0011), continua nascendo sem CPF: o
+  `.env` não tem o CPF de ninguém, e ele preenche o seu depois pela tela.
+
+A checagem dá a mensagem clara; numa corrida, quem barra é o índice único, e só o erro dele vira o 409 do CPF.
+O `CpfDaEquipeTest` força a corrida (outra transação grava o CPF sem confirmar; o pedido passa pela checagem
+e espera no índice, conferido no `pg_stat_activity`). Mutantes equivalentes: tirar a checagem `existsByCpf`
+do cadastro ou da edição não muda o que se vê, porque o índice dá o mesmo 409 (a checagem só evita a ida ao
+banco).

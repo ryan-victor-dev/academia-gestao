@@ -272,7 +272,8 @@ label.curto { max-width: 280px; }
 .item-ficha .acoes { margin: 0; }
 
 .lista li.linha { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 12px 16px; }
-.acoes-linha { display: flex; gap: 8px; }
+/* Quebra a linha quando os botões não cabem (a equipe tem até 4: passava da tela no celular). */
+.acoes-linha { display: flex; flex-wrap: wrap; gap: 8px; }
 .confirmar { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 details { margin: 8px 0; }

@@ -1,6 +1,8 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.Cpf;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -17,6 +19,8 @@ import java.util.UUID;
 /** Cadastro da equipe (ADMIN, RECEPCAO, INSTRUTOR). Logins de aluno ficam no módulo de alunos. */
 @Service
 class EquipeService {
+
+    private static final String INDICE_DO_CPF = "uq_usuarios_cpf";
 
     private final UsuarioRepository repository;
     private final PasswordEncoder passwordEncoder;
@@ -51,8 +55,9 @@ class EquipeService {
         return repository.buscarLoginsDeAlunos(padrao, PageRequest.of(pagina, tamanho, Sort.by("nome", "id")));
     }
 
+    /** O CPF é obrigatório em todo login novo da equipe (ADR 0047); quem já existia fica sem até o ADMIN preencher. */
     @Transactional
-    UsuarioCriado criar(String nome, String email, Perfil perfil) {
+    UsuarioCriado criar(String nome, String email, String cpf, Perfil perfil) {
         if (perfil == Perfil.ALUNO) {
             throw new DadosInvalidosException("login de aluno é criado pelo cadastro do aluno: POST /api/alunos/{id}/login");
         }
@@ -60,13 +65,18 @@ class EquipeService {
         if (repository.existsByEmail(emailNormalizado)) {
             throw new LoginJaExisteException("Este e-mail já é usado por outro login");
         }
+        if (repository.existsByCpf(Cpf.normalizar(cpf))) {
+            throw new CpfDaEquipeEmUsoException();
+        }
 
         String senhaTemporaria = GeradorDeSenhaTemporaria.gerar();
         Usuario usuario = Usuario.daEquipe(nome, emailNormalizado, passwordEncoder.encode(senhaTemporaria), perfil);
+        usuario.informarCpf(cpf);
         usuario.exigirTrocaDeSenha();
         try {
             repository.saveAndFlush(usuario);
         } catch (DataIntegrityViolationException e) {
+            barrarCpfRepetido(e);
             throw new LoginJaExisteException("Este e-mail já é usado por outro login");
         }
         trilha.criado(usuario);
@@ -118,11 +128,12 @@ class EquipeService {
     }
 
     /**
-     * Muda nome e perfil de alguém da equipe. Ninguém muda o próprio perfil, e rebaixar um
-     * ADMIN passa pela mesma proteção da desativação (A rebaixa B enquanto B rebaixa A).
+     * Muda nome, perfil e CPF de alguém da equipe. Ninguém muda o próprio perfil, e rebaixar um
+     * ADMIN passa pela mesma proteção da desativação (A rebaixa B enquanto B rebaixa A). Sem CPF no
+     * pedido, o atual fica: o CPF se corrige, mas não se apaga (ADR 0047).
      */
     @Transactional
-    UsuarioResponse editar(UUID id, String nome, Perfil perfil, UUID quemPede) {
+    UsuarioResponse editar(UUID id, String nome, Perfil perfil, String cpf, UUID quemPede) {
         if (perfil == Perfil.ALUNO) {
             throw new DadosInvalidosException("o perfil ALUNO não é dado por aqui: login de aluno nasce do cadastro do aluno");
         }
@@ -134,11 +145,34 @@ class EquipeService {
         if (mudaPerfil && usuario.getPerfil() == Perfil.ADMIN) {
             garantirQueSobraOutroAdmin(quemPede);
         }
+        boolean mudaCpf = cpf != null && !cpf.isBlank() && !Cpf.normalizar(cpf).equals(usuario.getCpf());
+        // Checa antes de alterar a entidade: a consulta faria o auto-flush do que já tivesse mudado.
+        if (mudaCpf && repository.existsByCpf(Cpf.normalizar(cpf))) {
+            throw new CpfDaEquipeEmUsoException();
+        }
         Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
         usuario.renomear(nome);
         usuario.mudarPerfil(perfil);
+        if (mudaCpf) {
+            usuario.informarCpf(cpf);
+            try {
+                repository.flush();
+            } catch (DataIntegrityViolationException e) {
+                barrarCpfRepetido(e);
+                throw e;
+            }
+        }
         trilha.alterado(usuario, "EDITADO", antes);
         return UsuarioResponse.de(usuario);
+    }
+
+    // A checagem do CPF dá a mensagem clara; numa corrida (dois cadastros com o mesmo CPF ao mesmo
+    // tempo), quem barra é o índice único, e só o erro dele vira o 409 do CPF.
+    private static void barrarCpfRepetido(DataIntegrityViolationException e) {
+        if (e.getCause() instanceof ConstraintViolationException violacao
+                && INDICE_DO_CPF.equals(violacao.getConstraintName())) {
+            throw new CpfDaEquipeEmUsoException();
+        }
     }
 
     // Trava as linhas dos ADMINs ativos (SELECT ... FOR UPDATE) e só então conta: quem pede

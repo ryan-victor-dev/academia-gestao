@@ -1,4 +1,4 @@
-package br.com.academiagestao.alunos;
+package br.com.academiagestao.compartilhado;
 
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintValidator;

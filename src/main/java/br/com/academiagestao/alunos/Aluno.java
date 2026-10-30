@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.compartilhado.Cpf;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import jakarta.persistence.Column;

@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.compartilhado.Cpf;
 import br.com.academiagestao.compartilhado.CadastroParaPrimeiroAcesso;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;

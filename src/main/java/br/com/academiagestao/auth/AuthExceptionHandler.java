@@ -102,6 +102,13 @@ class AuthExceptionHandler {
         return problema;
     }
 
+    @ExceptionHandler(CpfDaEquipeEmUsoException.class)
+    ProblemDetail cpfDaEquipeEmUso(CpfDaEquipeEmUsoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle("CPF já cadastrado");
+        return problema;
+    }
+
     @ExceptionHandler(UsuarioNaoEncontradoException.class)
     ProblemDetail usuarioNaoEncontrado(UsuarioNaoEncontradoException e) {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());

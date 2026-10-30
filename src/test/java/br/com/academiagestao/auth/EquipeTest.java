@@ -133,7 +133,7 @@ class EquipeTest {
     @Test
     void adminCriaRecepcaoComSenhaTemporaria() throws Exception {
         String corpo = criar(tokenDoAdmin, """
-                {"nome": "Rita", "email": "Rita@Academia.com", "perfil": "RECEPCAO"}""")
+                {"nome": "Rita", "email": "Rita@Academia.com", "cpf": "516.879.548-01", "perfil": "RECEPCAO"}""")
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", matchesPattern(".*/api/usuarios/[0-9a-f-]{36}")))
                 .andExpect(header().string("Cache-Control", "no-store"))
@@ -150,7 +150,7 @@ class EquipeTest {
     @Test
     void adminPodeCriarOutroAdmin() throws Exception {
         criar(tokenDoAdmin, """
-                {"nome": "Gerente", "email": "gerente@academia.com", "perfil": "ADMIN"}""")
+                {"nome": "Gerente", "email": "gerente@academia.com", "cpf": "66906010484", "perfil": "ADMIN"}""")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.perfil").value("ADMIN"));
     }
@@ -158,7 +158,7 @@ class EquipeTest {
     @Test
     void perfilAlunoNaoEhCriadoPorAqui() throws Exception {
         criar(tokenDoAdmin, """
-                {"nome": "Ana", "email": "ana@email.com", "perfil": "ALUNO"}""")
+                {"nome": "Ana", "email": "ana@email.com", "cpf": "78059633805", "perfil": "ALUNO"}""")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(
                         "login de aluno é criado pelo cadastro do aluno: POST /api/alunos/{id}/login"));
@@ -169,16 +169,16 @@ class EquipeTest {
         criar(tokenDoAdmin, """
                 {"nome": "", "email": "nao-e-email", "perfil": null}""")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erros.length()").value(3));
+                .andExpect(jsonPath("$.erros.length()").value(4));
         criar(tokenDoAdmin, """
-                {"nome": "Rita", "email": "rita@academia.com", "perfil": "CHEFE"}""")
+                {"nome": "Rita", "email": "rita@academia.com", "cpf": "85730855923", "perfil": "CHEFE"}""")
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void emailJaUsadoDevolve409() throws Exception {
         criar(tokenDoAdmin, """
-                {"nome": "Outro", "email": "ADMIN@academia.com", "perfil": "RECEPCAO"}""")
+                {"nome": "Outro", "email": "ADMIN@academia.com", "cpf": "85730855923", "perfil": "RECEPCAO"}""")
                 .andExpect(status().isConflict());
     }
 
@@ -189,7 +189,7 @@ class EquipeTest {
         String tokenDaRita = token(login("rita@academia.com", SENHA));
 
         criar(tokenDaRita, """
-                {"nome": "X", "email": "x@academia.com", "perfil": "RECEPCAO"}""").andExpect(status().isForbidden());
+                {"nome": "X", "email": "x@academia.com", "cpf": "85730855923", "perfil": "RECEPCAO"}""").andExpect(status().isForbidden());
         acao(tokenDaRita, caio.getId(), "desativar").andExpect(status().isForbidden());
         acao(tokenDaRita, rita.getId(), "reativar").andExpect(status().isForbidden());
         mvc.perform(get("/api/usuarios").header("Authorization", "Bearer " + tokenDaRita))

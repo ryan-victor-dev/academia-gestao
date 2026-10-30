@@ -1,4 +1,4 @@
-package br.com.academiagestao.alunos;
+package br.com.academiagestao.compartilhado;
 
 /**
  * Validação e formatação de CPF. Java puro, sem framework (ADR 0004).

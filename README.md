@@ -189,8 +189,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/me` | Qualquer perfil logado |
 | `GET /api/usuarios` (a equipe, sem os logins de alunos) | ADMIN |
 | `GET /api/usuarios/alunos` (logins de alunos, paginados; `busca` por parte do nome ou do e-mail, `pagina`, `tamanho` até 100) | ADMIN |
-| `POST /api/usuarios` (ADMIN, RECEPCAO ou INSTRUTOR, com senha temporária) | ADMIN |
-| `PUT /api/usuarios/{id}` (nome e perfil; mudar o perfil derruba as sessões da pessoa) | ADMIN |
+| `POST /api/usuarios` (ADMIN, RECEPCAO ou INSTRUTOR, com senha temporária; `cpf` obrigatório e sem repetir na equipe, 409, ADR 0047) | ADMIN |
+| `PUT /api/usuarios/{id}` (nome, perfil e `cpf` opcional: sem ele, o atual fica; mudar o perfil derruba as sessões da pessoa) | ADMIN |
 | `POST /api/usuarios/{id}/desativar`, `/reativar` | ADMIN |
 | `DELETE /api/usuarios/{id}` (só o login da equipe nunca usado; quem já entrou ou registrou algo, 409: desative¹⁴) | ADMIN |
 | `POST /api/usuarios/{id}/nova-senha` (senha temporária; nunca para um ADMIN) | ADMIN |

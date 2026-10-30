@@ -69,7 +69,7 @@ class ExclusaoDaEquipeConcorrenciaTest {
             CompletableFuture<String> edicao = CompletableFuture.supplyAsync(() -> {
                 try {
                     largada.await();
-                    service.editar(id, editado, Perfil.RECEPCAO, quemPede);
+                    service.editar(id, editado, Perfil.RECEPCAO, null, quemPede);
                     return "editado";
                 } catch (Exception e) {
                     // Depois da exclusão, a edição não acha mais a linha: o erro é dela, não da exclusão.

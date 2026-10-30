@@ -174,7 +174,7 @@
 							     domínio da cobrança e a classe de cada teste de unidade (menos os services, que
 							     os testes com banco é que cobrem). -->
 							<targetClasses>
-								<param>br.com.academiagestao.alunos.Cpf</param>
+								<param>br.com.academiagestao.compartilhado.Cpf</param>
 								<param>br.com.academiagestao.alunos.Aluno</param>
 								<param>br.com.academiagestao.auditoria.AuditoriaNoBanco</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>
@@ -207,7 +207,7 @@
 							<targetTests>
 								<param>br.com.academiagestao.alunos.AlunoServiceTest</param>
 								<param>br.com.academiagestao.alunos.AlunoTest</param>
-								<param>br.com.academiagestao.alunos.CpfTest</param>
+								<param>br.com.academiagestao.compartilhado.CpfTest</param>
 								<param>br.com.academiagestao.auditoria.AuditoriaNoBancoTest</param>
 								<param>br.com.academiagestao.auth.AutenticacaoServiceTest</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporariaTest</param>

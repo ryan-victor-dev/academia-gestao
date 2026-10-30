@@ -1,5 +1,6 @@
 package br.com.academiagestao.alunos;
 
+import br.com.academiagestao.compartilhado.CpfValido;
 import br.com.academiagestao.auth.ClaimsDoToken;
 import br.com.academiagestao.auth.CredenciaisTemporarias;
 import br.com.academiagestao.compartilhado.Pagina;

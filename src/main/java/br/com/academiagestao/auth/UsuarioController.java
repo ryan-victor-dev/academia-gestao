@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.CpfValido;
 import br.com.academiagestao.compartilhado.Pagina;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -63,7 +64,7 @@ class UsuarioController {
      */
     @PostMapping
     ResponseEntity<UsuarioCriadoResponse> criar(@Valid @RequestBody NovoUsuarioRequest request) {
-        EquipeService.UsuarioCriado criado = equipeService.criar(request.nome(), request.email(), request.perfil());
+        EquipeService.UsuarioCriado criado = equipeService.criar(request.nome(), request.email(), request.cpf(), request.perfil());
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(criado.usuario().getId()).toUri();
         return ResponseEntity.created(location)
@@ -91,7 +92,7 @@ class UsuarioController {
     @PutMapping("/{id}")
     UsuarioResponse editar(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt,
                            @Valid @RequestBody EdicaoDeUsuarioRequest request) {
-        return equipeService.editar(id, request.nome(), request.perfil(), UUID.fromString(jwt.getSubject()));
+        return equipeService.editar(id, request.nome(), request.perfil(), request.cpf(), UUID.fromString(jwt.getSubject()));
     }
 
     @PostMapping("/{id}/reativar")
@@ -114,6 +115,9 @@ class UsuarioController {
             @NotBlank(message = "é obrigatório") @Email(message = "e-mail inválido")
             @Size(max = 150, message = "pode ter no máximo {max} caracteres")
             String email,
+            // Com ou sem pontuação (no máximo 14: "000.000.000-00"), obrigatório no login novo (ADR 0047).
+            @NotBlank(message = "é obrigatório") @Size(max = 14, message = "pode ter no máximo {max} caracteres") @CpfValido
+            String cpf,
             @NotNull(message = "é obrigatório")
             Perfil perfil) {
     }
@@ -122,7 +126,10 @@ class UsuarioController {
             @NotBlank(message = "é obrigatório") @Size(max = 150, message = "pode ter no máximo {max} caracteres")
             String nome,
             @NotNull(message = "é obrigatório")
-            Perfil perfil) {
+            Perfil perfil,
+            // Opcional: sem ele, o CPF atual fica (quem é de antes do ADR 0047 ganha o seu por aqui).
+            @Size(max = 14, message = "pode ter no máximo {max} caracteres") @CpfValido
+            String cpf) {
     }
 
     record UsuarioCriadoResponse(UUID id, String nome, String email, Perfil perfil, String senhaTemporaria) {

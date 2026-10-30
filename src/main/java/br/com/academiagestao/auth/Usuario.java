@@ -1,5 +1,6 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.Cpf;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -24,6 +25,10 @@ public class Usuario {
 
     @Column(nullable = false, length = 150)
     private String email;
+
+    // Só da equipe, e nulo em quem foi cadastrado antes do ADR 0047 (o login de aluno nunca tem).
+    @Column(length = 11)
+    private String cpf;
 
     @Column(name = "senha_hash", nullable = false, length = 100)
     private String senhaHash;
@@ -110,6 +115,17 @@ public class Usuario {
             throw new IllegalArgumentException("nome é obrigatório");
         }
         this.nome = novoNome.trim();
+    }
+
+    /** O CPF de alguém da equipe (ADR 0047), guardado só com os dígitos. */
+    public void informarCpf(String novoCpf) {
+        if (perfil == Perfil.ALUNO) {
+            throw new IllegalStateException("o CPF do aluno fica no cadastro do aluno");
+        }
+        if (novoCpf == null || !Cpf.ehValido(novoCpf)) {
+            throw new IllegalArgumentException("CPF inválido");
+        }
+        this.cpf = Cpf.normalizar(novoCpf);
     }
 
     /**
@@ -224,6 +240,7 @@ public class Usuario {
     public UUID getId() { return id; }
     public String getNome() { return nome; }
     public String getEmail() { return email; }
+    public String getCpf() { return cpf; }
     public String getSenhaHash() { return senhaHash; }
     public Perfil getPerfil() { return perfil; }
     public UUID getAlunoId() { return alunoId; }
