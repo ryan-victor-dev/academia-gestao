@@ -5,6 +5,7 @@ import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { cpf, data, dataHora, telefone } from '../../formato';
 import { chamar, chamarComVersao, ErroDaApi } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
+import { Identidade } from '../../componentes/Identidade';
 import { AcessoDoAluno } from './AcessoDoAluno';
 import { FormularioDoAluno } from './FormularioDoAluno';
 import { MatriculasDoAluno } from './MatriculasDoAluno';
@@ -152,6 +153,9 @@ function Cadastro({ id }: { id: string }) {
           <MatriculasDoAluno alunoId={completo.id} aoMudar={() => { void conferirSePodeTreinar(); setMudancas((n) => n + 1); }} />
           <CobrancasDoAluno alunoId={completo.id} atualizar={mudancas} />
           <AcessoDoAluno alunoId={completo.id} temEmail={!!completo.email} ativo={completo.ativo} />
+          {/* Dado sensível (ADR 0047): só o ADMIN; a recepção nem pede (a API responderia 403). */}
+          {admin && <Identidade caminho={`/api/alunos/${completo.id}/identidade`}
+                                titulo="Identidade de gênero e orientação sexual (só a administração vê)" />}
         </>
       )}
     </>

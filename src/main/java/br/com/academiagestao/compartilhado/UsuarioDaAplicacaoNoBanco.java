@@ -108,6 +108,8 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             sql.execute("REVOKE INSERT, DELETE, TRUNCATE ON TABLE configuracao_pagamento_online FROM " + usuario);
             // Os códigos mandados por e-mail ficam, encerrados (usados, trocados ou esgotados), ADR 0038.
             sql.execute("REVOKE DELETE, TRUNCATE ON TABLE codigos_de_email FROM " + usuario);
+            // Identidade (ADR 0047): responder "nada" grava nulos; a linha só sai com o cadastro (chave estrangeira).
+            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE identidade_dos_alunos, identidade_da_equipe FROM " + usuario);
             // O registro de acessos também só cresce (V38, ADR 0031).
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE acessos FROM " + usuario);
             // A única saída da trilha e dos acessos: as funções do dono que só apagam o que

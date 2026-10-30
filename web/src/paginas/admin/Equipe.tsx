@@ -3,6 +3,7 @@ import { Excluir } from '../../componentes/Excluir';
 import { FormularioDeAcao } from '../../componentes/FormularioDeAcao';
 import { Paginacao, type Pagina } from '../../componentes/Paginacao';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
+import { Identidade } from '../../componentes/Identidade';
 import { NOME_DO_PERFIL } from '../../estrutura/menu';
 import { cpf } from '../../formato';
 import { chamar, type Perfil, type Usuario } from '../../sessao/api';
@@ -119,6 +120,11 @@ export function Equipe() {
           )}
           <p className="suave">Mudar o perfil encerra as sessões da pessoa: ela entra de novo com o perfil novo.</p>
         </FormularioDeAcao>
+      )}
+      {/* A identidade (ADR 0047) salva à parte: o formulário acima é só nome, CPF e perfil. */}
+      {acao?.tipo === 'editar' && acao.usuario.perfil !== 'ALUNO' && (
+        <Identidade key={acao.usuario.id} caminho={`/api/usuarios/${acao.usuario.id}/identidade`}
+                    titulo={`Identidade de gênero e orientação sexual de ${acao.usuario.nome}`} />
       )}
 
       <MensagemDeErro erro={erro} rotulos={{ nome: 'Nome', email: 'E-mail', cpf: 'CPF', perfil: 'Perfil' }} />

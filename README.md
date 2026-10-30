@@ -187,6 +187,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/auth/sair` (encerra a sessão do cookie) | Público |
 | `GET /actuator/health` | Público |
 | `GET /api/me` | Qualquer perfil logado |
+| `GET`, `PUT /api/me/identidade` (identidade de gênero e orientação sexual da própria pessoa, opcionais; dado sensível, ADR 0047) | ADMIN, RECEPCAO, INSTRUTOR |
+| `GET`, `PUT /api/usuarios/{id}/identidade` (a de alguém da equipe) | ADMIN |
 | `GET /api/usuarios` (a equipe, sem os logins de alunos) | ADMIN |
 | `GET /api/usuarios/alunos` (logins de alunos, paginados; `busca` por parte do nome ou do e-mail, `pagina`, `tamanho` até 100) | ADMIN |
 | `POST /api/usuarios` (ADMIN, RECEPCAO ou INSTRUTOR, com senha temporária; `cpf` obrigatório e sem repetir na equipe, 409, ADR 0047) | ADMIN |
@@ -203,6 +205,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/alunos/{id}/login` (cria o login com senha temporária) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/login/nova-senha` ("esqueci minha senha") | ADMIN, RECEPCAO |
 | `GET /api/alunos/me` | ALUNO (o próprio cadastro) |
+| `GET`, `PUT /api/alunos/me/identidade` (identidade de gênero e orientação sexual, opcionais; o inativo só consulta; ADR 0047) | ALUNO |
+| `GET`, `PUT /api/alunos/{id}/identidade` (a abertura vai para o registro de acessos) | ADMIN |
 | `GET /api/planos?incluirInativos=`, `GET /api/planos/{id}` | Todos os perfis³ |
 | `POST /api/planos`, `PUT /api/planos/{id}` (exige `If-Match`²; `fidelidade`, `percentualMulta` e `formaPagamento` opcionais⁵) | ADMIN |
 | `POST /api/planos/{id}/inativar`, `/reativar` | ADMIN |

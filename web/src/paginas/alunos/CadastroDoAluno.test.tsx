@@ -159,4 +159,19 @@ describe('cadastro do aluno', () => {
     expect(await screen.findByText(/não pode ser excluído; inative-o/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Ana Souza' })).toBeInTheDocument();
   });
+
+  it('identidade de gênero e orientação (ADR 0047): só o ADMIN vê; a recepção nem pede', async () => {
+    const api = apiFalsa({ ...base, 'GET /api/alunos/00000000-0000-0000-0000-0000000000a1/identidade':
+      json(200, { identidadeDeGenero: 'MULHER_TRANS', identidadeDeGeneroOutra: null, orientacaoSexual: null, orientacaoSexualOutra: null }) });
+    const { unmount } = abrir('RECEPCAO');
+    await screen.findByRole('heading', { name: 'Ana Souza' });
+    await screen.findByRole('heading', { name: 'Matrículas' });
+    expect(screen.queryByText(/Identidade de gênero/)).not.toBeInTheDocument();
+    unmount();
+
+    abrir('ADMIN');
+    expect(await screen.findByLabelText('Identidade de gênero')).toHaveValue('MULHER_TRANS');
+    expect(screen.getByRole('heading', { name: /só a administração vê/ })).toBeInTheDocument();
+    expect(api.de('GET /api/alunos/00000000-0000-0000-0000-0000000000a1/identidade')).toHaveLength(1);
+  });
 });

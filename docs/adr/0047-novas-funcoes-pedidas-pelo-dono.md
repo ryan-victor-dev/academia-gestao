@@ -76,3 +76,28 @@ O `CpfDaEquipeTest` força a corrida (outra transação grava o CPF sem confirma
 e espera no índice, conferido no `pg_stat_activity`). Mutantes equivalentes: tirar a checagem `existsByCpf`
 do cadastro ou da edição não muda o que se vê, porque o índice dá o mesmo 409 (a checagem só evita a ida ao
 banco).
+
+### Identidade de gênero e orientação sexual (decisão 2)
+Duas tabelas (V56): `identidade_dos_alunos`, pelo cadastro (o aluno pode não ter login), e
+`identidade_da_equipe`, pelo login. Ficam fora do cadastro para não sair junto com o aluno que a recepção e o
+instrutor consultam, nem com o retrato da trilha. Rotas próprias, com `Cache-Control: no-store`:
+`/api/alunos/me/identidade` (o aluno), `/api/me/identidade` (a equipe), e `/api/alunos/{id}/identidade` e
+`/api/usuarios/{id}/identidade` (só o ADMIN). A recepção e o instrutor recebem 403; o cadastro do aluno, a
+lista da equipe e o `/api/me` não trazem esses campos.
+
+- **Opções:** identidade de gênero (mulher e homem cisgênero, mulher e homem trans, travesti, pessoa não binária,
+  gênero fluido, agênero) e orientação sexual (heterossexual, lésbica, gay, bissexual, pansexual, assexual,
+  demissexual, queer), cada uma com "outra" (a pessoa descreve, até 50 caracteres) e "prefiro não informar".
+  Nulo é "não respondido", e responder nulo apaga.
+- **Trilha:** registra `IDENTIDADE_ALTERADA`, com quem e quando, mas **sem os valores**: a trilha fica 5 anos
+  (ADR 0022), e o dado sensível continuaria lá depois de a pessoa apagá-lo (o mesmo motivo do item 9 do ADR
+  0046). O ADMIN abrir a identidade de um aluno vai para o registro de acessos (ADR 0031), como abrir o cadastro.
+- **Quem preenche:** a própria pessoa, em "Meus dados", e o ADMIN, pelo que a pessoa informou no balcão. O aluno
+  inativo (só de leitura, ADR 0029) consulta, mas não altera: pede ao ADMIN.
+- **Banco:** a descrição só acompanha "outra" e é obrigatória nela (CHECK com `IS NOT DISTINCT FROM`, que não
+  deixa passar a descrição solta com a opção nula). A aplicação não tem DELETE nessas tabelas; a linha sai com o
+  cadastro (chave estrangeira em cascata, ADR 0043). A gravação trava o cadastro (`FOR SHARE`): uma exclusão no
+  mesmo instante faz o pedido esperar e sair com 404, e não com 500 (o teste força essa corrida).
+
+Mutantes equivalentes nas telas: mandar a descrição fora da opção "outra" (o campo nem existe na tela, e o
+valor sai nulo do mesmo jeito).

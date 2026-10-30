@@ -5,19 +5,19 @@ const rotulos = (perfil: Parameters<typeof menuDo>[0]) => menuDo(perfil).map((i)
 
 describe('menu por perfil (espelha as permissões da API)', () => {
   it('recepção: alunos, cobranças e caixa; nada de treino nem de administração', () => {
-    expect(rotulos('RECEPCAO')).toEqual(['Início', 'Alunos', 'Cobranças', 'Caixa', 'Planos', 'Minha senha']);
+    expect(rotulos('RECEPCAO')).toEqual(['Início', 'Alunos', 'Cobranças', 'Caixa', 'Planos', 'Meus dados', 'Minha senha']);
   });
 
   it('professor: alunos (consulta), exercícios e revisões; nada de dinheiro', () => {
-    expect(rotulos('INSTRUTOR')).toEqual(['Início', 'Alunos', 'Exercícios', 'Revisões', 'Planos', 'Minha senha']);
+    expect(rotulos('INSTRUTOR')).toEqual(['Início', 'Alunos', 'Exercícios', 'Revisões', 'Planos', 'Meus dados', 'Minha senha']);
   });
 
   it('aluno: só o que é dele', () => {
-    expect(rotulos('ALUNO')).toEqual(['Início', 'Meu treino', 'Pagamentos', 'Planos', 'Minha senha']);
+    expect(rotulos('ALUNO')).toEqual(['Início', 'Meu treino', 'Pagamentos', 'Planos', 'Meus dados', 'Minha senha']);
   });
 
   it('ADMIN: tudo da equipe, mais equipe, configuração e auditoria; nada do aluno', () => {
     expect(rotulos('ADMIN')).toEqual(['Início', 'Alunos', 'Cobranças', 'Caixa', 'Exercícios', 'Revisões', 'Planos',
-      'Equipe', 'Configuração', 'Pagamento online', 'Auditoria', 'Minha senha']);
+      'Equipe', 'Configuração', 'Pagamento online', 'Auditoria', 'Meus dados', 'Minha senha']);
   });
 });

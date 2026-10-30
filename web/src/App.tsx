@@ -26,6 +26,7 @@ import { ContextoDoUsuario, useUsuario } from './sessao/contexto';
 import { TelaDeLogin } from './sessao/TelaDeLogin';
 import { ConfirmarEmail } from './sessao/ConfirmarEmail';
 import { TrocarSenha } from './sessao/TrocarSenha';
+import { MeusDados } from './paginas/MeusDados';
 
 type Estado = { tipo: 'carregando' } | { tipo: 'fora' } | { tipo: 'dentro'; usuario: Usuario };
 
@@ -124,6 +125,7 @@ function AreaLogada({ aoSair, aoTrocarSenha }: { aoSair: () => void; aoTrocarSen
     '/pagamento-online': <PagamentosOnline />,
     '/auditoria': <Auditoria />,
     '/revisoes': <RevisoesVencidas />,
+    '/meus-dados': <MeusDados />,
     '/senha': <TrocarSenha obrigatoria={false} aoTrocar={aoTrocarSenha} />,
   };
   const rotas = [

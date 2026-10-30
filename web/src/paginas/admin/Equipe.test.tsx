@@ -178,4 +178,22 @@ describe('equipe', () => {
     expect(screen.getByLabelText('CPF')).toBeRequired();
     expect(screen.getByLabelText('CPF')).toHaveValue('516.879.548-01');
   });
+
+  it('identidade (ADR 0047): o ADMIN vê e registra a de alguém da equipe ao editar', async () => {
+    const api = apiFalsa({ 'GET /api/usuarios': json(200, lista),
+      'GET /api/usuarios/u2/identidade': json(200, { identidadeDeGenero: null, identidadeDeGeneroOutra: null, orientacaoSexual: 'LESBICA', orientacaoSexualOutra: null }),
+      'PUT /api/usuarios/u2/identidade': (p) => json(200, p.corpo) });
+    renderizar(<Equipe />, { perfil: 'ADMIN' });
+    await screen.findByText('Rita');
+    expect(api.de('GET /api/usuarios/u2/identidade')).toHaveLength(0);
+
+    await userEvent.click(within(linha('Rita')).getByRole('button', { name: 'Editar' }));
+    expect(await screen.findByLabelText('Orientação sexual')).toHaveValue('LESBICA');
+    await userEvent.selectOptions(screen.getByLabelText('Identidade de gênero'), 'PREFIRO_NAO_INFORMAR');
+    await userEvent.click(within(screen.getByRole('form', { name: /Identidade de gênero e orientação sexual de Rita/ }))
+      .getByRole('button', { name: 'Salvar' }));
+    await screen.findByText('Salvo.');
+    expect(api.de('PUT /api/usuarios/u2/identidade')[0].corpo).toEqual({ identidadeDeGenero: 'PREFIRO_NAO_INFORMAR',
+      identidadeDeGeneroOutra: null, orientacaoSexual: 'LESBICA', orientacaoSexualOutra: null });
+  });
 });
