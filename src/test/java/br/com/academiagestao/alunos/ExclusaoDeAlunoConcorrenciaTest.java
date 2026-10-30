@@ -63,12 +63,18 @@ class ExclusaoDeAlunoConcorrenciaTest {
         return id;
     }
 
-    /** Larga as duas tarefas juntas, a segunda com um atraso aleatório, e devolve os resultados. */
+    /**
+     * Larga as duas tarefas juntas, uma delas (sorteada) com um atraso aleatório de até 5 ms, e devolve
+     * os resultados. O atraso vai para os dois lados: com a máquina ocupada (o verify inteiro), só
+     * atrasar a segunda deixava um lado ganhar as 30 rodadas, e o teste falhava sem a regra ter mudado.
+     */
     private static List<String> juntas(Callable<String> primeira, Callable<String> segunda) throws Exception {
         CountDownLatch largada = new CountDownLatch(1);
-        long atraso = ThreadLocalRandom.current().nextLong(3);
+        long atraso = ThreadLocalRandom.current().nextLong(-5, 6);
         List<CompletableFuture<String>> futuros = new ArrayList<>();
-        for (Callable<String> tarefa : List.of(primeira, () -> { Thread.sleep(atraso); return segunda.call(); })) {
+        for (Callable<String> tarefa : List.<Callable<String>>of(
+                () -> { Thread.sleep(Math.max(0, -atraso)); return primeira.call(); },
+                () -> { Thread.sleep(Math.max(0, atraso)); return segunda.call(); })) {
             futuros.add(CompletableFuture.supplyAsync(() -> {
                 try {
                     largada.await();
