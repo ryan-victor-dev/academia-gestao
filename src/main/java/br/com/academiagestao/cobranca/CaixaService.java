@@ -72,26 +72,28 @@ class CaixaService {
     }
 
     /**
-     * O período: os dias com caixa ou com lançamentos, o total por forma e a soma das
-     * diferenças dos dias fechados (a do último fechamento de cada um).
+     * O período: os dias com caixa ou com lançamentos, o total por forma, a soma das
+     * diferenças dos dias fechados (a do último fechamento de cada um) e a das aberturas.
      */
     record Relatorio(LocalDate de, LocalDate ate, List<DiaDoRelatorio> dias, MovimentoDoDia total,
-                     BigDecimal diferencaDosFechados) {
+                     BigDecimal diferencaDosFechados, BigDecimal diferencaDasAberturas) {
     }
 
     /**
      * Abre o caixa de hoje com o troco. Recusa se ficou um dia anterior aberto (esquecido ou
-     * reaberto): nenhum dia fica sem fechamento.
+     * reaberto): nenhum dia fica sem fechamento. Grava com o troco o que ficou na gaveta no
+     * fechamento anterior, para o ADMIN comparar (ADR 0046, item 8); a abertura é aceita mesmo
+     * diferente, e às cegas.
      */
     @Transactional
     Consulta abrir(BigDecimal troco, UUID usuarioId) {
         Instant agora = relogio.instant();
         LocalDate hoje = Calendario.hoje(agora);
-        Caixa caixa = Caixa.abrir(hoje, troco, usuarioId, agora);
         repository.anteriorAberto(hoje).ifPresent(dia -> {
             throw new OperacaoDeCaixaRecusadaException("O caixa de " + dia
                     + " ainda está aberto: feche-o (com a contagem) antes de abrir o de hoje");
         });
+        Caixa caixa = Caixa.abrir(hoje, troco, repository.trocoQueFicou(hoje).orElse(null), usuarioId, agora);
         try {
             repository.inserir(caixa);
         } catch (DuplicateKeyException e) {
@@ -100,7 +102,8 @@ class CaixaService {
                     + " já foi aberto; se foi fechado, só o ADMIN reabre");
         }
         auditoria.registrar(CAIXA, caixa.getId(), "ABERTO", Auditoria.campos(),
-                Auditoria.campos("dia", hoje.toString(), "troco", caixa.getTroco()));
+                Auditoria.campos("dia", hoje.toString(), "troco", caixa.getTroco(),
+                        "trocoEsperado", caixa.getTrocoEsperado()));
         return consulta(caixa);
     }
 
@@ -109,16 +112,17 @@ class CaixaService {
      * termina antes e entra na conta; um que chega depois encontra o caixa fechado.
      */
     @Transactional
-    Consulta fechar(LocalDate dia, BigDecimal contado, String justificativa, UUID usuarioId) {
+    Consulta fechar(LocalDate dia, BigDecimal contado, BigDecimal retirado, String justificativa, UUID usuarioId) {
         Caixa caixa = travar(dia);
         Movimento dinheiro = lancamentos.movimentoDoCaixa(caixa.getId()).porForma().get(MeioDePagamento.DINHEIRO);
-        Fechamento fechamento = caixa.fechar(contado, dinheiro.recebido(), dinheiro.estornado(), justificativa,
-                usuarioId, relogio.instant());
+        Fechamento fechamento = caixa.fechar(contado, retirado, dinheiro.recebido(), dinheiro.estornado(),
+                justificativa, usuarioId, relogio.instant());
         repository.atualizarSituacao(caixa);
         repository.inserir(fechamento);
         auditoria.registrar(CAIXA, caixa.getId(), "FECHADO", Auditoria.campos("situacao", "ABERTO"),
                 Auditoria.campos("situacao", "FECHADO", "dia", dia.toString(), "esperado", fechamento.esperado(),
-                        "contado", fechamento.contado(), "diferenca", fechamento.diferenca(),
+                        "contado", fechamento.contado(), "retirado", fechamento.retirado(),
+                        "diferenca", fechamento.diferenca(),
                         "justificativa", fechamento.justificativa()));
         return consulta(caixa);
     }
@@ -165,6 +169,7 @@ class CaixaService {
         List<DiaDoRelatorio> dias = new ArrayList<>();
         MovimentoDoDia total = MovimentoDoDia.VAZIO;
         BigDecimal diferenca = new BigDecimal("0.00");
+        BigDecimal diferencaDasAberturas = new BigDecimal("0.00");
         for (LocalDate dia : diasComAlgo) {
             Caixa caixa = caixas.get(dia);
             MovimentoDoDia movimento = movimentos.getOrDefault(dia, MovimentoDoDia.VAZIO);
@@ -175,8 +180,11 @@ class CaixaService {
             if (caixa != null && caixa.getSituacao() == Caixa.Situacao.FECHADO) {
                 diferenca = diferenca.add(doDia.getLast().diferenca());
             }
+            if (caixa != null && caixa.diferencaNaAbertura() != null) {
+                diferencaDasAberturas = diferencaDasAberturas.add(caixa.diferencaNaAbertura());
+            }
         }
-        return new Relatorio(de, ate, dias, total, diferenca);
+        return new Relatorio(de, ate, dias, total, diferenca, diferencaDasAberturas);
     }
 
     @Transactional(readOnly = true)

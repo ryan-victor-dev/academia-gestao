@@ -11,6 +11,10 @@ import java.util.UUID;
  * O caixa do dia (ADR 0031): um para a academia por dia, aberto com o troco da gaveta e
  * fechado com a contagem do dinheiro. Sem caixa aberto, nada entra nem sai. O troco não se
  * corrige: um erro aparece como diferença no fechamento e vai na justificativa.
+ *
+ * O troco também é comparado com o que ficou na gaveta no fechamento anterior (contado −
+ * retirado): a abertura continua às cegas e é aceita, e a diferença, só o ADMIN vê (ADR 0046,
+ * item 8). Sem isso, declarar um troco menor do que ficou escondia uma sobra.
  */
 public class Caixa {
 
@@ -24,21 +28,27 @@ public class Caixa {
     private final UUID id;
     private final LocalDate dia;
     private final BigDecimal troco;
+    private final BigDecimal trocoEsperado;
     private Situacao situacao;
     private final Instant abertoEm;
     private final UUID abertoPor;
 
-    private Caixa(UUID id, LocalDate dia, BigDecimal troco, Situacao situacao, Instant abertoEm, UUID abertoPor) {
+    private Caixa(UUID id, LocalDate dia, BigDecimal troco, BigDecimal trocoEsperado, Situacao situacao,
+                  Instant abertoEm, UUID abertoPor) {
         this.id = id;
         this.dia = dia;
         this.troco = troco;
+        this.trocoEsperado = trocoEsperado;
         this.situacao = situacao;
         this.abertoEm = abertoEm;
         this.abertoPor = abertoPor;
     }
 
-    /** Abre o caixa do dia com o troco que está na gaveta. */
-    public static Caixa abrir(LocalDate dia, BigDecimal troco, UUID por, Instant agora) {
+    /**
+     * Abre o caixa do dia com o troco que está na gaveta. {@code trocoEsperado}: o que ficou na
+     * gaveta no último fechamento do caixa anterior; nulo se não há caixa anterior.
+     */
+    public static Caixa abrir(LocalDate dia, BigDecimal troco, BigDecimal trocoEsperado, UUID por, Instant agora) {
         Objects.requireNonNull(dia, "o dia é obrigatório");
         Objects.requireNonNull(por, "quem abriu é obrigatório");
         if (troco == null || troco.signum() < 0 || troco.compareTo(TROCO_MAXIMO) > 0
@@ -46,14 +56,23 @@ public class Caixa {
             throw new CobrancaInvalidaException("o troco é obrigatório, de 0 a " + TROCO_MAXIMO
                     + " reais, em centavos");
         }
-        return new Caixa(UUID.randomUUID(), dia, troco.setScale(2), Situacao.ABERTO,
+        return new Caixa(UUID.randomUUID(), dia, troco.setScale(2),
+                trocoEsperado == null ? null : trocoEsperado.setScale(2), Situacao.ABERTO,
                 agora.truncatedTo(ChronoUnit.MICROS), por);
     }
 
     /** Remonta um caixa lido do banco. */
-    public static Caixa restaurar(UUID id, LocalDate dia, BigDecimal troco, Situacao situacao, Instant abertoEm,
-                                  UUID abertoPor) {
-        return new Caixa(id, dia, troco, situacao, abertoEm, abertoPor);
+    public static Caixa restaurar(UUID id, LocalDate dia, BigDecimal troco, BigDecimal trocoEsperado,
+                                  Situacao situacao, Instant abertoEm, UUID abertoPor) {
+        return new Caixa(id, dia, troco, trocoEsperado, situacao, abertoEm, abertoPor);
+    }
+
+    /**
+     * Troco declarado − o que ficou na gaveta no fechamento anterior. Negativa: entrou menos do
+     * que ficou (o que pode esconder uma sobra). Nula sem caixa anterior com que comparar.
+     */
+    public BigDecimal diferencaNaAbertura() {
+        return trocoEsperado == null ? null : troco.subtract(trocoEsperado);
     }
 
     /**
@@ -84,10 +103,11 @@ public class Caixa {
     /**
      * Fecha com o dinheiro contado na gaveta. Esperado = troco + dinheiro recebido − dinheiro
      * estornado; diferença = contado − esperado. Diferente de zero, é aceita, mas exige uma
-     * justificativa escrita (decisão do dono).
+     * justificativa escrita (decisão do dono). {@code retirado}: o que sai da gaveta depois de
+     * contar (nulo é zero); o resto é o troco esperado na abertura seguinte.
      */
-    public Fechamento fechar(BigDecimal contado, BigDecimal recebidoEmDinheiro, BigDecimal estornadoEmDinheiro,
-                             String justificativa, UUID por, Instant agora) {
+    public Fechamento fechar(BigDecimal contado, BigDecimal retirado, BigDecimal recebidoEmDinheiro,
+                             BigDecimal estornadoEmDinheiro, String justificativa, UUID por, Instant agora) {
         if (situacao != Situacao.ABERTO) {
             throw new OperacaoDeCaixaRecusadaException("O caixa de " + dia + " já está fechado");
         }
@@ -96,6 +116,10 @@ public class Caixa {
                 || contado.stripTrailingZeros().scale() > 2) {
             throw new CobrancaInvalidaException("o dinheiro contado é obrigatório, de 0 a " + CONTADO_MAXIMO
                     + " reais, em centavos");
+        }
+        BigDecimal saiu = retirado == null ? BigDecimal.ZERO : retirado;
+        if (saiu.signum() < 0 || saiu.compareTo(contado) > 0 || saiu.stripTrailingZeros().scale() > 2) {
+            throw new CobrancaInvalidaException("o retirado vai de 0 até o dinheiro contado, em centavos");
         }
         BigDecimal esperado = troco.add(recebidoEmDinheiro).subtract(estornadoEmDinheiro).setScale(2);
         BigDecimal diferenca = contado.subtract(esperado).setScale(2);
@@ -109,7 +133,7 @@ public class Caixa {
             throw new CobrancaInvalidaException("o contado difere do esperado: escreva uma justificativa");
         }
         this.situacao = Situacao.FECHADO;
-        return new Fechamento(UUID.randomUUID(), id, contado.setScale(2), esperado, diferenca,
+        return new Fechamento(UUID.randomUUID(), id, contado.setScale(2), saiu.setScale(2), esperado, diferenca,
                 texto.isEmpty() ? null : texto, agora.truncatedTo(ChronoUnit.MICROS), por);
     }
 
@@ -134,13 +158,17 @@ public class Caixa {
     public UUID getId() { return id; }
     public LocalDate getDia() { return dia; }
     public BigDecimal getTroco() { return troco; }
+    public BigDecimal getTrocoEsperado() { return trocoEsperado; }
     public Situacao getSituacao() { return situacao; }
     public Instant getAbertoEm() { return abertoEm; }
     public UUID getAbertoPor() { return abertoPor; }
 
-    /** Um fechamento do caixa; cada um fica no histórico, mesmo depois de uma reabertura. */
-    public record Fechamento(UUID id, UUID caixaId, BigDecimal contado, BigDecimal esperado, BigDecimal diferenca,
-                             String justificativa, Instant em, UUID por) {
+    /**
+     * Um fechamento do caixa; cada um fica no histórico, mesmo depois de uma reabertura.
+     * {@code contado − retirado} é o que fica na gaveta para o dia seguinte.
+     */
+    public record Fechamento(UUID id, UUID caixaId, BigDecimal contado, BigDecimal retirado, BigDecimal esperado,
+                             BigDecimal diferenca, String justificativa, Instant em, UUID por) {
     }
 
     public record Reabertura(UUID id, UUID caixaId, String motivo, Instant em, UUID por) {

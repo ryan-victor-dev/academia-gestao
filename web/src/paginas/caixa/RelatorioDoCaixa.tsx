@@ -8,14 +8,20 @@ interface Dia {
   dia: string;
   situacao: 'ABERTO' | 'FECHADO' | null;
   troco: number | null;
+  diferencaNaAbertura: number | null;
   movimento: { total: Total };
   fechamentos: Array<{ diferenca: number; justificativa: string | null }>;
 }
-interface Relatorio { de: string; ate: string; dias: Dia[]; total: { total: Total }; diferencaDosFechados: number }
+interface Relatorio {
+  de: string; ate: string; dias: Dia[]; total: { total: Total }; diferencaDosFechados: number; diferencaDasAberturas: number;
+}
 
 const primeiroDoMes = () => `${hoje().slice(0, 8)}01`;
 
-/** Relatório do caixa por período (só o ADMIN; até 366 dias): cada dia, o total e as diferenças. */
+/**
+ * Relatório do caixa por período (só o ADMIN; até 366 dias): cada dia, o total, a diferença do
+ * fechamento e a da abertura (troco − o que ficou no fechamento anterior, ADR 0046, item 8).
+ */
 export function RelatorioDoCaixa() {
   const [de, setDe] = useState(primeiroDoMes());
   const [ate, setAte] = useState(hoje());
@@ -46,7 +52,7 @@ export function RelatorioDoCaixa() {
           {relatorio.dias.length === 0 && <p className="suave">Nenhum movimento no período.</p>}
           {relatorio.dias.length > 0 && (
             <table className="tabela">
-              <thead><tr><th>Dia</th><th>Recebido</th><th>Estornado</th><th>Líquido</th><th>Diferença</th></tr></thead>
+              <thead><tr><th>Dia</th><th>Recebido</th><th>Estornado</th><th>Líquido</th><th>Diferença</th><th>Na abertura</th></tr></thead>
               <tbody>
                 {relatorio.dias.map((d) => {
                   const ultimo = d.fechamentos.at(-1);
@@ -59,13 +65,17 @@ export function RelatorioDoCaixa() {
                       <td className={ultimo && ultimo.diferenca !== 0 ? 'erro' : ''} title={ultimo?.justificativa ?? undefined}>
                         {ultimo ? dinheiro(ultimo.diferenca) : '—'}
                       </td>
+                      <td className={d.diferencaNaAbertura ? 'erro' : ''}>
+                        {d.diferencaNaAbertura == null ? '—' : dinheiro(d.diferencaNaAbertura)}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
                 <tr><th>Total</th><td>{dinheiro(relatorio.total.total.recebido)}</td><td>{dinheiro(relatorio.total.total.estornado)}</td>
-                  <td>{dinheiro(relatorio.total.total.liquido)}</td><td>{dinheiro(relatorio.diferencaDosFechados)}</td></tr>
+                  <td>{dinheiro(relatorio.total.total.liquido)}</td><td>{dinheiro(relatorio.diferencaDosFechados)}</td>
+                  <td>{dinheiro(relatorio.diferencaDasAberturas)}</td></tr>
               </tfoot>
             </table>
           )}

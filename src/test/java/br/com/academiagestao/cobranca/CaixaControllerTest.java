@@ -151,6 +151,11 @@ class CaixaControllerTest {
                 .content(corpo));
     }
 
+    private ResultActions fecharRetirando(LocalDate data, String contado, String retirado) throws Exception {
+        return mvc.perform(post("/api/caixas/" + data + "/fechar").with(recepcao()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"contado\": " + contado + ", \"retirado\": " + retirado + "}"));
+    }
+
     private ResultActions reabrir(LocalDate data, String motivo, RequestPostProcessor quem) throws Exception {
         return mvc.perform(post("/api/caixas/" + data + "/reabrir").with(quem).contentType(MediaType.APPLICATION_JSON)
                 .content(motivo == null ? "{}" : "{\"motivo\": \"" + motivo + "\"}"));
@@ -226,6 +231,57 @@ class CaixaControllerTest {
     }
 
     /** Cobrança que não existe é 404 antes de olhar o caixa (era 409 sem caixa aberto). */
+    /**
+     * Item 8 (ADR 0046): o troco da abertura é comparado com o que ficou na gaveta no fechamento
+     * anterior (contado − retirado). A abertura é aceita e às cegas; a diferença, só o ADMIN vê.
+     */
+    @Test
+    void aberturaComparadaComOQueFicouNaGavetaSoParaOAdmin() throws Exception {
+        abrir("50", recepcao()).andExpect(status().isCreated());
+        pagar(cobranca(), "DINHEIRO").andExpect(status().isOk());
+        fecharRetirando(dia, "150", "150.01").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("retirado")));
+        fecharRetirando(dia, "150", "40").andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechamentos[0].retirado").value(40.00))
+                .andExpect(jsonPath("$.fechamentos[0].diferenca").value(0.00))
+                .andExpect(jsonPath("$.trocoEsperado").value(nullValue()));
+        // Vale o último fechamento do dia: reaberto e fechado de novo, ficaram 150 − 100.
+        reabrir(dia, "Levei mais ao banco", admin()).andExpect(status().isOk());
+        // O relógio do teste está parado: sem avançar, os dois fechamentos teriam a mesma hora.
+        relogio.fixar(dia.atTime(13, 0).atZone(Calendario.FUSO).toInstant());
+        fecharRetirando(dia, "150", "100").andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechamentos[1].retirado").value(100.00));
+        assertThat(jdbc.queryForList("SELECT alteracoes::text FROM auditoria WHERE entidade = 'CAIXA' AND entidade_id = ? "
+                + "AND acao = 'FECHADO' ORDER BY id", String.class, caixaDoDia(dia)).getLast())
+                .contains("\"retirado\": {\"antes\": null, \"depois\": 100.00}");
+
+        LocalDate amanha = dia.plusDays(1);
+        irPara(amanha);
+        // Às cegas: quem abre não vê o que tinha ficado, nem a diferença.
+        abrir("30", recepcao()).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.trocoEsperado").value(nullValue()))
+                .andExpect(jsonPath("$.diferencaNaAbertura").value(nullValue()));
+        assertThat(trilha(amanha, "ABERTO")).contains("\"trocoEsperado\": {\"antes\": null, \"depois\": 50.00}");
+        mvc.perform(get("/api/caixas/" + amanha).with(recepcao())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.trocoEsperado").value(nullValue()))
+                .andExpect(jsonPath("$.diferencaNaAbertura").value(nullValue()));
+        mvc.perform(get("/api/caixas/" + amanha).with(admin())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.trocoEsperado").value(50.00))
+                .andExpect(jsonPath("$.diferencaNaAbertura").value(-20.00));
+        mvc.perform(get("/api/caixas/relatorio").param("de", amanha.toString()).param("ate", amanha.toString())
+                        .with(admin())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.dias[0].trocoEsperado").value(50.00))
+                .andExpect(jsonPath("$.dias[0].diferencaNaAbertura").value(-20.00))
+                .andExpect(jsonPath("$.diferencaDasAberturas").value(-20.00));
+
+        // Fechado, a recepção vê o caixa de hoje inteiro, mas não a comparação da abertura.
+        fechar(amanha, "30", null, recepcao()).andExpect(status().isOk())
+                .andExpect(jsonPath("$.trocoEsperado").value(nullValue()))
+                .andExpect(jsonPath("$.diferencaNaAbertura").value(nullValue()));
+        reabrir(amanha, "Conferir a abertura", admin()).andExpect(status().isOk())
+                .andExpect(jsonPath("$.diferencaNaAbertura").value(-20.00));
+    }
+
     @Test
     void cobrancaInexistenteEh404MesmoSemCaixa() throws Exception {
         UUID nenhuma = UUID.randomUUID();
@@ -681,14 +737,14 @@ class CaixaControllerTest {
         UUID caixa = caixaDoDia(dia);
 
         for (String mudanca : List.of("troco = 1", "dia = dia + 1", "aberto_por = '" + admin + "'",
-                "aberto_em = aberto_em + interval '1 hour'")) {
+                "aberto_em = aberto_em + interval '1 hour'", "troco_esperado = 5")) {
             assertThatThrownBy(() -> jdbc.update("UPDATE caixas SET " + mudanca + " WHERE id = ?", caixa)).as(mudanca)
                     .isInstanceOf(DataAccessException.class).hasMessageContaining("só muda a situação");
         }
         String fechamento = """
-                INSERT INTO fechamentos_de_caixa (id, caixa_id, contado, esperado, diferenca, justificativa, fechado_em,
-                                                  fechado_por)
-                VALUES (?, ?, ?, ?, ?, ?, now(), ?)""";
+                INSERT INTO fechamentos_de_caixa (id, caixa_id, contado, retirado, esperado, diferenca, justificativa,
+                                                  fechado_em, fechado_por)
+                VALUES (?, ?, ?, 0, ?, ?, ?, now(), ?)""";
         assertThatThrownBy(() -> jdbc.update(fechamento, UUID.randomUUID(), caixa, 10, 10, 1, "x", recepcao))
                 .isInstanceOf(DataAccessException.class).hasMessageContaining("ck_fechamentos_diferenca");
         assertThatThrownBy(() -> jdbc.update(fechamento, UUID.randomUUID(), caixa, 10, 0, 10, null, recepcao))
@@ -697,6 +753,16 @@ class CaixaControllerTest {
                 .isInstanceOf(DataAccessException.class).hasMessageContaining("ck_fechamentos_justificativa");
         assertThatThrownBy(() -> jdbc.update(fechamento, UUID.randomUUID(), caixa, -1, -1, 0, null, recepcao))
                 .isInstanceOf(DataAccessException.class).hasMessageContaining("fechamentos_de_caixa_contado_check");
+        // Item 8 (ADR 0046): o retirado vai de 0 até o contado.
+        String comRetirado = """
+                INSERT INTO fechamentos_de_caixa (id, caixa_id, contado, retirado, esperado, diferenca, fechado_em,
+                                                  fechado_por)
+                VALUES (?, ?, 10, ?, 10, 0, now(), ?)""";
+        for (int retirado : List.of(-1, 11)) {
+            assertThatThrownBy(() -> jdbc.update(comRetirado, UUID.randomUUID(), caixa, retirado, recepcao))
+                    .as("retirado " + retirado).isInstanceOf(DataAccessException.class)
+                    .hasMessageContaining("fechamentos_de_caixa_retirado_check");
+        }
         jdbc.update(fechamento, UUID.randomUUID(), caixa, 10, 0, 10, "Sobra", recepcao);
         assertThatThrownBy(() -> jdbc.update("INSERT INTO reaberturas_de_caixa (id, caixa_id, motivo, reaberto_em, "
                 + "reaberto_por) VALUES (?, ?, ' ', now(), ?)", UUID.randomUUID(), caixa, admin))
@@ -704,6 +770,9 @@ class CaixaControllerTest {
         assertThatThrownBy(() -> jdbc.update("INSERT INTO caixas (id, dia, troco, situacao, aberto_em, aberto_por) "
                 + "VALUES (?, ?, 0, 'ABERTO', now(), ?)", UUID.randomUUID(), dia, recepcao))
                 .isInstanceOf(DataAccessException.class).hasMessageContaining("caixas_dia_key");
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO caixas (id, dia, troco, troco_esperado, situacao, aberto_em, "
+                + "aberto_por) VALUES (?, ?, 0, -1, 'ABERTO', now(), ?)", UUID.randomUUID(), dia.plusDays(1), recepcao))
+                .isInstanceOf(DataAccessException.class).hasMessageContaining("caixas_troco_esperado_check");
     }
 
     private interface Chamada {

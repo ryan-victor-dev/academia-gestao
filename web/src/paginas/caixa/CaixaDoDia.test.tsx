@@ -38,7 +38,7 @@ describe('caixa do dia', () => {
     await userEvent.type(screen.getByLabelText('Dinheiro contado (R$)'), '140');
     await userEvent.click(screen.getByRole('button', { name: 'Fechar caixa' }));
 
-    expect(api.de(`POST /api/caixas/${HOJE}/fechar`)[0].corpo).toEqual({ contado: 140, justificativa: null });
+    expect(api.de(`POST /api/caixas/${HOJE}/fechar`)[0].corpo).toEqual({ contado: 140, retirado: null, justificativa: null });
     expect(await screen.findByText(/diferença -R\$\s10,00/)).toBeInTheDocument();
     expect(screen.getByText('Justificativa: troco a mais')).toBeInTheDocument();
   });
@@ -100,5 +100,35 @@ describe('caixa do dia', () => {
 
     expect(await screen.findByText('Nenhum caixa neste dia.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Abrir caixa' })).not.toBeInTheDocument();
+  });
+
+  it('fecha informando o retirado e mostra no fechamento', async () => {
+    const comRetirado = caixa({ situacao: 'FECHADO', dinheiroOculto: false,
+      fechamentos: [{ contado: 150, retirado: 100, esperado: 150, diferenca: 0, justificativa: null, em: '2026-10-23T22:00:00Z' }] });
+    const api = apiFalsa({ 'GET /api/caixas/abertos': json(200, [{ dia: HOJE }]), [`GET /api/caixas/${HOJE}`]: json(200, caixa()),
+      [`POST /api/caixas/${HOJE}/fechar`]: json(200, comRetirado) });
+    renderizar(<CaixaDoDia />);
+
+    await userEvent.type(await screen.findByLabelText('Dinheiro contado (R$)'), '150');
+    await userEvent.type(screen.getByLabelText(/Retirado da gaveta/), '100');
+    await userEvent.click(screen.getByRole('button', { name: 'Fechar caixa' }));
+
+    expect(api.de(`POST /api/caixas/${HOJE}/fechar`)[0].corpo).toEqual({ contado: 150, retirado: 100, justificativa: null });
+    expect(await screen.findByText(/Retirado da gaveta: R\$\s100,00/)).toBeInTheDocument();
+  });
+
+  it('a comparação da abertura aparece só quando a API manda (ADMIN)', async () => {
+    apiFalsa({ 'GET /api/caixas/abertos': json(200, []),
+      [`GET /api/caixas/${HOJE}`]: json(200, caixa({ dinheiroOculto: false, trocoEsperado: 80, diferencaNaAbertura: -30 })) });
+    const { unmount } = renderizar(<CaixaDoDia />, { perfil: 'ADMIN' });
+    expect(await screen.findByText('Diferença na abertura')).toBeInTheDocument();
+    expect(screen.getByText(/-R\$\s30,00/)).toHaveClass('erro');
+    expect(screen.getByText(/^R\$\s80,00$/)).toBeInTheDocument();
+    unmount();
+
+    apiFalsa({ 'GET /api/caixas/abertos': json(200, []), [`GET /api/caixas/${HOJE}`]: json(200, caixa()) });
+    renderizar(<CaixaDoDia />);
+    await screen.findByText('Aberto');
+    expect(screen.queryByText('Diferença na abertura')).not.toBeInTheDocument();
   });
 });

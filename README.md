@@ -310,7 +310,10 @@ reative o aluno. `/api/me` mostra `somenteLeitura`.
 abre o de hoje com o troco da gaveta; sem caixa aberto, nenhum pagamento nem estorno entra
 (409), e o estorno sai do caixa do dia em que é feito. No fechamento, conta só o dinheiro: o
 esperado é troco + dinheiro recebido − dinheiro estornado, e uma diferença é aceita com
-justificativa escrita. Dia fechado não recebe até o ADMIN reabrir, com motivo; um dia
+justificativa escrita. Quem fecha informa também quanto tirou da gaveta (`retirado`, opcional):
+o resto é o troco esperado na abertura seguinte. A abertura é aceita mesmo com outro troco, e
+só o ADMIN vê o que tinha ficado e a diferença (`trocoEsperado`, `diferencaNaAbertura`, ADR 0046,
+item 8). Dia fechado não recebe até o ADMIN reabrir, com motivo; um dia
 passado reaberto só aceita nova contagem. Hoje só abre depois de fechar os anteriores. A
 recepção vê só o caixa de hoje e o dos dias abertos e, enquanto aberto, não vê o dinheiro
 nem o esperado (`dinheiroOculto`: contagem às cegas); o ADMIN vê tudo, e o relatório. A

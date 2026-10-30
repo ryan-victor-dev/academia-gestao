@@ -8,12 +8,17 @@ import { NOME_DO_MEIO, type Meio } from '../cobrancas/tipos';
 import { RelatorioDoCaixa } from './RelatorioDoCaixa';
 
 interface Forma { forma: Meio; recebido: number; pagamentos: number; estornado: number; estornos: number; liquido: number }
-interface Fechamento { contado: number; esperado: number; diferenca: number; justificativa: string | null; em: string }
+interface Fechamento {
+  contado: number; retirado?: number; esperado: number; diferenca: number; justificativa: string | null; em: string;
+}
 
 export interface Caixa {
   id: string;
   dia: string;
   troco: number;
+  /** Só o ADMIN recebe (ADR 0046, item 8): o que ficou na gaveta no fechamento anterior. */
+  trocoEsperado?: number | null;
+  diferencaNaAbertura?: number | null;
   situacao: 'ABERTO' | 'FECHADO';
   abertoEm: string;
   dinheiroOculto: boolean;
@@ -97,6 +102,13 @@ export function CaixaDoDia() {
             <dt>Situação</dt><dd>{caixa.situacao === 'ABERTO' ? 'Aberto' : 'Fechado'}</dd>
             <dt>Aberto em</dt><dd>{dataHora(caixa.abertoEm)}</dd>
             <dt>Troco</dt><dd>{dinheiro(caixa.troco)}</dd>
+            {caixa.trocoEsperado != null && caixa.diferencaNaAbertura != null && (
+              <>
+                <dt>Ficou na gaveta no fechamento anterior</dt><dd>{dinheiro(caixa.trocoEsperado)}</dd>
+                <dt>Diferença na abertura</dt>
+                <dd className={caixa.diferencaNaAbertura === 0 ? 'sucesso' : 'erro'}>{dinheiro(caixa.diferencaNaAbertura)}</dd>
+              </>
+            )}
           </dl>
 
           <h2>Movimento</h2>
@@ -124,9 +136,15 @@ export function CaixaDoDia() {
           {caixa.situacao === 'ABERTO' && (
             <FormularioDeAcao titulo="Fechar o caixa" rotulo="Fechar caixa"
                               aoEnviar={(f) => enviar(`/api/caixas/${caixa.dia}/fechar`,
-                                { contado: Number(f.get('contado')), justificativa: f.get('justificativa') || null })}>
+                                { contado: Number(f.get('contado')), retirado: f.get('retirado') ? Number(f.get('retirado')) : null,
+                                  justificativa: f.get('justificativa') || null })}>
               <p>Conte <strong>todo o dinheiro da gaveta</strong>, com o troco.</p>
               <label>Dinheiro contado (R$)<input name="contado" type="number" min="0" step="0.01" required inputMode="decimal" /></label>
+              <label>Retirado da gaveta (R$, se houver)
+                <input name="retirado" type="number" min="0" step="0.01" inputMode="decimal" />
+              </label>
+              <p className="suave">Se for tirar dinheiro da gaveta depois de contar (para o banco, por exemplo), diga quanto:
+                o resto fica de troco para o próximo dia.</p>
               <label className="largo">Justificativa (se o contado não bater, é obrigatória)
                 <textarea name="justificativa" rows={2} maxLength={500} />
               </label>
@@ -141,6 +159,7 @@ export function CaixaDoDia() {
                   <li key={f.em} className="cartao-item">
                     <p>{dataHora(f.em)}: contado {dinheiro(f.contado)}, esperado {dinheiro(f.esperado)},
                       {' '}<strong className={f.diferenca === 0 ? 'sucesso' : 'erro'}>diferença {dinheiro(f.diferenca)}</strong></p>
+                    {!!f.retirado && <p className="suave">Retirado da gaveta: {dinheiro(f.retirado)}</p>}
                     {f.justificativa && <p className="suave">Justificativa: {f.justificativa}</p>}
                   </li>
                 ))}

@@ -98,7 +98,7 @@ class CaixaController {
     CaixaResponse fechar(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia,
                          @Valid @RequestBody FechamentoRequest request, @AuthenticationPrincipal Jwt jwt,
                          Authentication autenticacao) {
-        return visao(service.fechar(dia, request.contado(), request.justificativa(),
+        return visao(service.fechar(dia, request.contado(), request.retirado(), request.justificativa(),
                 UUID.fromString(jwt.getSubject())), autenticacao);
     }
 
@@ -106,13 +106,17 @@ class CaixaController {
     @PreAuthorize("hasRole('ADMIN')")
     CaixaResponse reabrir(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia,
                           @RequestBody MotivoRequest request, @AuthenticationPrincipal Jwt jwt) {
-        return CaixaResponse.completo(service.reabrir(dia, request.motivo(), UUID.fromString(jwt.getSubject())));
+        return CaixaResponse.completo(service.reabrir(dia, request.motivo(), UUID.fromString(jwt.getSubject())), true);
     }
 
-    /** Contagem às cegas: com o caixa aberto, a recepção não vê o dinheiro nem os fechamentos. */
+    /**
+     * Contagem às cegas: com o caixa aberto, a recepção não vê o dinheiro nem os fechamentos. O
+     * troco esperado na abertura, nunca: ele é a contagem do fechamento anterior menos o retirado.
+     */
     private static CaixaResponse visao(Consulta consulta, Authentication autenticacao) {
-        return ehRecepcao(autenticacao) && consulta.caixa().contagemAsCegas()
-                ? CaixaResponse.asCegas(consulta) : CaixaResponse.completo(consulta);
+        boolean recepcao = ehRecepcao(autenticacao);
+        return recepcao && consulta.caixa().contagemAsCegas()
+                ? CaixaResponse.asCegas(consulta) : CaixaResponse.completo(consulta, !recepcao);
     }
 
     private static boolean ehRecepcao(Authentication autenticacao) {
@@ -122,7 +126,9 @@ class CaixaController {
     record AberturaRequest(@NotNull(message = "é obrigatório") BigDecimal troco) {
     }
 
-    record FechamentoRequest(@NotNull(message = "é obrigatório") BigDecimal contado, String justificativa) {
+    /** {@code retirado}: o dinheiro que sai da gaveta depois de contar; sem ele, zero. */
+    record FechamentoRequest(@NotNull(message = "é obrigatório") BigDecimal contado, BigDecimal retirado,
+                             String justificativa) {
     }
 
     record MotivoRequest(String motivo) {
@@ -131,23 +137,27 @@ class CaixaController {
     /**
      * {@code dinheiroOculto}: a visão da recepção com o caixa aberto (contagem às cegas), sem
      * a forma DINHEIRO no movimento nem os fechamentos anteriores. O total soma só o que aparece.
+     * {@code trocoEsperado} e {@code diferencaNaAbertura}: só para o ADMIN (ADR 0046, item 8);
+     * nulos para a recepção e quando não havia caixa anterior.
      */
-    record CaixaResponse(UUID id, LocalDate dia, BigDecimal troco, Caixa.Situacao situacao, Instant abertoEm,
+    record CaixaResponse(UUID id, LocalDate dia, BigDecimal troco, BigDecimal trocoEsperado,
+                         BigDecimal diferencaNaAbertura, Caixa.Situacao situacao, Instant abertoEm,
                          UUID abertoPor, boolean dinheiroOculto, MovimentoResponse movimento,
                          List<FechamentoResponse> fechamentos, List<ReaberturaResponse> reaberturas) {
 
-        static CaixaResponse completo(Consulta consulta) {
-            return de(consulta, false, consulta.movimento().doBalcao(), consulta.fechamentos());
+        static CaixaResponse completo(Consulta consulta, boolean comAbertura) {
+            return de(consulta, false, comAbertura, consulta.movimento().doBalcao(), consulta.fechamentos());
         }
 
         static CaixaResponse asCegas(Consulta consulta) {
-            return de(consulta, true, consulta.movimento().semDinheiro(), List.of());
+            return de(consulta, true, false, consulta.movimento().semDinheiro(), List.of());
         }
 
-        private static CaixaResponse de(Consulta consulta, boolean dinheiroOculto, Map<MeioDePagamento, Movimento> formas,
-                                        List<Fechamento> fechamentos) {
+        private static CaixaResponse de(Consulta consulta, boolean dinheiroOculto, boolean comAbertura,
+                                        Map<MeioDePagamento, Movimento> formas, List<Fechamento> fechamentos) {
             Caixa c = consulta.caixa();
-            return new CaixaResponse(c.getId(), c.getDia(), c.getTroco(), c.getSituacao(), c.getAbertoEm(),
+            return new CaixaResponse(c.getId(), c.getDia(), c.getTroco(), comAbertura ? c.getTrocoEsperado() : null,
+                    comAbertura ? c.diferencaNaAbertura() : null, c.getSituacao(), c.getAbertoEm(),
                     c.getAbertoPor(), dinheiroOculto, MovimentoResponse.de(formas),
                     fechamentos.stream().map(FechamentoResponse::de).toList(),
                     consulta.reaberturas().stream().map(ReaberturaResponse::de).toList());
@@ -182,32 +192,37 @@ class CaixaController {
         }
     }
 
-    /** {@code diferencaDosFechados}: a soma da diferença do último fechamento de cada dia fechado. */
+    /**
+     * {@code diferencaDosFechados}: a soma da diferença do último fechamento de cada dia fechado;
+     * {@code diferencaDasAberturas}: a soma das diferenças entre o troco e o que tinha ficado.
+     */
     record RelatorioResponse(LocalDate de, LocalDate ate, List<DiaResponse> dias, MovimentoResponse total,
-                             BigDecimal diferencaDosFechados) {
+                             BigDecimal diferencaDosFechados, BigDecimal diferencaDasAberturas) {
         static RelatorioResponse de(Relatorio r) {
             return new RelatorioResponse(r.de(), r.ate(), r.dias().stream().map(DiaResponse::de).toList(),
-                    MovimentoResponse.de(r.total().porForma()), r.diferencaDosFechados());
+                    MovimentoResponse.de(r.total().porForma()), r.diferencaDosFechados(), r.diferencaDasAberturas());
         }
     }
 
     /** {@code situacao} nula: dia de antes do caixa, com lançamentos registrados sem ele. */
-    record DiaResponse(LocalDate dia, Caixa.Situacao situacao, BigDecimal troco, UUID abertoPor,
-                       MovimentoResponse movimento, List<FechamentoResponse> fechamentos,
-                       List<ReaberturaResponse> reaberturas) {
+    record DiaResponse(LocalDate dia, Caixa.Situacao situacao, BigDecimal troco, BigDecimal trocoEsperado,
+                       BigDecimal diferencaNaAbertura, UUID abertoPor, MovimentoResponse movimento,
+                       List<FechamentoResponse> fechamentos, List<ReaberturaResponse> reaberturas) {
         static DiaResponse de(DiaDoRelatorio d) {
             Caixa c = d.caixa();
             return new DiaResponse(d.dia(), c == null ? null : c.getSituacao(), c == null ? null : c.getTroco(),
+                    c == null ? null : c.getTrocoEsperado(), c == null ? null : c.diferencaNaAbertura(),
                     c == null ? null : c.getAbertoPor(), MovimentoResponse.de(d.movimento().porForma()),
                     d.fechamentos().stream().map(FechamentoResponse::de).toList(),
                     d.reaberturas().stream().map(ReaberturaResponse::de).toList());
         }
     }
 
-    record FechamentoResponse(BigDecimal contado, BigDecimal esperado, BigDecimal diferenca, String justificativa,
-                              Instant em, UUID por) {
+    record FechamentoResponse(BigDecimal contado, BigDecimal retirado, BigDecimal esperado, BigDecimal diferenca,
+                              String justificativa, Instant em, UUID por) {
         static FechamentoResponse de(Fechamento f) {
-            return new FechamentoResponse(f.contado(), f.esperado(), f.diferenca(), f.justificativa(), f.em(), f.por());
+            return new FechamentoResponse(f.contado(), f.retirado(), f.esperado(), f.diferenca(), f.justificativa(),
+                    f.em(), f.por());
         }
     }
 

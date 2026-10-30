@@ -24,12 +24,12 @@ class CaixaTest {
     private static final Instant AGORA = Instant.parse("2026-11-03T12:00:00.123456789Z");
 
     private static Caixa aberto(String troco) {
-        return Caixa.abrir(DIA, new BigDecimal(troco), RECEPCAO, AGORA);
+        return Caixa.abrir(DIA, new BigDecimal(troco), null, RECEPCAO, AGORA);
     }
 
     private static Fechamento fechar(Caixa caixa, String contado, String recebido, String estornado, String justificativa) {
-        return caixa.fechar(new BigDecimal(contado), new BigDecimal(recebido), new BigDecimal(estornado), justificativa,
-                RECEPCAO, AGORA);
+        return caixa.fechar(new BigDecimal(contado), null, new BigDecimal(recebido), new BigDecimal(estornado),
+                justificativa, RECEPCAO, AGORA);
     }
 
     @Test
@@ -57,7 +57,7 @@ class CaixaTest {
         assertThat(aberto("0").getTroco()).isEqualTo(new BigDecimal("0.00"));
         assertThat(aberto("100000").getTroco()).isEqualTo(new BigDecimal("100000.00"));
         assertThat(aberto("10.500").getTroco()).isEqualTo(new BigDecimal("10.50"));
-        assertThatThrownBy(() -> Caixa.abrir(DIA, null, RECEPCAO, AGORA)).isInstanceOf(CobrancaInvalidaException.class);
+        assertThatThrownBy(() -> Caixa.abrir(DIA, null, null, RECEPCAO, AGORA)).isInstanceOf(CobrancaInvalidaException.class);
     }
 
     /** Esperado = troco + dinheiro recebido − dinheiro estornado; diferença = contado − esperado. */
@@ -121,7 +121,7 @@ class CaixaTest {
         Caixa caixa = aberto("0");
         assertThatThrownBy(() -> fechar(caixa, contado, "0", "0", "Teste"))
                 .isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("contado");
-        assertThatThrownBy(() -> caixa.fechar(null, BigDecimal.ZERO, BigDecimal.ZERO, "Teste", RECEPCAO, AGORA))
+        assertThatThrownBy(() -> caixa.fechar(null, null, BigDecimal.ZERO, BigDecimal.ZERO, "Teste", RECEPCAO, AGORA))
                 .isInstanceOf(CobrancaInvalidaException.class);
         assertThat(fechar(caixa, "100000000", "0", "0", "Teste").contado()).isEqualTo(new BigDecimal("100000000.00"));
     }
@@ -209,13 +209,64 @@ class CaixaTest {
     @Test
     void restauraOQueFoiLidoDoBanco() {
         UUID id = UUID.randomUUID();
-        Caixa caixa = Caixa.restaurar(id, DIA, new BigDecimal("50.00"), Caixa.Situacao.FECHADO, AGORA, RECEPCAO);
+        Caixa caixa = Caixa.restaurar(id, DIA, new BigDecimal("50.00"), new BigDecimal("80.00"), Caixa.Situacao.FECHADO,
+                AGORA, RECEPCAO);
 
         assertThat(caixa.getId()).isEqualTo(id);
         assertThat(caixa.getDia()).isEqualTo(DIA);
         assertThat(caixa.getTroco()).isEqualByComparingTo("50.00");
+        assertThat(caixa.getTrocoEsperado()).isEqualByComparingTo("80.00");
         assertThat(caixa.getSituacao()).isEqualTo(Caixa.Situacao.FECHADO);
         assertThat(caixa.getAbertoEm()).isEqualTo(AGORA);
         assertThat(caixa.getAbertoPor()).isEqualTo(RECEPCAO);
+    }
+
+    /** Item 8 (ADR 0046): o troco é comparado com o que ficou na gaveta no fechamento anterior. */
+    @Test
+    void diferencaNaAberturaEOTrocoMenosOQueFicou() {
+        Caixa menor = Caixa.abrir(DIA, new BigDecimal("50"), new BigDecimal("80"), RECEPCAO, AGORA);
+        assertThat(menor.getTrocoEsperado()).isEqualTo(new BigDecimal("80.00"));
+        assertThat(menor.diferencaNaAbertura()).isEqualTo(new BigDecimal("-30.00"));
+        // Aceita mesmo diferente: a abertura é às cegas, quem compara é o ADMIN.
+        assertThatCode(menor::conferirQueRecebe).doesNotThrowAnyException();
+
+        assertThat(Caixa.abrir(DIA, new BigDecimal("80"), new BigDecimal("80"), RECEPCAO, AGORA).diferencaNaAbertura())
+                .isEqualTo(new BigDecimal("0.00"));
+        assertThat(Caixa.abrir(DIA, new BigDecimal("90.5"), new BigDecimal("80"), RECEPCAO, AGORA).diferencaNaAbertura())
+                .isEqualTo(new BigDecimal("10.50"));
+        Caixa primeiro = aberto("50");
+        assertThat(primeiro.getTrocoEsperado()).isNull();
+        assertThat(primeiro.diferencaNaAbertura()).isNull();
+    }
+
+    @Test
+    void fechamentoGuardaORetirado() {
+        Caixa caixa = aberto("50");
+        Fechamento fechamento = caixa.fechar(new BigDecimal("150"), new BigDecimal("100.5"), new BigDecimal("100"),
+                BigDecimal.ZERO, null, RECEPCAO, AGORA);
+
+        assertThat(fechamento.retirado()).isEqualTo(new BigDecimal("100.50"));
+        // O retirado sai depois de contar: não muda o esperado nem a diferença.
+        assertThat(fechamento.esperado()).isEqualTo(new BigDecimal("150.00"));
+        assertThat(fechamento.diferenca()).isEqualTo(new BigDecimal("0.00"));
+        assertThat(fechar(aberto("0"), "10", "10", "0", null).retirado()).isEqualTo(new BigDecimal("0.00"));
+    }
+
+    @Test
+    void retiradoNasPontasDaFaixa() {
+        assertThat(aberto("0").fechar(new BigDecimal("40"), new BigDecimal("40"), new BigDecimal("40"), BigDecimal.ZERO,
+                null, RECEPCAO, AGORA).retirado()).isEqualTo(new BigDecimal("40.00"));
+        assertThat(aberto("0").fechar(new BigDecimal("40"), BigDecimal.ZERO, new BigDecimal("40"), BigDecimal.ZERO,
+                null, RECEPCAO, AGORA).retirado()).isEqualTo(new BigDecimal("0.00"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"-0.01", "40.01", "1.001"})
+    void retiradoForaDaFaixaRecusado(String retirado) {
+        Caixa caixa = aberto("0");
+        assertThatThrownBy(() -> caixa.fechar(new BigDecimal("40"), new BigDecimal(retirado), new BigDecimal("40"),
+                BigDecimal.ZERO, null, RECEPCAO, AGORA))
+                .isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("retirado");
+        assertThat(caixa.getSituacao()).isEqualTo(Caixa.Situacao.ABERTO);
     }
 }

@@ -64,3 +64,40 @@ do ADMIN.
 
 Ficou de fora: tirar da recepção a lista de lançamentos, deixando só a situação da cobrança. O README
 diz o limite da contagem às cegas.
+
+### 8 — O troco da abertura comparado com o que ficou na gaveta
+Antes: a abertura aceitava qualquer troco, sem comparar com a contagem do fechamento anterior.
+Quem abria podia declarar um troco menor do que estava na gaveta e embolsar a diferença: o
+fechamento do dia bateria, porque o esperado parte do troco declarado.
+
+**Decisão do dono:** comparar. A abertura continua às cegas (quem abre não vê o que tinha ficado) e é
+aceita mesmo com um troco diferente; a diferença aparece para o ADMIN, no caixa do dia e no relatório.
+
+Comparar direto com o contado não serviria: o dinheiro costuma sair da gaveta depois do fechamento
+(para o banco), e o ADMIN veria uma diferença todo dia. Então, **decisão do dono também**: quem fecha
+informa quanto tirou da gaveta, e o troco esperado na abertura seguinte é `contado − retirado`.
+
+- **Fechamento:** campo `retirado`, opcional (sem ele, zero), de 0 até o contado, em centavos. Não
+  muda o esperado nem a diferença do fechamento: sai depois de contar. Vai para a trilha.
+- **Abertura:** grava em `troco_esperado` o que ficou no **último** fechamento do caixa mais recente
+  antes de hoje (todos já estão fechados: é a regra para abrir). Nulo se não há caixa antes. Como o
+  troco, o troco esperado não muda depois (o gatilho da V35 passou a conferir os dois). Vai para a
+  trilha.
+- **Quem vê:** só o ADMIN recebe `trocoEsperado` e `diferencaNaAbertura` (troco − troco esperado;
+  negativa = entrou menos do que ficou). A recepção não recebe nem com o caixa fechado: os dois
+  revelariam a contagem do fechamento anterior. O relatório traz a diferença de cada dia e a soma
+  do período (`diferencaDasAberturas`).
+- **No banco:** `retirado` entre 0 e o contado, `troco_esperado` não negativo. Os fechamentos de
+  antes ficaram com `retirado` zero, e os caixas de antes, sem troco esperado.
+
+Ficaram de fora: barrar a abertura com troco diferente (deixaria de ser às cegas: quem abre
+descobriria o valor por tentativa) e só documentar.
+
+Um limite: o troco esperado é o que se sabia na abertura. Se o ADMIN reabrir depois um dia anterior e
+ele for fechado de novo com outro retirado, a abertura seguinte não muda; a reabertura e o fechamento
+novo ficam na trilha.
+
+O `CaixaTest` e o `CaixaControllerTest.aberturaComparadaComOQueFicouNaGavetaSoParaOAdmin` cobrem a
+conta, o último fechamento do dia, quem vê e o relatório; o `bancoRecusaCaixaEFechamentoIncoerentes`, as
+travas do banco. Na tela, quem fecha tem o campo do retirado, e o ADMIN vê a diferença da abertura
+no caixa do dia e uma coluna no relatório.

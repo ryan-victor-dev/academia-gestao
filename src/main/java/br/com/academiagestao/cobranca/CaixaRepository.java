@@ -6,6 +6,7 @@ import br.com.academiagestao.cobranca.dominio.Caixa.Reabertura;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -26,7 +27,7 @@ import java.util.UUID;
 @Repository
 class CaixaRepository {
 
-    private static final String COLUNAS = "id, dia, troco, situacao, aberto_em, aberto_por";
+    private static final String COLUNAS = "id, dia, troco, troco_esperado, situacao, aberto_em, aberto_por";
 
     private final JdbcTemplate jdbc;
 
@@ -56,9 +57,21 @@ class CaixaRepository {
                 (rs, linha) -> rs.getObject("dia", LocalDate.class), dia).stream().findFirst();
     }
 
+    /**
+     * O que ficou na gaveta (contado − retirado) no último fechamento do caixa mais recente antes
+     * de {@code dia}; vazio se não há caixa antes. Ao abrir, os anteriores já estão fechados.
+     */
+    Optional<BigDecimal> trocoQueFicou(LocalDate dia) {
+        return jdbc.query("""
+                SELECT f.contado - f.retirado AS ficou FROM fechamentos_de_caixa f JOIN caixas c ON c.id = f.caixa_id
+                WHERE c.dia < ? ORDER BY c.dia DESC, f.fechado_em DESC LIMIT 1""",
+                (rs, linha) -> rs.getBigDecimal("ficou"), dia).stream().findFirst();
+    }
+
     void inserir(Caixa c) {
-        jdbc.update("INSERT INTO caixas (" + COLUNAS + ") VALUES (?, ?, ?, ?, ?, ?)", c.getId(), c.getDia(),
-                c.getTroco(), c.getSituacao().name(), Timestamp.from(c.getAbertoEm()), c.getAbertoPor());
+        jdbc.update("INSERT INTO caixas (" + COLUNAS + ") VALUES (?, ?, ?, ?, ?, ?, ?)", c.getId(), c.getDia(),
+                c.getTroco(), c.getTrocoEsperado(), c.getSituacao().name(), Timestamp.from(c.getAbertoEm()),
+                c.getAbertoPor());
     }
 
     void atualizarSituacao(Caixa c) {
@@ -67,10 +80,10 @@ class CaixaRepository {
 
     void inserir(Fechamento f) {
         jdbc.update("""
-                INSERT INTO fechamentos_de_caixa (id, caixa_id, contado, esperado, diferenca, justificativa, fechado_em,
-                                                  fechado_por)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", f.id(), f.caixaId(), f.contado(), f.esperado(), f.diferenca(),
-                f.justificativa(), Timestamp.from(f.em()), f.por());
+                INSERT INTO fechamentos_de_caixa (id, caixa_id, contado, retirado, esperado, diferenca, justificativa,
+                                                  fechado_em, fechado_por)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""", f.id(), f.caixaId(), f.contado(), f.retirado(), f.esperado(),
+                f.diferenca(), f.justificativa(), Timestamp.from(f.em()), f.por());
     }
 
     void inserir(Reabertura r) {
@@ -112,7 +125,8 @@ class CaixaRepository {
     }
 
     private static final String FECHAMENTOS = """
-            SELECT f.id, f.caixa_id, f.contado, f.esperado, f.diferenca, f.justificativa, f.fechado_em, f.fechado_por
+            SELECT f.id, f.caixa_id, f.contado, f.retirado, f.esperado, f.diferenca, f.justificativa, f.fechado_em,
+                   f.fechado_por
             FROM fechamentos_de_caixa f\s""";
 
     private static final String REABERTURAS = """
@@ -120,7 +134,8 @@ class CaixaRepository {
 
     private Fechamento fechamento(ResultSet rs, int linha) throws SQLException {
         return new Fechamento(rs.getObject("id", UUID.class), rs.getObject("caixa_id", UUID.class),
-                rs.getBigDecimal("contado"), rs.getBigDecimal("esperado"), rs.getBigDecimal("diferenca"),
+                rs.getBigDecimal("contado"), rs.getBigDecimal("retirado"), rs.getBigDecimal("esperado"),
+                rs.getBigDecimal("diferenca"),
                 rs.getString("justificativa"), rs.getTimestamp("fechado_em").toInstant(),
                 rs.getObject("fechado_por", UUID.class));
     }
@@ -133,7 +148,8 @@ class CaixaRepository {
 
     private Caixa mapear(ResultSet rs, int linha) throws SQLException {
         return Caixa.restaurar(rs.getObject("id", UUID.class), rs.getObject("dia", LocalDate.class),
-                rs.getBigDecimal("troco"), Caixa.Situacao.valueOf(rs.getString("situacao")),
+                rs.getBigDecimal("troco"), rs.getBigDecimal("troco_esperado"),
+                Caixa.Situacao.valueOf(rs.getString("situacao")),
                 rs.getTimestamp("aberto_em").toInstant(), rs.getObject("aberto_por", UUID.class));
     }
 }
