@@ -76,6 +76,16 @@ class AuthExceptionHandler {
         return problema;
     }
 
+    /** O teto de senhas ao mesmo tempo (ADR 0046, item 3): passageiro, como o banco sobrecarregado. */
+    @ExceptionHandler(MuitasSenhasAoMesmoTempoException.class)
+    ResponseEntity<ProblemDetail> muitasSenhas(MuitasSenhasAoMesmoTempoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+        problema.setTitle("Sistema ocupado");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, "1")
+                .body(problema);
+    }
+
     @ExceptionHandler(MuitasRequisicoesException.class)
     ResponseEntity<ProblemDetail> muitasRequisicoes(MuitasRequisicoesException e) {
         ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());

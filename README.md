@@ -395,7 +395,10 @@ em 15 minutos bloqueiam o e-mail para aquele IP, e 100 somando todos os IPs o bl
 para todos), de requisições (300 por minuto por usuário
 logado) ou de tokens recusados (60 por minuto por IP: depois disso, toda requisição com token
 daquele IP recebe 429 até a ficha voltar) e 503 quando o banco está sobrecarregado (nenhuma conexão livre em 3 s ou
-consulta acima de 5 s); 429 e 503 trazem o cabeçalho `Retry-After`.
+consulta acima de 5 s) ou quando há senhas demais sendo conferidas ao mesmo tempo (uma enxurrada de
+logins de muitos IPs: o BCrypt confere no máximo uma por núcleo de cada vez, `SENHAS_TETO` no `.env`, e
+quem passa disso espera até meio segundo por uma vaga, ADR 0046, item 3); 429 e 503 trazem o cabeçalho
+`Retry-After`.
 
 ### Conferência do PIX e do cartão (ADMIN)
 

@@ -180,6 +180,8 @@
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>
 								<param>br.com.academiagestao.auth.LimiteDeRequisicoes</param>
 								<param>br.com.academiagestao.auth.PoliticaDeSenha</param>
+								<param>br.com.academiagestao.auth.SenhasAoMesmoTempoProperties</param>
+								<param>br.com.academiagestao.auth.SenhasComTeto</param>
 								<param>br.com.academiagestao.auth.SessaoProperties</param>
 								<param>br.com.academiagestao.auth.Usuario</param>
 								<param>br.com.academiagestao.cobranca.dominio.*</param>
@@ -212,6 +214,7 @@
 								<param>br.com.academiagestao.auth.LimiteDeRequisicoesTest</param>
 								<param>br.com.academiagestao.auth.PoliticaDeSenhaTest</param>
 								<param>br.com.academiagestao.auth.PrimeiroAdminInicializadorValidacaoTest</param>
+								<param>br.com.academiagestao.auth.SenhasComTetoTest</param>
 								<param>br.com.academiagestao.auth.SessaoPropertiesTest</param>
 								<param>br.com.academiagestao.auth.SoConsultaSeSomenteLeituraTest</param>
 								<param>br.com.academiagestao.auth.UsuarioTest</param>

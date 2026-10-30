@@ -140,3 +140,35 @@ O `PagamentoTest` cobre a limpeza e os limites; o `CobrancaControllerTest`, a re
 repetido até o estorno, o cartão no mesmo dia e em outro, e dois pagamentos ao mesmo tempo com o mesmo
 Pix (sempre um 200 e um 409, cada lado ganhando em parte das rodadas); o `CobrancaRepositoryTest`, as
 travas do banco; o `CaixaControllerTest`, a lista do dia só para o ADMIN.
+
+### 3 — Teto de senhas conferidas ao mesmo tempo
+Antes: o limite de login é por IP (20 por minuto) e por conta. Uma enxurrada de logins vindos de
+muitos IPs passa pelos dois, e cada login roda o BCrypt, lento de propósito (uns 50 a 100 ms de um
+núcleo inteiro). Na medição de 18/10, a enxurrada tomou a CPU, e o resto do sistema caiu de 986 para
+47 requisições por segundo, sem cair de vez.
+
+**Decisão do dono:** um teto de senhas conferidas ao mesmo tempo, na própria aplicação; acima dele,
+503 com `Retry-After`, sem fila longa. O teto é configurável (`SENHAS_TETO`), e o padrão é o número
+de núcleos da máquina (no Docker, os `APP_CPUS`).
+
+- O `PasswordEncoder` da aplicação é o BCrypt dentro de um teto (`SenhasComTeto`): cada conta de senha
+  (login, troca, esqueci a senha, primeiro acesso, senha temporária) pega uma vaga, e a devolve no
+  fim, mesmo com erro. Todas, e não só o login: qualquer uma dessas rotas serviria para a mesma
+  enxurrada.
+- Sem vaga, espera até 500 ms (`academia.senhas.espera`): absorve a rajada normal (a academia
+  abrindo, várias pessoas entrando juntas) sem formar uma fila longa. Passou disso, 503 "Sistema
+  ocupado" com `Retry-After: 1`; a tela de login mostra a explicação que vem da API.
+- O aviso no log sai no máximo uma vez por minuto (numa enxurrada, um por recusa encheria o log).
+- O que não confere senha não espera pela vaga: o resto do sistema segue com CPU.
+
+Ficaram de fora: o limite no Caddy (precisaria de um módulo fora da imagem oficial, e o Caddy não
+sabe quanto custa cada login) e uma fila longa (a espera só mudaria de lugar, e o cliente desistiria
+antes).
+
+Um limite: o teto protege a CPU, e não a conta. Quem ataca continua contido pelos limites por IP e por
+conta (ADR 0022); o teto só impede que a enxurrada tire o sistema do ar para os outros. Na enxurrada,
+um usuário de verdade pode receber 503 no login e precisar tentar de novo.
+
+O `SenhasComTetoTest` cobre o teto, a espera, a vaga devolvida no erro, a thread interrompida e o aviso
+no log; o `TetoDeSenhasNaApiTest`, o 503 com `Retry-After` pela API, com o resto respondendo. Os outros
+testes usam um teto alto (configuração de teste): muitos conferem senhas ao mesmo tempo.

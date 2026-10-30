@@ -95,6 +95,8 @@ services:
       # Só o Caddy pode dizer qual é o IP do cliente (X-Forwarded-For): de outro container ou
       # desta máquina, o cabeçalho é ignorado, e o limite de login por IP não é furado.
       ACADEMIA_PROXY_CONFIAVEL: ${PROXY_IP_DO_CADDY:-10.250.250.10}
+      # Senhas conferidas ao mesmo tempo (ADR 0046, item 3): 0 = uma por núcleo (os APP_CPUS).
+      ACADEMIA_SENHAS_TETO: ${SENHAS_TETO:-0}
     ports:
       # Só nesta máquina (diagnóstico); quem vem da rede entra pelo Caddy, com HTTPS.
       - "127.0.0.1:8090:8090"
