@@ -237,7 +237,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/caixas/{dia}/lancamentos` (cada pagamento e estorno do caixa do dia: hora, forma, valor, código da transação, aluno e quem registrou¹⁵) | ADMIN |
 | `GET /api/exercicios?grupoMuscular=&incluirInativos=`, `GET /api/exercicios/{id}` (catálogo⁸) | ADMIN, INSTRUTOR |
 | `POST /api/exercicios`, `PUT /api/exercicios/{id}` (exige `If-Match`²), `POST /api/exercicios/{id}/inativar`, `/reativar` | ADMIN, INSTRUTOR |
-| `DELETE /api/exercicios/{id}` (só o que nunca entrou numa ficha; numa ficha, mesmo encerrada, 409: inative¹⁴) | ADMIN |
+| `DELETE /api/exercicios/{id}` (só o que nunca entrou numa ficha; numa ficha, mesmo encerrada, 409: inative¹⁴) | ADMIN, INSTRUTOR |
 | `POST /api/fichas` (`alunoId`, `divisoes`, `revisaoEm` opcional, até 1 ano à frente; encerra a atual⁸) | ADMIN, INSTRUTOR |
 | `PUT /api/fichas/{id}` (corrige a atual; exige `If-Match`²) | ADMIN, INSTRUTOR |
 | `GET /api/fichas/{id}`, `GET /api/fichas/atual?alunoId=`, `GET /api/fichas?alunoId=&pagina=&tamanho=` (histórico, a mais nova primeiro; 10 por página, até 20) | ADMIN, INSTRUTOR, RECEPCAO |

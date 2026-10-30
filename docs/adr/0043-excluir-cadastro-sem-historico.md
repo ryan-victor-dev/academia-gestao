@@ -1,6 +1,6 @@
 # ADR 0043 — Excluir o cadastro que nunca foi usado
 
-- **Status:** Aceito (muda "cadastros não se apagam" dos ADRs 0008, 0011, 0013 e 0027 para quem não tem histórico)
+- **Status:** Aceito (muda "cadastros não se apagam" dos ADRs 0008, 0011, 0013 e 0027 para quem não tem histórico); o ADR 0047 deu ao instrutor a exclusão do exercício
 - **Data:** 2026-10-29
 
 ## Contexto

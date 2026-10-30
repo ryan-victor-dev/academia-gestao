@@ -62,17 +62,11 @@ describe('catálogo de exercícios', () => {
     expect(api.de('POST /api/exercicios/e2/reativar')).toHaveLength(1);
   });
 
-  it('excluir: o instrutor não vê; o ADMIN confirma e manda o DELETE', async () => {
-    apiFalsa({ 'GET /api/exercicios': json(200, [supino]) });
-    const { unmount } = renderizar(<CatalogoDeExercicios />, { perfil: 'INSTRUTOR' });
-    await screen.findByText('Supino');
-    expect(screen.queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
-    unmount();
-
+  it.each(['INSTRUTOR', 'ADMIN'] as const)('excluir: o %s confirma e manda o DELETE (ADR 0047)', async (perfil) => {
     let excluido = false;
     const api = apiFalsa({ 'GET /api/exercicios': () => json(200, excluido ? [] : [supino]),
       'DELETE /api/exercicios/e1': () => { excluido = true; return new Response(null, { status: 204 }); } });
-    renderizar(<CatalogoDeExercicios />, { perfil: 'ADMIN' });
+    renderizar(<CatalogoDeExercicios />, { perfil });
     await userEvent.click(await screen.findByRole('button', { name: 'Excluir' }));
     await userEvent.click(screen.getByRole('button', { name: 'Sim, excluir' }));
 

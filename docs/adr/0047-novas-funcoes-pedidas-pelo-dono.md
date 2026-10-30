@@ -48,3 +48,9 @@ indexados), gênero obrigatório, toda a equipe ver o gênero e a orientação, 
 A tela Equipe tem duas abas: "Ativos", que abre primeiro, e "Membros da equipe inativos", onde ficam
 quem foi desativado e o botão de reativar. A API não mudou (`GET /api/usuarios` traz a equipe inteira,
 que é pequena), e a tela separa pela situação. Os logins de alunos continuam à parte, como antes.
+
+### O instrutor exclui exercício nunca usado (decisão 5)
+`DELETE /api/exercicios/{id}` passa a aceitar ADMIN e INSTRUTOR, e o catálogo mostra o botão Excluir aos
+dois. A regra do ADR 0043 continua: só sai o exercício que nunca entrou numa ficha, mesmo encerrada (a
+chave estrangeira barra, 409, e o caminho é inativar), com a trava contra a ficha montada no mesmo
+instante e o registro `EXCLUIDO` na trilha. Aluno, plano e equipe continuam só com o ADMIN.

@@ -76,9 +76,12 @@ class ExercicioController {
         return comEtag(service.reativar(id));
     }
 
-    /** Só o ADMIN, e só o exercício que nunca entrou numa ficha (ADR 0043); com fichas, 409: inative. */
+    /**
+     * ADMIN e instrutor (o cadastrado por engano, ADR 0047), e só o exercício que nunca entrou numa
+     * ficha (ADR 0043); com fichas, 409: inative.
+     */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUTOR')")
     ResponseEntity<Void> excluir(@PathVariable UUID id) {
         service.excluir(id);
         return ResponseEntity.noContent().build();
