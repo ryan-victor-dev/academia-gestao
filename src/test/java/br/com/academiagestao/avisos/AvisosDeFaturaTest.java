@@ -30,8 +30,8 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Os avisos de fatura por e-mail (ADR 0047, decisão 7): cada marco uma vez, nunca a quem pagou, só alunos ativos com
- * e-mail, de novo se o servidor de e-mail falhou (até 3 vezes), e só a partir das 9h.
+ * Os avisos de fatura por e-mail (ADR 0047, decisão 7): cada marco uma vez, nunca a quem pagou, ao inativo só os de
+ * atraso, só a quem tem e-mail, de novo se o servidor de e-mail falhou (até 3 vezes), e só a partir das 9h.
  */
 @Import({TestcontainersConfiguration.class, CorreioDeTeste.Config.class})
 @SpringBootTest(properties = "academia.avisos.primeira-vez=PT1H")
@@ -162,16 +162,22 @@ class AvisosDeFaturaTest {
         }
     }
 
+    /** Quem saiu da academia recebe só os de atraso, da fatura que ficou em aberto; sem e-mail, nada. */
     @Test
-    void soAlunoAtivoComEmail() {
+    void inativoSoRecebeOsDeAtrasoESemEmailNada() {
         String inativo = "aviso-" + UUID.randomUUID() + "@teste.local";
-        cobranca(aluno(inativo, false), 1, -1);
+        UUID matricula = aluno(inativo, false);
+        int parcela = 1;
+        for (int dias : new int[] {5, 3, 1, 0, -1, -3, -5}) {
+            cobranca(matricula, parcela++, dias);
+        }
         UUID semEmail = aluno(null, true);
         UUID daSemEmail = cobranca(semEmail, 1, -1);
 
         avisos.enviarOsDeHoje(hoje);
 
-        assertThat(correio.para(inativo)).isEmpty();
+        assertThat(assuntos(inativo)).containsExactlyInAnyOrder("Sua mensalidade 5 está atrasada há 1 dia",
+                "Sua mensalidade 6 está atrasada há 3 dias", "Sua mensalidade 7 está atrasada há 5 dias");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM avisos_de_fatura WHERE cobranca_id = ?", Integer.class, daSemEmail)).isZero();
     }
 

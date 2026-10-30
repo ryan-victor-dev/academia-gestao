@@ -356,7 +356,7 @@ e os e-mails aparecem em http://localhost:8025. Cada código vale 15 minutos e 5
 recebe no máximo 1 por minuto, 5 por hora e 10 em 24 horas (ADR 0041).
 
 Avisos de fatura (ADR 0047): com o e-mail ligado, a partir das 9h, o aluno ativo com e-mail recebe um lembrete 5, 3 e 1
-dia antes do vencimento, no dia, e com 1, 3 e 5 dias de atraso. Quem pagou não recebe (a fatura é conferida, travada,
+dia antes do vencimento, no dia, e com 1, 3 e 5 dias de atraso; o inativo, só os de atraso. Quem pagou não recebe (a fatura é conferida, travada,
 antes de cada envio), e o mesmo aviso nunca sai duas vezes (`avisos_de_fatura`).
 Com `SMS_PROVEDOR=simulado` (só desenvolvimento: guarda em `sms_simulados`, recusado com `DOMINIO`), o aviso vai também
 por SMS ao celular do aluno. A empresa de SMS de verdade ainda será escolhida.

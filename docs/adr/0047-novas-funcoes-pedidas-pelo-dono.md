@@ -189,8 +189,8 @@ por prazo, com o devido de hoje, as regras do atraso e a conferência com trava)
   nenhum acréscimo"), dizendo também que o atraso aumenta o valor e bloqueia o acesso. Em atraso, o valor de hoje
   (com acréscimo e juros), o aumento e o bloqueio, com os números da configuração da cobrança (acréscimo, juros,
   dias para bloquear) e quantos dias faltam para o bloqueio.
-- **Quem recebe:** o aluno ativo com e-mail. Quem saiu da academia (inativo) não recebe: a dívida dele é tratada
-  pela recepção. O aviso de fatura não se desliga (decisão 7).
+- **Quem recebe:** o aluno com e-mail. Quem saiu da academia (inativo) recebe só os de atraso (mudou depois do
+  diagnóstico; veja o fim). O aviso de fatura não se desliga (decisão 7).
 - **Falha:** o servidor de e-mail fora do ar marca `FALHOU`, e a rodada seguinte tenta de novo, até 3 vezes no dia.
   Sem e-mail configurado, nada roda.
 
@@ -239,3 +239,14 @@ O diagnóstico de 30/10, numa instalação isolada e de fora, pelo Caddy, achou 
   o assunto do e-mail do aviso. O teste com um servidor SMTP de verdade mostrou que o Jakarta Mail já neutraliza a
   quebra (um `Bcc:` injetado não vira cabeçalho). Mesmo assim, esses campos passam a ser de uma linha só (400), e o
   teste fica para avisar se uma troca de biblioteca mudar o comportamento.
+
+## Decisões do dono depois do diagnóstico (30/10)
+
+- **Aluno inativo recebe os avisos de atraso.** Antes, quem saiu da academia não recebia aviso nenhum, e a dívida ficava
+  só com a recepção. Agora ele recebe os de atraso (1, 3 e 5 dias) da fatura que ficou em aberto, e não os lembretes de
+  antes do vencimento nem o do dia, que são para quem continua treinando.
+- **SMS desligado.** Os avisos saem por e-mail (as notificações do app ficam para uma etapa seguinte); o SMS
+  continua atrás da porta, desligado por padrão (`SMS_PROVEDOR=desligado`), para o dia em que o dono quiser
+  contratar uma empresa.
+- **Boleto no balcão fica.** O dono chegou a pedir para tirar o boleto gerado pela recepção e pelo ADMIN, e mudou de
+  ideia no mesmo dia: continua como na decisão 4.

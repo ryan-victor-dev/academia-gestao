@@ -34,7 +34,8 @@ import java.util.UUID;
  * <p>Quem já pagou nunca recebe: antes de cada envio, uma transação trava a fatura para leitura, confere que ela
  * continua em aberto e reserva o aviso (fatura, marco e canal são a chave: o mesmo aviso nunca sai duas vezes). O envio
  * vem depois, fora da transação (ele vai para a rede). Um pagamento entre a reserva e o envio (frações de segundo) é o
- * único caso de aviso a quem acabou de pagar. Só alunos ativos recebem (quem saiu da academia trata com a recepção).
+ * único caso de aviso a quem acabou de pagar. O aluno inativo recebe só os de atraso, da fatura que ficou em aberto: os
+ * lembretes de antes do vencimento são para quem continua treinando (decisão do dono depois do diagnóstico de 30/10).
  */
 @Component
 class AvisosDeFatura {
@@ -91,7 +92,7 @@ class AvisosDeFatura {
         for (FaturaEmAberto fatura : faturas) {
             Optional<Marco> marco = Marco.de(fatura.prazo(), hoje);
             Contato contato = contatos.get(fatura.alunoId());
-            if (marco.isEmpty() || contato == null || !contato.ativo()) {
+            if (marco.isEmpty() || contato == null || !contato.ativo() && !marco.get().atrasada()) {
                 continue;
             }
             TextosDosAvisos.Fatura dados = new TextosDosAvisos.Fatura(contato.nome(), fatura.tipo(), fatura.parcela(),
