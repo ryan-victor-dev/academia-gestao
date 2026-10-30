@@ -177,6 +177,8 @@
 								<param>br.com.academiagestao.compartilhado.Cpf</param>
 								<param>br.com.academiagestao.compartilhado.Identidade</param>
 								<param>br.com.academiagestao.noticias.DadosDaPublicacao</param>
+								<param>br.com.academiagestao.noticias.TipoDeArquivo*</param>
+								<param>br.com.academiagestao.noticias.AssinaturaDosAnexos*</param>
 								<param>br.com.academiagestao.alunos.Aluno</param>
 								<param>br.com.academiagestao.auditoria.AuditoriaNoBanco</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>
@@ -212,6 +214,7 @@
 								<param>br.com.academiagestao.compartilhado.CpfTest</param>
 								<param>br.com.academiagestao.compartilhado.IdentidadeTest</param>
 								<param>br.com.academiagestao.noticias.DadosDaPublicacaoTest</param>
+								<param>br.com.academiagestao.noticias.TipoDeArquivoTest</param>
 								<param>br.com.academiagestao.auditoria.AuditoriaNoBancoTest</param>
 								<param>br.com.academiagestao.auth.AutenticacaoServiceTest</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporariaTest</param>

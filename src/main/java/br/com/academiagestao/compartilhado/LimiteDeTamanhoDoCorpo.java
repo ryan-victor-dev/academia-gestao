@@ -16,6 +16,7 @@ import org.springframework.util.unit.DataSize;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.regex.Pattern;
 
 /**
  * Recusa corpos de requisição grandes demais antes de qualquer outra coisa (inclusive do
@@ -24,20 +25,35 @@ import java.io.IOException;
  *
  * Confere o Content-Length declarado e, como o cliente pode mandar o corpo em partes sem
  * declará-lo, também conta os bytes conforme são lidos.
+ *
+ * Uma exceção: o envio de anexo de uma publicação (ADR 0047), com o arquivo cru no corpo, vai até o maior anexo
+ * aceito (o vídeo de 50 MB). Ele é lido aos pedaços de 1 MB, nunca inteiro na memória, e só depois de conferido o
+ * perfil (o PerfilAntesDoCorpo barra quem não pode enviar antes de ler o corpo).
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class LimiteDeTamanhoDoCorpo extends OncePerRequestFilter {
 
-    private final long limite;
+    private static final Pattern ENVIO_DE_ANEXO = Pattern.compile("/api/publicacoes/[^/]+/anexos");
 
-    LimiteDeTamanhoDoCorpo(@Value("${academia.http.tamanho-maximo-corpo:64KB}") DataSize limite) {
+    private final long limite;
+    private final long limiteDoAnexo;
+
+    LimiteDeTamanhoDoCorpo(@Value("${academia.http.tamanho-maximo-corpo:64KB}") DataSize limite,
+                           @Value("${academia.http.tamanho-maximo-anexo:50MB}") DataSize limiteDoAnexo) {
         this.limite = limite.toBytes();
+        this.limiteDoAnexo = limiteDoAnexo.toBytes();
+    }
+
+    private long limiteDe(HttpServletRequest requisicao) {
+        return "POST".equals(requisicao.getMethod()) && ENVIO_DE_ANEXO.matcher(requisicao.getRequestURI()).matches()
+                ? limiteDoAnexo : limite;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest requisicao, HttpServletResponse resposta, FilterChain cadeia)
             throws ServletException, IOException {
+        long limite = limiteDe(requisicao);
         if (requisicao.getContentLengthLong() > limite) {
             resposta.setStatus(HttpStatus.CONTENT_TOO_LARGE.value());
             resposta.setContentType("application/problem+json");

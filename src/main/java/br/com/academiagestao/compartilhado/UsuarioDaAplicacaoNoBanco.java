@@ -112,6 +112,10 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             sql.execute("REVOKE DELETE, TRUNCATE ON TABLE identidade_dos_alunos, identidade_da_equipe FROM " + usuario);
             // Publicações (ADR 0047): a recepção e o ADMIN excluem, e a edição troca os links; TRUNCATE, nunca.
             sql.execute("REVOKE TRUNCATE ON TABLE publicacoes, publicacao_links FROM " + usuario);
+            // Anexos: o anexo se exclui (e o envio interrompido é limpo), e os pedaços saem junto, em cascata; um
+            // pedaço gravado nunca muda.
+            sql.execute("REVOKE TRUNCATE ON TABLE publicacao_anexos FROM " + usuario);
+            sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE anexo_partes FROM " + usuario);
             // O registro de acessos também só cresce (V38, ADR 0031).
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE acessos FROM " + usuario);
             // A única saída da trilha e dos acessos: as funções do dono que só apagam o que

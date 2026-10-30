@@ -23,8 +23,20 @@ http://{$DOMINIO:localhost}:{$HTTP_PORTA:80} {
 }
 
 https://{$DOMINIO:localhost}:{$HTTPS_PORTA:443} {
-	# Segunda barreira contra corpos enormes (a aplicação também limita, em 64 KB).
-	request_body {
+	# Segunda barreira contra corpos enormes (a aplicação também limita, em 64 KB). A exceção é o envio de anexo de
+	# uma publicação (ADR 0047): o arquivo cru, até o vídeo de 50 MB (a aplicação confere o perfil antes de ler).
+	@envio_de_anexo {
+		method POST
+		path_regexp ^/api/publicacoes/[^/]+/anexos$
+	}
+	request_body @envio_de_anexo {
+		max_size 51MB
+	}
+	@outros_pedidos not {
+		method POST
+		path_regexp ^/api/publicacoes/[^/]+/anexos$
+	}
+	request_body @outros_pedidos {
 		max_size 1MB
 	}
 

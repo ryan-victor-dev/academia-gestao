@@ -303,3 +303,11 @@ summary { cursor: pointer; font-weight: 600; }
 .link-da-publicacao { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; align-items: end; margin-bottom: 8px; }
 .link-da-publicacao > * { min-width: 0; }
 
+/* Anexos das publicações (ADR 0047): a foto e o vídeo ocupam a largura do cartão, sem passar dela. */
+.anexos { display: grid; gap: 8px; margin-top: 8px; }
+.anexo-imagem, .anexo-video { max-width: 100%; max-height: 480px; border-radius: 8px; justify-self: start; }
+.anexo-documento { overflow-wrap: anywhere; }
+.lista-de-anexos { list-style: none; padding: 0; display: grid; gap: 6px; }
+.lista-de-anexos li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lista-de-anexos li > span { overflow-wrap: anywhere; min-width: 0; }
+.gerenciar-anexos { margin-top: 12px; }

@@ -170,7 +170,7 @@ class UsuarioDaAplicacaoNoBancoTest {
      * (limpas a cada hora, ADR 0033), as divisões e os exercícios da ficha atual (a correção
      * troca os filhos) e os cadastros que o ADMIN exclui quando nunca foram usados (ADR 0043:
      * a chave estrangeira guarda os que têm histórico), e as publicações e os links delas (ADR 0047: a
-     * recepção e o ADMIN excluem a notícia, e a edição troca os links). Uma tabela nova que apareça aqui
+     * recepção e o ADMIN excluem a notícia e o anexo, e a edição troca os links). Uma tabela nova que apareça aqui
      * pede a decisão: a aplicação apaga dela? Se não, REVOKE no UsuarioDaAplicacaoNoBanco.
      */
     @Test
@@ -179,7 +179,7 @@ class UsuarioDaAplicacaoNoBancoTest {
                 SELECT table_name FROM information_schema.role_table_grants
                 WHERE grantee = 'academia_app' AND privilege_type = 'DELETE' ORDER BY 1""", String.class);
         assertThat(comDelete).containsExactly("alunos", "exercicios", "ficha_divisoes", "ficha_exercicios", "planos",
-                "publicacao_links", "publicacoes", "sessoes", "tentativas_login", "usuarios");
+                "publicacao_anexos", "publicacao_links", "publicacoes", "sessoes", "tentativas_login", "usuarios");
     }
 
     /** O registro de acessos só cresce; o vencido sai pela função do dono (V38, ADR 0031). */

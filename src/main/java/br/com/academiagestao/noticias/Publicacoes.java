@@ -29,9 +29,11 @@ class Publicacoes {
             FROM publicacoes p JOIN usuarios u ON u.id = p.criada_por""";
 
     private final JdbcTemplate jdbc;
+    private final Anexos anexos;
 
-    Publicacoes(JdbcTemplate jdbc) {
+    Publicacoes(JdbcTemplate jdbc, Anexos anexos) {
         this.jdbc = jdbc;
+        this.anexos = anexos;
     }
 
     void inserir(UUID id, DadosDaPublicacao dados, Instant agora, UUID autor) {
@@ -102,7 +104,7 @@ class Publicacoes {
         }
     }
 
-    /** Os links de todas as publicações da página numa consulta só (e não uma por publicação). */
+    /** Os links e os anexos de todas as publicações da página numa consulta cada (e não uma por publicação). */
     private List<Publicacao> comLinks(List<Publicacao> publicacoes) {
         if (publicacoes.isEmpty()) {
             return publicacoes;
@@ -112,8 +114,9 @@ class Publicacoes {
         jdbc.query("SELECT publicacao_id, url, rotulo FROM publicacao_links WHERE publicacao_id = ANY (?) ORDER BY publicacao_id, ordem",
                 rs -> { links.get(rs.getObject(1, UUID.class)).add(new Link(rs.getString(2), rs.getString(3))); },
                 (Object) publicacoes.stream().map(Publicacao::id).toArray(UUID[]::new));
+        Map<UUID, List<Anexos.Anexo>> prontos = anexos.prontosDas(links.keySet());
         return publicacoes.stream().map(p -> new Publicacao(p.id(), comLinks(p.dados(), links.get(p.id())), p.criadaEm(),
-                p.criadaPor(), p.autorNome(), p.editadaEm())).toList();
+                p.criadaPor(), p.autorNome(), p.editadaEm(), prontos.getOrDefault(p.id(), List.of()))).toList();
     }
 
     private static DadosDaPublicacao comLinks(DadosDaPublicacao d, List<Link> links) {
@@ -125,7 +128,7 @@ class Publicacoes {
                 rs.getString("texto"), instante(rs, "evento_inicio"), instante(rs, "evento_fim"), rs.getString("evento_local"),
                 List.of());
         return new Publicacao(rs.getObject("id", UUID.class), dados, instante(rs, "criada_em"),
-                rs.getObject("criada_por", UUID.class), rs.getString("autor_nome"), instante(rs, "editada_em"));
+                rs.getObject("criada_por", UUID.class), rs.getString("autor_nome"), instante(rs, "editada_em"), List.of());
     }
 
     private static Instant instante(ResultSet rs, String coluna) throws SQLException {

@@ -8,7 +8,7 @@ import type { Publicacao } from './tipos';
 const publicacao = (mudancas: Partial<Publicacao> = {}): Publicacao => ({
   id: 'p1', tipo: 'NOTICIA', titulo: 'Aula nova de pilates', texto: 'Às terças.\n<b>Venha</b>', eventoInicio: null,
   eventoFim: null, eventoLocal: null, links: [{ url: 'https://academia.exemplo/pilates', rotulo: 'Horários' }],
-  criadaEm: '2026-10-30T15:00:00Z', autorNome: 'Rita', editadaEm: null, ...mudancas,
+  anexos: [], criadaEm: '2026-10-30T15:00:00Z', autorNome: 'Rita', editadaEm: null, ...mudancas,
 });
 const evento = publicacao({ id: 'e1', tipo: 'EVENTO', titulo: 'Aulão de sábado', eventoInicio: '2026-11-07T12:00:00Z',
   eventoFim: '2026-11-07T14:00:00Z', eventoLocal: 'Sala 2', links: [] });

@@ -139,3 +139,34 @@ na parte seguinte.
 
 Mutantes equivalentes na tela: mandar data e local fora do evento, e filtrar os links vazios (os campos nem
 existem fora do evento, e o link vazio é barrado pelo campo obrigatório).
+
+### Anexos: fotos, vídeos e documentos (decisão 6)
+**Onde ficam: no próprio banco**, em pedaços de até 1 MB (`publicacao_anexos` e `anexo_partes`, V58). A aplicação
+roda com o disco só de leitura e o `/tmp` na memória (que conta no teto de 1 GB do container): um vídeo de 50 MB
+não pode passar por ali. No banco, os anexos entram no backup cifrado que já existe (ADR 0041) e na restauração
+que o e2e testa, sem volume nem script novos; saem junto com a publicação (cascata), sem arquivo órfão; e seguem
+as permissões do usuário da aplicação. O custo é o banco e o backup crescerem com os anexos: por isso há um teto
+de espaço total (`ANEXOS_ESPACO_TOTAL`, 5 GB por padrão) e a escolha de vídeo curto (o longo vai por link).
+
+- **Envio:** `POST /api/publicacoes/{id}/anexos`, o arquivo cru no corpo e o nome em `X-Nome-Do-Arquivo`. O
+  limite de corpo (64 KB na aplicação, 1 MB no Caddy) tem uma exceção só para essa rota (50 MB e 51 MB); o perfil
+  é conferido antes de ler o corpo (`PerfilAntesDoCorpo`). O arquivo chega em pedaços de 1 MB, cada um gravado
+  numa transação curta, com o anexo em `ENVIANDO`: um envio lento pela rede não segura uma conexão do banco
+  (ADR 0020). No fim, numa transação que trava a publicação e reconta, vira `PRONTO`. Qualquer falha apaga o que
+  chegou, e o envio interrompido (`ENVIANDO` há mais de 1 hora) é limpo a cada 15 minutos.
+- **Tipo:** pelos primeiros bytes (JPEG, PNG, WebP, GIF, MP4, WebM, PDF), nunca pelo nome ou pelo tipo declarado.
+  SVG e HTML ficam de fora (podem levar script). Tetos: foto 5 MB, PDF 10 MB, vídeo 50 MB; 10 por publicação; no
+  máximo 3 envios ao mesmo tempo (503 acima disso: cada um usa 1 MB de memória). O espaço total é conferido a
+  cada pedaço (envios simultâneos podem passar juntos do teto, no máximo pelo teto de envios ao mesmo tempo).
+- **Leitura:** `<img>` e `<video>` não mandam o token. Cada publicação vem com o endereço de cada anexo
+  **assinado** (HMAC-SHA256 com uma chave derivada do `JWT_SEGREDO`, sem configuração nova), válido até a virada
+  da hora seguinte (1 a 2 horas; o endereço não muda dentro da hora, e o navegador aproveita o que baixou).
+  Assinatura errada, prazo vencido ou anexo inexistente dão o mesmo 404. O tipo da resposta é o reconhecido; a
+  foto e o vídeo abrem na página, o PDF vem como download, com `nosniff` e cache só do navegador. O conteúdo é
+  lido em pedaços (1 MB por vez) e atende `Range` (o vídeo toca sem baixar tudo).
+- **Trilha:** `ANEXO_ADICIONADO` e `ANEXO_EXCLUIDO` na publicação, com nome, tipo e tamanho.
+- **Corrida:** a publicação excluída no meio de um envio leva o anexo (cascata), e o envio sai com 404, e não 500
+  (o `AnexoLimitesTest` força a corrida com um envio parado no meio).
+
+Ficou de fora: comprimir ou converter vídeo (pesado para o servidor; o celular já grava comprimido) e miniatura das
+fotos (o navegador reduz na tela; com 5 MB por foto, o peso é aceitável para uma academia).

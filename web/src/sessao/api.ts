@@ -200,6 +200,8 @@ export interface Opcoes {
   corpo?: unknown;
   /** A versão lida (ETag), mandada no If-Match: se outra pessoa alterou antes, a API dá 412. */
   versao?: string;
+  /** Um arquivo cru no corpo, com o nome no X-Nome-Do-Arquivo (anexos das publicações, ADR 0047). */
+  arquivo?: File;
 }
 
 /**
@@ -217,8 +219,12 @@ async function requisitar(caminho: string, opcoes: Opcoes): Promise<Response> {
         Authorization: `Bearer ${token}`,
         ...(opcoes.corpo === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(opcoes.versao === undefined ? {} : { 'If-Match': opcoes.versao }),
+        ...(opcoes.arquivo === undefined ? {} : {
+          'Content-Type': opcoes.arquivo.type || 'application/octet-stream',
+          'X-Nome-Do-Arquivo': encodeURIComponent(opcoes.arquivo.name),
+        }),
       },
-      body: opcoes.corpo === undefined ? undefined : JSON.stringify(opcoes.corpo),
+      body: opcoes.arquivo ?? (opcoes.corpo === undefined ? undefined : JSON.stringify(opcoes.corpo)),
     });
 
   let resposta = await enviar();

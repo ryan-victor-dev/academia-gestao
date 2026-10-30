@@ -5,6 +5,7 @@ import { Paginacao, type Pagina } from '../../componentes/Paginacao';
 import { dataHora } from '../../formato';
 import { chamar } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
+import { AnexosDaPublicacao, enviarArquivos, GerenciarAnexos } from './Anexos';
 import { FormularioDePublicacao, type PedidoDePublicacao } from './FormularioDePublicacao';
 import { NOME_DO_TIPO, type Publicacao, type TipoDePublicacao } from './tipos';
 
@@ -59,7 +60,19 @@ export function Mural() {
     }
   }, []);
 
-  const publicar = (pedido: PedidoDePublicacao) => executar(() => chamar('/api/publicacoes', { metodo: 'POST', corpo: pedido }));
+  const [enviando, setEnviando] = useState<string | null>(null);
+
+  // Publica e depois manda os anexos, um de cada vez. Se um anexo falhar, a publicação já existe: o erro aparece, e
+  // o resto se manda pela edição.
+  const publicar = (pedido: PedidoDePublicacao, arquivos: File[]) => executar(async () => {
+    const publicada = await chamar<Publicacao>('/api/publicacoes', { metodo: 'POST', corpo: pedido });
+    try {
+      await enviarArquivos(publicada.id, arquivos, (n) => setEnviando(`Enviando anexo ${n} de ${arquivos.length}…`));
+    } finally {
+      setEnviando(null);
+      setVersao((v) => v + 1);
+    }
+  });
 
   return (
     <section className="mural" aria-label="Notícias e eventos">
@@ -69,6 +82,7 @@ export function Mural() {
       </div>
       <MensagemDeErro erro={erro} rotulos={{ titulo: 'Título', texto: 'Texto', links: 'Links', eventoInicio: 'Começa em',
         eventoFim: 'Termina em', eventoLocal: 'Local', tipo: 'Tipo' }} />
+      {enviando && <p role="status">{enviando}</p>}
       {acao?.tipo === 'nova' && <FormularioDePublicacao aoEnviar={publicar} aoCancelar={() => setAcao(null)} />}
 
       {eventos.length > 0 && (
@@ -93,8 +107,11 @@ export function Mural() {
         {pagina?.conteudo.map((p) => (
           <li key={p.id} className="cartao-item publicacao">
             {acao?.tipo === 'editar' && acao.publicacao.id === p.id ? (
-              <FormularioDePublicacao inicial={p} aoCancelar={() => setAcao(null)}
-                                      aoEnviar={(pedido) => executar(() => chamar(`/api/publicacoes/${p.id}`, { metodo: 'PUT', corpo: pedido }))} />
+              <>
+                <FormularioDePublicacao inicial={p} aoCancelar={() => setAcao(null)}
+                                        aoEnviar={(pedido) => executar(() => chamar(`/api/publicacoes/${p.id}`, { metodo: 'PUT', corpo: pedido }))} />
+                <GerenciarAnexos publicacaoId={p.id} anexos={p.anexos} aoMudar={() => setVersao((v) => v + 1)} />
+              </>
             ) : (
               <article>
                 <div className="cabecalho">
@@ -103,6 +120,7 @@ export function Mural() {
                 </div>
                 <QuandoEOnde p={p} />
                 <p className="texto">{p.texto}</p>
+                <AnexosDaPublicacao anexos={p.anexos} />
                 {p.links.length > 0 && (
                   <ul className="links">
                     {p.links.map((l, i) => (

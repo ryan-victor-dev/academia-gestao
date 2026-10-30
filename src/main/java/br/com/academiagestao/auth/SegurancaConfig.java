@@ -100,6 +100,9 @@ class SegurancaConfig {
                         // Quem avisa é a empresa de pagamentos, sem login: ela prova quem é no
                         // próprio aviso, e o sistema só consulta a empresa (ADR 0034).
                         .requestMatchers(HttpMethod.POST, "/api/pagamentos-online/aviso").permitAll()
+                        // O anexo de uma publicação (ADR 0047) abre por <img> e <video>, que não mandam o token: quem
+                        // autoriza é a assinatura do endereço, que só sai para quem tem login e vence em até 2 horas.
+                        .requestMatchers(HttpMethod.GET, "/api/anexos/*").permitAll()
                         // Deixa o Spring montar a página de erro de uma rota já autorizada.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         // Quem entrou com senha temporária só pode trocá-la (e ver quem é). O

@@ -15,4 +15,18 @@ class NoticiasExceptionHandler {
         problema.setTitle("Publicação não encontrada");
         return problema;
     }
+
+    @ExceptionHandler(AnexoNaoEncontradoException.class)
+    ProblemDetail anexoNaoEncontrado(AnexoNaoEncontradoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+        problema.setTitle("Anexo não encontrado");
+        return problema;
+    }
+
+    @ExceptionHandler(AnexoRecusadoException.class)
+    ProblemDetail anexoRecusado(AnexoRecusadoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(e.status(), e.getMessage());
+        problema.setTitle(e.titulo());
+        return problema;
+    }
 }

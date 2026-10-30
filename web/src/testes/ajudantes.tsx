@@ -30,7 +30,8 @@ export function apiFalsa(rotas: Record<string, Resposta>) {
     const endereco = new URL(url, 'http://teste');
     const pedido: Pedido = {
       metodo: init.method ?? 'GET', caminho: endereco.pathname, busca: endereco.searchParams,
-      corpo: init.body ? JSON.parse(init.body as string) : undefined, cabecalhos: new Headers(init.headers),
+      // Texto é JSON; um arquivo (anexo, ADR 0047) fica como veio.
+      corpo: typeof init.body === 'string' ? JSON.parse(init.body) : init.body ?? undefined, cabecalhos: new Headers(init.headers),
     };
     if (pedido.caminho === '/api/auth/renovar') return json(200, { token: 't' });
     pedidos.push(pedido);

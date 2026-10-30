@@ -34,9 +34,11 @@ import java.util.UUID;
 class PublicacaoController {
 
     private final PublicacaoService service;
+    private final AssinaturaDosAnexos assinatura;
 
-    PublicacaoController(PublicacaoService service) {
+    PublicacaoController(PublicacaoService service, AssinaturaDosAnexos assinatura) {
         this.service = service;
+        this.assinatura = assinatura;
     }
 
     /** Da mais nova para a mais antiga; {@code tipo} filtra (NOTICIA, COMUNICADO ou EVENTO). */
@@ -46,20 +48,20 @@ class PublicacaoController {
                                       @RequestParam(defaultValue = "0") @Min(value = 0, message = "deve ser 0 ou maior") int pagina,
                                       @RequestParam(defaultValue = "10") @Min(value = 1, message = "deve ser pelo menos {value}")
                                       @Max(value = 50, message = "pode ser no máximo {value}") int tamanho) {
-        return Pagina.de(service.listar(tipo, pagina, tamanho), PublicacaoResponse::de);
+        return Pagina.de(service.listar(tipo, pagina, tamanho), p -> PublicacaoResponse.de(p, assinatura));
     }
 
     /** Os eventos que ainda não terminaram, pelo início (até {@value PublicacaoService#PROXIMOS_EVENTOS}). */
     @GetMapping("/proximos-eventos")
     @PreAuthorize("isAuthenticated()")
     List<PublicacaoResponse> proximosEventos() {
-        return service.proximosEventos().stream().map(PublicacaoResponse::de).toList();
+        return service.proximosEventos().stream().map(p -> PublicacaoResponse.de(p, assinatura)).toList();
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     PublicacaoResponse buscar(@PathVariable UUID id) {
-        return PublicacaoResponse.de(service.buscar(id));
+        return PublicacaoResponse.de(service.buscar(id), assinatura);
     }
 
     @PostMapping
@@ -67,13 +69,13 @@ class PublicacaoController {
     ResponseEntity<PublicacaoResponse> publicar(@RequestBody PublicacaoRequest pedido, @AuthenticationPrincipal Jwt jwt) {
         Publicacao publicada = service.publicar(pedido.paraDados(), UUID.fromString(jwt.getSubject()));
         var location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(publicada.id()).toUri();
-        return ResponseEntity.created(location).body(PublicacaoResponse.de(publicada));
+        return ResponseEntity.created(location).body(PublicacaoResponse.de(publicada, assinatura));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
     PublicacaoResponse editar(@PathVariable UUID id, @RequestBody PublicacaoRequest pedido, @AuthenticationPrincipal Jwt jwt) {
-        return PublicacaoResponse.de(service.editar(id, pedido.paraDados(), UUID.fromString(jwt.getSubject())));
+        return PublicacaoResponse.de(service.editar(id, pedido.paraDados(), UUID.fromString(jwt.getSubject())), assinatura);
     }
 
     @DeleteMapping("/{id}")
@@ -100,13 +102,15 @@ class PublicacaoController {
     }
 
     record PublicacaoResponse(UUID id, Tipo tipo, String titulo, String texto, Instant eventoInicio, Instant eventoFim,
-                              String eventoLocal, List<LinkResponse> links, Instant criadaEm, String autorNome,
-                              Instant editadaEm) {
+                              String eventoLocal, List<LinkResponse> links, List<AnexoController.AnexoResponse> anexos,
+                              Instant criadaEm, String autorNome, Instant editadaEm) {
 
-        static PublicacaoResponse de(Publicacao p) {
+        /** Os anexos vão com o endereço assinado (ADR 0047): é ele que abre a foto, o vídeo e o documento. */
+        static PublicacaoResponse de(Publicacao p, AssinaturaDosAnexos assinatura) {
             DadosDaPublicacao d = p.dados();
             return new PublicacaoResponse(p.id(), d.tipo(), d.titulo(), d.texto(), d.eventoInicio(), d.eventoFim(),
                     d.eventoLocal(), p.links().stream().map(l -> new LinkResponse(l.url(), l.rotulo())).toList(),
+                    p.anexos().stream().map(a -> AnexoController.AnexoResponse.de(a, assinatura)).toList(),
                     p.criadaEm(), p.autorNome(), p.editadaEm());
         }
     }
