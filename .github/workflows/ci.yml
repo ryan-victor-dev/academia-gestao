@@ -63,6 +63,31 @@ jobs:
       - name: Construir a imagem do Caddy com as telas
         run: docker build -t academia-gestao-caddy:ci .
 
+  # Ponta a ponta numa instalação do zero (scripts/e2e.sh): a API, as telas num Chromium de verdade
+  # (web/e2e/telas.mjs) e o e-mail com o Mailpit. Pega o que os testes de unidade das telas não veem
+  # (Caddy, cabeçalhos, a imagem montada). Leva uns 7 minutos, em paralelo com os outros jobs.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v7
+
+      - name: Instalar o Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar o Playwright e o Chromium
+        working-directory: web
+        run: npm ci && npx playwright install --with-deps chromium
+
+      - name: Rodar o ponta a ponta
+        run: scripts/e2e.sh
+
   # Manda ao GitHub a lista real de dependências, já resolvida pelo Maven (inclusive as
   # que chegam pelo Spring Boot, como Tomcat e Jackson). Sem isso, o grafo do GitHub só
   # enxerga o pom.xml e o Dependabot não avisa das vulnerabilidades dessas bibliotecas.
