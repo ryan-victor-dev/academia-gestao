@@ -166,9 +166,18 @@ class AlunoService {
         if (!cpfNovo.equals(aluno.getCpf()) && repository.existsByCpf(cpfNovo)) {
             throw new CpfJaCadastradoException();
         }
+        // O login usa o e-mail do cadastro (ADR 0045): sem ele, o aluno não entraria nem receberia o código.
+        boolean tiraOEmail = aluno.getEmail() != null && (dados.email() == null || dados.email().isBlank());
+        if (tiraOEmail && loginsDeAlunos.temLogin(id)) {
+            throw new DadosInvalidosException("o aluno tem login: o e-mail não pode ficar vazio");
+        }
         Map<String, Object> antes = retrato(aluno);
         aluno.atualizar(dados, relogio.instant());
         Aluno gravado = gravar(aluno);
+        if (gravado.getEmail() != null) {
+            // Depois do gravar: o aluno já foi ao banco, e a consulta do login não dispara nada dele.
+            loginsDeAlunos.acompanharEmail(id, gravado.getEmail());
+        }
         auditoria.registrar(ALUNO, id, "EDITADO", antes, retrato(gravado));
         return gravado;
     }

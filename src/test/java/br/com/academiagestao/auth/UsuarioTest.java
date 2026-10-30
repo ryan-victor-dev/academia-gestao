@@ -216,4 +216,22 @@ class UsuarioTest {
         assertThatThrownBy(() -> u.corrigirEmail("ana@academia.com")).isInstanceOf(IllegalStateException.class);
         assertThat(u.getEmail()).isEqualTo("ana.souza@academia.com");
     }
+
+    @Test
+    void emailDoCadastroSoTiraAConfirmacaoQuandoMudaDeVerdade() {
+        Usuario u = Usuario.deAluno("Ana", "ana@academia.com", HASH, UUID.randomUUID());
+        Instant confirmado = Instant.parse("2026-10-27T12:00:00Z");
+        u.confirmarEmail("ana@academia.com", confirmado);
+
+        u.acompanharEmailDoCadastro(" ANA@academia.com ");
+        assertThat(u.getEmailConfirmadoEm()).isEqualTo(confirmado);
+
+        u.acompanharEmailDoCadastro("  Ana.Souza@Academia.COM ");
+        assertThat(u.getEmail()).isEqualTo("ana.souza@academia.com");
+        assertThat(u.getEmailConfirmadoEm()).isNull();
+
+        assertThatThrownBy(() -> u.acompanharEmailDoCadastro(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> u.acompanharEmailDoCadastro("sem-arroba")).isInstanceOf(IllegalArgumentException.class);
+        assertThat(u.getEmail()).isEqualTo("ana.souza@academia.com");
+    }
 }

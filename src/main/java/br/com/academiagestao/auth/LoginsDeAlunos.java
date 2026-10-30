@@ -89,6 +89,35 @@ public class LoginsDeAlunos {
                 "O aluno já entrou no app e não pode ser excluído; inative-o"));
     }
 
+    public boolean temLogin(UUID alunoId) {
+        return repository.existsByAlunoId(alunoId);
+    }
+
+    /**
+     * O cadastro do aluno foi editado (ADR 0045): o login dele (se existir) passa a usar o e-mail do
+     * cadastro, a confirmar. Compara com o do login, e não com o anterior do cadastro: um login que
+     * ficou para trás (antes desta regra) volta a acompanhar na próxima edição.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void acompanharEmail(UUID alunoId, String email) {
+        String normalizado = Usuario.normalizarEmail(email);
+        repository.findByAlunoId(alunoId).filter(usuario -> !usuario.getEmail().equals(normalizado)).ifPresent(usuario -> {
+            // Antes de alterar a entidade: a consulta dispara o flush do Hibernate (CLAUDE.md).
+            if (repository.existsByEmail(normalizado)) {
+                throw new LoginJaExisteException("Este e-mail já é usado por outro login");
+            }
+            Map<String, Object> antes = TrilhaDeUsuarios.retrato(usuario);
+            usuario.acompanharEmailDoCadastro(normalizado);
+            try {
+                repository.saveAndFlush(usuario);
+            } catch (DataIntegrityViolationException e) {
+                // Outro login pegou o e-mail ao mesmo tempo: o UNIQUE do banco barra.
+                throw new LoginJaExisteException("Este e-mail já é usado por outro login");
+            }
+            trilha.alterado(usuario, "EMAIL_DO_CADASTRO", antes);
+        });
+    }
+
     /** Aluno reativado: o login dele (se existir) volta ao uso normal. */
     @Transactional
     public void liberarDaLeitura(UUID alunoId) {

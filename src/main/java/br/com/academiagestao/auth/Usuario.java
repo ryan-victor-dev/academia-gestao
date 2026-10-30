@@ -202,6 +202,21 @@ public class Usuario {
         this.email = normalizarEmail(novoEmail);
     }
 
+    /**
+     * A recepção trocou o e-mail no cadastro do aluno (decisão do dono, ADR 0045): o login acompanha,
+     * e o novo precisa ser confirmado, como no primeiro acesso. A senha e as sessões continuam.
+     */
+    public void acompanharEmailDoCadastro(String novoEmail) {
+        if (novoEmail == null || !novoEmail.contains("@")) {
+            throw new IllegalArgumentException("e-mail inválido");
+        }
+        String normalizado = normalizarEmail(novoEmail);
+        if (!normalizado.equals(email)) {
+            this.email = normalizado;
+            this.emailConfirmadoEm = null;
+        }
+    }
+
     private void revogarTokens() {
         this.versaoToken++;
     }
