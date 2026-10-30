@@ -49,3 +49,18 @@ nelas) e só documentar.
 
 O `FichaControllerTest.aMaiorFichaCabeNoLimiteDoCorpo` monta a maior ficha pelas constantes da regra e
 confere o 201 (com 500, dá 413).
+
+### 7 — A recepção ainda consegue somar o dinheiro do dia: risco aceito
+A contagem às cegas (ADR 0031) esconde da recepção o dinheiro recebido e o esperado do caixa aberto.
+Mas ela vê a forma e o valor de cada pagamento, nos lançamentos da cobrança e na lista de cobranças
+do aluno, e pode somá-los para saber o esperado antes de contar.
+
+**Decisão do dono:** aceitar o risco e documentar. É a própria recepção quem registra cada pagamento,
+então ela sempre sabe quanto recebeu (pode anotar num papel); esconder os lançamentos atrapalharia o
+atendimento ("já paguei esse mês?") sem fechar a brecha. A contagem às cegas continua valendo para o
+que ela faz bem: pegar o erro de troco e o desvio casual, de quem não se deu ao trabalho de somar.
+Contra o desvio de propósito, valem a trilha (quem registrou cada pagamento, e quando) e a conferência
+do ADMIN.
+
+Ficou de fora: tirar da recepção a lista de lançamentos, deixando só a situação da cobrança. O README
+diz o limite da contagem às cegas.

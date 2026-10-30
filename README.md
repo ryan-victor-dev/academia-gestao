@@ -313,7 +313,9 @@ esperado é troco + dinheiro recebido − dinheiro estornado, e uma diferença �
 justificativa escrita. Dia fechado não recebe até o ADMIN reabrir, com motivo; um dia
 passado reaberto só aceita nova contagem. Hoje só abre depois de fechar os anteriores. A
 recepção vê só o caixa de hoje e o dos dias abertos e, enquanto aberto, não vê o dinheiro
-nem o esperado (`dinheiroOculto`: contagem às cegas); o ADMIN vê tudo, e o relatório.
+nem o esperado (`dinheiroOculto`: contagem às cegas); o ADMIN vê tudo, e o relatório. A
+contagem às cegas pega erro de troco e desvio casual, mas não quem anota de propósito cada
+pagamento em dinheiro que registra: a recepção vê a forma e o valor de cada um (ADR 0046, item 7).
 ¹¹ Registro de acessos (ADR 0031): cada vez que alguém da equipe abre o cadastro de um aluno
 (`CONSULTA_ALUNO`; buscas e listas não entram), cada login (`LOGIN`, `LOGIN_FALHO` com o
 e-mail digitado, `LOGIN_BLOQUEADO` pelo limite) e cada senha atual errada na troca
