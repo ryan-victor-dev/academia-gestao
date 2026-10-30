@@ -163,7 +163,8 @@ class CaixaControllerTest {
 
     private ResultActions pagar(UUID cobranca, String meio) throws Exception {
         return mvc.perform(post("/api/cobrancas/" + cobranca + "/pagar").with(recepcao())
-                .contentType(MediaType.APPLICATION_JSON).content("{\"valor\": 100, \"meioDePagamento\": \"" + meio + "\"}"));
+                .contentType(MediaType.APPLICATION_JSON).content("{\"valor\": 100, \"meioDePagamento\": \"" + meio + "\""
+                        + (meio.equals("DINHEIRO") ? "" : ", \"codigoTransacao\": \"T" + UUID.randomUUID() + "\"") + "}"));
     }
 
     private ResultActions estornar(UUID cobranca) throws Exception {
@@ -695,8 +696,8 @@ class CaixaControllerTest {
             jdbc.execute("ALTER TABLE lancamentos DROP CONSTRAINT ck_lancamentos_no_caixa");
             jdbc.update("""
                     INSERT INTO lancamentos (id, cobranca_id, tipo, valor, acrescimo, juros, total, meio_de_pagamento,
-                                             registrado_em, registrado_por)
-                    VALUES (?, ?, 'PAGAMENTO', 100, 0, 0, 100, 'PIX', ?, ?)""", UUID.randomUUID(), cobranca,
+                                             codigo_transacao, registrado_em, registrado_por)
+                    VALUES (?, ?, 'PAGAMENTO', 100, 0, 0, 100, 'PIX', 'E2E1', ?, ?)""", UUID.randomUUID(), cobranca,
                     java.sql.Timestamp.from(registradoEm), recepcao);
             jdbc.execute("ALTER TABLE lancamentos ADD CONSTRAINT ck_lancamentos_no_caixa " + definicao);
         });
@@ -710,14 +711,14 @@ class CaixaControllerTest {
         UUID id = cobranca();
         String insere = """
                 INSERT INTO lancamentos (id, cobranca_id, tipo, valor, acrescimo, juros, total, meio_de_pagamento,
-                                         registrado_em, registrado_por, caixa_id)
-                VALUES (?, ?, 'PAGAMENTO', 100, 0, 0, 100, 'PIX', ?::timestamptz, ?, ?)""";
+                                         codigo_transacao, registrado_em, registrado_por, caixa_id)
+                VALUES (?, ?, 'PAGAMENTO', 100, 0, 0, 100, 'PIX', 'E2E1', ?::timestamptz, ?, ?)""";
         String meioDia = dia + "T12:00:00-03:00";
 
         assertThatThrownBy(() -> jdbc.update(insere, UUID.randomUUID(), id, meioDia, recepcao, null))
                 .isInstanceOf(DataAccessException.class).hasMessageContaining("ck_lancamentos_no_caixa");
         // O online (ADR 0034) é o contrário: nunca entra no caixa.
-        assertThatThrownBy(() -> jdbc.update(insere.replace("'PIX'", "'PIX_ONLINE'"), UUID.randomUUID(), id, meioDia,
+        assertThatThrownBy(() -> jdbc.update(insere.replace("'PIX', 'E2E1'", "'PIX_ONLINE', NULL"), UUID.randomUUID(), id, meioDia,
                 recepcao, caixa)).isInstanceOf(DataAccessException.class).hasMessageContaining("ck_lancamentos_no_caixa");
         assertThatThrownBy(() -> jdbc.update(insere, UUID.randomUUID(), id, dia.plusDays(1) + "T12:00:00-03:00",
                 recepcao, caixa)).isInstanceOf(DataAccessException.class).hasMessageContaining("caixa do dia");
@@ -796,5 +797,55 @@ class CaixaControllerTest {
         }
         largada.countDown();
         return lados.stream().map(CompletableFuture::join).sorted().toList();
+    }
+
+    /**
+     * A lista do dia (ADR 0046, item 10): cada pagamento e estorno, na ordem, com o código, o
+     * aluno e quem registrou. Só o ADMIN: a recepção somaria o dinheiro da contagem às cegas.
+     */
+    @Test
+    void lancamentosDoDiaSoParaOAdmin() throws Exception {
+        abrir("50", recepcao()).andExpect(status().isCreated());
+        jdbc.update("UPDATE usuarios SET nome = 'Rita Recepção' WHERE id = ?", recepcao);
+        jdbc.update("UPDATE alunos SET nome = 'Ana Aluna' WHERE id = ?", aluno);
+        UUID emDinheiro = cobranca();
+        UUID noPix = cobranca();
+        pagar(emDinheiro, "DINHEIRO").andExpect(status().isOk());
+        String codigo = "T" + UUID.randomUUID().toString().toUpperCase();
+        mvc.perform(post("/api/cobrancas/" + noPix + "/pagar").with(recepcao()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"valor\": 100, \"meioDePagamento\": \"PIX\", \"codigoTransacao\": \"" + codigo + "\"}"))
+                .andExpect(status().isOk());
+        relogio.fixar(relogio.instant().plusSeconds(60));
+        estornar(noPix).andExpect(status().isOk());
+
+        mvc.perform(get("/api/caixas/" + dia + "/lancamentos").with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(3)))
+                .andExpect(jsonPath("$[*].tipo", contains("PAGAMENTO", "PAGAMENTO", "ESTORNO")))
+                .andExpect(jsonPath("$[*].forma", contains("DINHEIRO", "PIX", "PIX")))
+                .andExpect(jsonPath("$[*].cobrancaId", contains(emDinheiro.toString(), noPix.toString(), noPix.toString())))
+                .andExpect(jsonPath("$[0].codigoTransacao").value(nullValue()))
+                .andExpect(jsonPath("$[1].codigoTransacao").value(codigo))
+                .andExpect(jsonPath("$[2].codigoTransacao").value(codigo))
+                .andExpect(jsonPath("$[0].total").value(100.0))
+                .andExpect(jsonPath("$[0].alunoId").value(aluno.toString()))
+                .andExpect(jsonPath("$[0].alunoNome").value("Ana Aluna"))
+                .andExpect(jsonPath("$[*].porNome", contains("Rita Recepção", "Rita Recepção", "U")))
+                .andExpect(jsonPath("$[*].por", contains(recepcao.toString(), recepcao.toString(), admin.toString())))
+                .andExpect(jsonPath("$[2].motivo").value("Devolvido"))
+                .andExpect(jsonPath("$[0].em").exists());
+
+        mvc.perform(get("/api/caixas/" + dia + "/lancamentos").with(recepcao())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/caixas/" + dia.plusDays(1) + "/lancamentos").with(admin())).andExpect(status().isNotFound());
+
+        // Cada dia só com os seus: o pagamento do dia seguinte não entra na lista deste.
+        fechar(dia, "150", null, recepcao()).andExpect(status().isOk());
+        irPara(dia.plusDays(1));
+        abrir("150", recepcao()).andExpect(status().isCreated());
+        UUID noOutroDia = cobranca();
+        pagar(noOutroDia, "DINHEIRO").andExpect(status().isOk());
+        mvc.perform(get("/api/caixas/" + dia + "/lancamentos").with(admin())).andExpect(jsonPath("$", hasSize(3)));
+        mvc.perform(get("/api/caixas/" + dia.plusDays(1) + "/lancamentos").with(admin()))
+                .andExpect(jsonPath("$[*].cobrancaId", contains(noOutroDia.toString())));
     }
 }

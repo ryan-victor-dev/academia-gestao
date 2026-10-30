@@ -216,7 +216,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/matriculas/me` | ALUNO (as próprias) |
 | `GET /api/cobrancas?alunoId=`, `GET /api/cobrancas/{id}` (situação e o devido hoje⁷) | ADMIN, RECEPCAO |
 | `GET /api/cobrancas/atrasadas?pagina=&tamanho=` (as em aberto já vencidas, da mais antiga, com o `alunoNome`) | ADMIN, RECEPCAO |
-| `POST /api/cobrancas/{id}/pagar` (`valor` igual ao devido hoje e `meioDePagamento`: `DINHEIRO`, `PIX`, `CARTAO_DEBITO` ou `CARTAO_CREDITO`; só com o caixa de hoje aberto¹⁰) | ADMIN, RECEPCAO |
+| `POST /api/cobrancas/{id}/pagar` (`valor` igual ao devido hoje e `meioDePagamento`: `DINHEIRO`, `PIX`, `CARTAO_DEBITO` ou `CARTAO_CREDITO`; no Pix e no cartão, `codigoTransacao`, que não pode ter pago outra cobrança¹⁵; só com o caixa de hoje aberto¹⁰) | ADMIN, RECEPCAO |
 | `POST /api/cobrancas/{id}/estornar` (volta a dever; só com o caixa de hoje aberto¹⁰) e `/cancelar` (só em aberto), com `motivo` | ADMIN |
 | `GET /api/cobrancas/{id}/lancamentos` (pagamentos e estornos, na ordem; nada se apaga⁷) | ADMIN, RECEPCAO |
 | `GET /api/cobrancas/configuracao`, `PUT` (exige `If-Match`²; acréscimo, juros e dias para bloquear⁷) | Ler: ADMIN, RECEPCAO; alterar: ADMIN |
@@ -234,6 +234,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/caixas/{dia}/reabrir` (`motivo`) | ADMIN |
 | `GET /api/caixas/{dia}` (movimento por forma e fechamentos¹⁰) e `GET /api/caixas/abertos` (o que falta fechar) | ADMIN; RECEPCAO só hoje e os dias abertos |
 | `GET /api/caixas/relatorio?de=&ate=` (cada dia por forma, menos os estornos, com os fechamentos; até 366 dias) | ADMIN |
+| `GET /api/caixas/{dia}/lancamentos` (cada pagamento e estorno do caixa do dia: hora, forma, valor, código da transação, aluno e quem registrou¹⁵) | ADMIN |
 | `GET /api/exercicios?grupoMuscular=&incluirInativos=`, `GET /api/exercicios/{id}` (catálogo⁸) | ADMIN, INSTRUTOR |
 | `POST /api/exercicios`, `PUT /api/exercicios/{id}` (exige `If-Match`²), `POST /api/exercicios/{id}/inativar`, `/reativar` | ADMIN, INSTRUTOR |
 | `DELETE /api/exercicios/{id}` (só o que nunca entrou numa ficha; numa ficha, mesmo encerrada, 409: inative¹⁴) | ADMIN |
@@ -345,6 +346,11 @@ recebe no máximo 1 por minuto, 5 por hora e 10 em 24 horas (ADR 0041).
 ¹⁴ Excluir (ADR 0043): só o cadastro que nunca foi usado sai, o feito por engano. Com histórico, 409,
 e o caminho é inativar. A trilha registra `EXCLUIDO` com o último retrato.
 
+¹⁵ Código da transação (ADR 0046, item 10): no Pix e no cartão do balcão, o do comprovante (o ID do Pix;
+o NSU ou a autorização do cartão), guardado sem espaços e em maiúsculas. O mesmo Pix não paga duas
+cobranças, até ser estornado; o mesmo código de cartão não se repete na mesma forma no mesmo dia (409).
+O ADMIN confere cada um com o extrato e a maquininha (veja "Conferência do PIX e do cartão").
+
 Esqueceu a senha (com o e-mail ligado¹³; aluno e equipe com o e-mail confirmado, não o ADMIN): `POST
 /api/auth/esqueci-senha` (`email`; sempre 202, sem revelar se o e-mail existe) manda um código de 6
 dígitos, e `POST /api/auth/redefinir-senha` (`email`, `codigo`, `novaSenha`) troca a senha e derruba as
@@ -401,8 +407,15 @@ maquininha**. Faça isso pelo menos uma vez por semana, e sempre antes de fechar
 1. Na tela **Caixa**, abra o relatório do período (ou `GET /api/caixas/relatorio?de=&ate=`).
 2. Para cada dia, compare o líquido de **PIX** com o extrato do banco, e o de **cartão de débito**
    e **de crédito** com o relatório da maquininha (o mesmo dia, sem as taxas).
-3. Se um dia não bater, os lançamentos de cada cobrança (`GET /api/cobrancas/{id}/lancamentos`) e a
-   trilha (`GET /api/auditoria`) dizem quem registrou cada pagamento, e em que hora.
+3. Se um dia não bater, abra o dia na tela **Caixa**: a lista **Pagamentos e estornos do dia** (ou
+   `GET /api/caixas/{dia}/lancamentos`) traz cada um com o **código da transação**, o aluno e quem
+   registrou. Procure cada código no extrato (o ID do Pix) ou na maquininha (o NSU ou a autorização):
+   o que não aparecer lá é um pagamento registrado sem ter sido recebido.
+
+O código da transação (ADR 0046, item 10) é obrigatório no Pix e no cartão do balcão, e o sistema o
+guarda sem espaços e em maiúsculas. O mesmo Pix não paga duas cobranças (só depois de estornado), e o
+mesmo código de cartão não se repete na mesma forma no mesmo dia (409). Os pagamentos de antes do
+código ficaram sem ele.
 
 O Pix, o boleto e o cartão **pelo app** (ADRs 0034 a 0037) não precisam disso: a cobrança só fica
 paga quando a empresa de pagamento confirma.

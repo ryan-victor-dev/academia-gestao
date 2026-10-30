@@ -26,7 +26,7 @@ class CobrancaTest {
     }
 
     private static void pagarEmDia(Cobranca cobranca) {
-        cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), MeioDePagamento.DINHEIRO,
+        cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), MeioDePagamento.DINHEIRO, null,
                 RECEPCAO, AGORA);
     }
 
@@ -73,7 +73,7 @@ class CobrancaTest {
     void pagaEmDiaPeloValor() {
         Cobranca cobranca = cobranca();
 
-        cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100.00"), MeioDePagamento.PIX,
+        cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100.00"), MeioDePagamento.PIX, "E2E123",
                 RECEPCAO, AGORA);
 
         assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PAGA);
@@ -92,7 +92,7 @@ class CobrancaTest {
         Cobranca cobranca = cobranca();
 
         cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO.plusDays(30), new BigDecimal("103.00"),
-                MeioDePagamento.CARTAO_DEBITO, RECEPCAO, AGORA);
+                MeioDePagamento.CARTAO_DEBITO, "E2E123", RECEPCAO, AGORA);
 
         assertThat(cobranca.getPagamento().acrescimo()).isEqualByComparingTo("2.00");
         assertThat(cobranca.getPagamento().juros()).isEqualByComparingTo("1.00");
@@ -106,7 +106,7 @@ class CobrancaTest {
         Cobranca cobranca = cobranca();
 
         assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO.plusDays(30),
-                new BigDecimal(informado), MeioDePagamento.PIX, RECEPCAO, AGORA))
+                new BigDecimal(informado), MeioDePagamento.PIX, "E2E123", RECEPCAO, AGORA))
                 .isInstanceOfSatisfying(PagamentoRecusadoException.class,
                         e -> assertThat(e.getDevido().total()).isEqualByComparingTo("103.00"))
                 .hasMessageContaining("103.00");
@@ -116,17 +116,17 @@ class CobrancaTest {
 
     @Test
     void valorAusenteEhRecusado() {
-        assertThatThrownBy(() -> cobranca().pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, null, MeioDePagamento.PIX,
+        assertThatThrownBy(() -> cobranca().pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, null, MeioDePagamento.PIX, "E2E123",
                 RECEPCAO, AGORA)).isInstanceOf(PagamentoRecusadoException.class);
     }
 
     @Test
     void meioEQuemRegistrouSaoObrigatorios() {
         Cobranca cobranca = cobranca();
-        assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, BigDecimal.valueOf(100), null,
+        assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, BigDecimal.valueOf(100), null, null,
                 RECEPCAO, AGORA)).isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("meio");
         assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, BigDecimal.valueOf(100),
-                MeioDePagamento.PIX, null, AGORA)).isInstanceOf(NullPointerException.class);
+                MeioDePagamento.PIX, "E2E123", null, AGORA)).isInstanceOf(NullPointerException.class);
         assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
     }
 
@@ -135,7 +135,7 @@ class CobrancaTest {
     @EnumSource(value = MeioDePagamento.class, names = {"PIX_ONLINE", "BOLETO"})
     void balcaoNaoRegistraMeioOnline(MeioDePagamento meio) {
         Cobranca cobranca = cobranca();
-        assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), meio,
+        assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), meio, "E2E123",
                 RECEPCAO, AGORA)).isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("pelo app");
         assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
     }
@@ -270,7 +270,7 @@ class CobrancaTest {
         pagarEmDia(cobranca);
         cobranca.estornar(VENCIMENTO.plusDays(10), RECEPCAO, AGORA);
         cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO.plusDays(10), new BigDecimal("100"),
-                MeioDePagamento.PIX, RECEPCAO, AGORA);
+                MeioDePagamento.PIX, "E2E123", RECEPCAO, AGORA);
         cobranca.estornar(VENCIMENTO.plusDays(20), RECEPCAO, AGORA);
         assertThat(cobranca.getPrazo()).isEqualTo(VENCIMENTO.plusDays(20));
         Cobranca semDia = cobranca();
@@ -405,10 +405,54 @@ class CobrancaTest {
     }
 
     @Test
+    void pixECartaoGuardamOCodigoLimpo() {
+        Cobranca cobranca = cobranca();
+
+        cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), MeioDePagamento.CARTAO_CREDITO,
+                " nsu 12a\t", RECEPCAO, AGORA);
+
+        assertThat(cobranca.getPagamento().codigo()).isEqualTo("NSU12A");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MeioDePagamento.class, names = {"PIX", "CARTAO_DEBITO", "CARTAO_CREDITO"})
+    void pixECartaoSemCodigoSaoRecusadosSemPagar(MeioDePagamento meio) {
+        Cobranca cobranca = cobranca();
+
+        assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), meio, "  ",
+                RECEPCAO, AGORA)).isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("obrigatório");
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
+        assertThat(cobranca.getPagamento()).isNull();
+    }
+
+    @Test
+    void dinheiroNaoTemCodigo() {
+        Cobranca cobranca = cobranca();
+
+        assertThatThrownBy(() -> cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"),
+                MeioDePagamento.DINHEIRO, "123", RECEPCAO, AGORA)).isInstanceOf(CobrancaInvalidaException.class);
+        assertThat(cobranca.getStatus()).isEqualTo(StatusCobranca.PENDENTE);
+
+        cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), MeioDePagamento.DINHEIRO, " ",
+                RECEPCAO, AGORA);
+        assertThat(cobranca.getPagamento().codigo()).isNull();
+    }
+
+    @Test
+    void pagamentoOnlineNaoTemCodigoDoBalcao() {
+        Cobranca cobranca = cobranca();
+        ValorDevido combinado = RegrasDeAtraso.PADRAO.devido(cobranca, VENCIMENTO);
+
+        cobranca.pagarOnline(combinado, combinado.total(), MeioDePagamento.PIX_ONLINE, RECEPCAO, AGORA);
+
+        assertThat(cobranca.getPagamento().codigo()).isNull();
+    }
+
+    @Test
     void restauraDoBanco() {
         UUID id = UUID.randomUUID();
         Pagamento pagamento = new Pagamento(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.TEN, MeioDePagamento.PIX,
-                AGORA, RECEPCAO);
+                "E2E123", AGORA, RECEPCAO);
         Cobranca cobranca = Cobranca.restaurar(id, UUID.randomUUID(), UUID.randomUUID(), TipoCobranca.MULTA, 1,
                 BigDecimal.TEN, VENCIMENTO, StatusCobranca.PAGA, pagamento, null, VENCIMENTO.minusDays(1), true, 7);
         assertThat(cobranca.getId()).isEqualTo(id);

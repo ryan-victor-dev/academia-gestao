@@ -1,6 +1,6 @@
 import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { hoje } from '../../formato';
 import { apiFalsa, json, renderizar } from '../../testes/ajudantes';
 import { CaixaDoDia, type Caixa } from './CaixaDoDia';
@@ -130,5 +130,28 @@ describe('caixa do dia', () => {
     renderizar(<CaixaDoDia />);
     await screen.findByText('Aberto');
     expect(screen.queryByText('Diferença na abertura')).not.toBeInTheDocument();
+  });
+
+  it('a lista do dia aparece só para o ADMIN, e acompanha o caixa recarregado', async () => {
+    const lista = [{ id: 'l1', tipo: 'PAGAMENTO', em: '2026-10-30T13:05:00Z', forma: 'PIX', total: 100, codigoTransacao: 'E2E9',
+      alunoId: 'a1', alunoNome: 'Ana', porNome: 'Rita', motivo: null }];
+    const api = apiFalsa({ 'GET /api/caixas/abertos': json(200, [{ dia: HOJE }]), [`GET /api/caixas/${HOJE}`]: json(200, caixa()),
+      [`GET /api/caixas/${HOJE}/lancamentos`]: json(200, lista), [`POST /api/caixas/${HOJE}/fechar`]: json(200, fechado) });
+    renderizar(<CaixaDoDia />, { perfil: 'ADMIN' });
+
+    expect(await screen.findByText('E2E9')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Dinheiro contado (R$)'), '140');
+    await userEvent.click(screen.getByRole('button', { name: 'Fechar caixa' }));
+    await screen.findByText('Fechado');
+    await vi.waitFor(() => expect(api.de(`GET /api/caixas/${HOJE}/lancamentos`)).toHaveLength(2));
+  });
+
+  it('a recepção não pede a lista do dia', async () => {
+    const api = apiFalsa({ 'GET /api/caixas/abertos': json(200, [{ dia: HOJE }]), [`GET /api/caixas/${HOJE}`]: json(200, caixa()) });
+    renderizar(<CaixaDoDia />);
+
+    await screen.findByText(/contagem é às cegas/);
+    expect(screen.queryByText('Pagamentos e estornos do dia')).not.toBeInTheDocument();
+    expect(api.de(`GET /api/caixas/${HOJE}/lancamentos`)).toHaveLength(0);
   });
 });

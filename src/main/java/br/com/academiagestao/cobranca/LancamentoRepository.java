@@ -22,7 +22,7 @@ import java.util.UUID;
 class LancamentoRepository {
 
     private static final String COLUNAS = """
-            id, cobranca_id, tipo, estorna, valor, acrescimo, juros, total, meio_de_pagamento, registrado_em,
+            id, cobranca_id, tipo, estorna, valor, acrescimo, juros, total, meio_de_pagamento, codigo_transacao, registrado_em,
             registrado_por, motivo, caixa_id""";
 
     private final JdbcTemplate jdbc;
@@ -32,9 +32,9 @@ class LancamentoRepository {
     }
 
     void inserir(Lancamento l) {
-        jdbc.update("INSERT INTO lancamentos (" + COLUNAS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        jdbc.update("INSERT INTO lancamentos (" + COLUNAS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 l.id(), l.cobrancaId(), l.tipo().name(), l.estorna(), l.valor(), l.acrescimo(), l.juros(), l.total(),
-                l.meio().name(), Timestamp.from(l.em()), l.por(), l.motivo(), l.caixaId());
+                l.meio().name(), l.codigo(), Timestamp.from(l.em()), l.por(), l.motivo(), l.caixaId());
     }
 
     /** Os da cobrança, na ordem em que aconteceram. */
@@ -48,6 +48,18 @@ class LancamentoRepository {
         return jdbc.query("SELECT " + COLUNAS + " FROM lancamentos p WHERE cobranca_id = ? AND tipo = 'PAGAMENTO' "
                 + "AND NOT EXISTS (SELECT 1 FROM lancamentos e WHERE e.estorna = p.id)", this::mapear, cobrancaId)
                 .stream().findFirst();
+    }
+
+    /** Um lançamento e o aluno da cobrança. */
+    record DoAluno(Lancamento lancamento, UUID alunoId) {
+    }
+
+    /** Os pagamentos e estornos registrados no caixa, na ordem em que aconteceram. */
+    List<DoAluno> doCaixa(UUID caixaId) {
+        // As colunas do lançamento com o prefixo da tabela: a cobrança também tem id e valor.
+        return jdbc.query("SELECT " + COLUNAS.replaceAll("(\\w+)", "l.$1") + ", c.aluno_id FROM lancamentos l "
+                + "JOIN cobrancas c ON c.id = l.cobranca_id WHERE l.caixa_id = ? ORDER BY l.registrado_em, l.tipo DESC",
+                (rs, i) -> new DoAluno(mapear(rs, i), rs.getObject("aluno_id", UUID.class)), caixaId);
     }
 
     /** O que entrou e saiu no caixa, por forma: pagamentos e estornos registrados nele. */
@@ -95,7 +107,7 @@ class LancamentoRepository {
                 Lancamento.Tipo.valueOf(rs.getString("tipo")), rs.getObject("estorna", UUID.class),
                 rs.getBigDecimal("valor"), rs.getBigDecimal("acrescimo"), rs.getBigDecimal("juros"),
                 rs.getBigDecimal("total"), MeioDePagamento.valueOf(rs.getString("meio_de_pagamento")),
-                rs.getTimestamp("registrado_em").toInstant(), rs.getObject("registrado_por", UUID.class),
+                rs.getString("codigo_transacao"), rs.getTimestamp("registrado_em").toInstant(), rs.getObject("registrado_por", UUID.class),
                 rs.getString("motivo"), rs.getObject("caixa_id", UUID.class));
     }
 }

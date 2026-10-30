@@ -16,8 +16,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * O fuso da academia está em dois lugares: no Java ({@link Calendario#FUSO}) e no banco (o
- * gatilho que só aceita lançamento no caixa do dia, V35). Se um mudar sem o outro, o caixa do
- * dia passa a recusar o pagamento perto da meia-noite (pendências baixas, item 17).
+ * gatilho que só aceita lançamento no caixa do dia, V35, e o índice do código do cartão, V54). Se
+ * um mudar sem o outro, o caixa do dia passa a recusar o pagamento perto da meia-noite (pendências
+ * baixas, item 17), e o código do cartão passa a valer por outro dia.
  *
  * Lê do banco a definição atual de todas as funções e visões (e não as migrações: uma migração
  * nova pode redefinir a função, e as de correção de dados já rodaram e não valem mais).
@@ -37,6 +38,8 @@ class FusoNoBancoTest {
                 SELECT p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                 WHERE n.nspname = 'public'""", String.class));
         definicoes.addAll(jdbc.queryForList("SELECT definition FROM pg_views WHERE schemaname = 'public'", String.class));
+        // E os índices: o do código do cartão é por dia, no fuso da academia (V54).
+        definicoes.addAll(jdbc.queryForList("SELECT indexdef FROM pg_indexes WHERE schemaname = 'public'", String.class));
 
         List<String> fusos = fusos(definicoes);
 

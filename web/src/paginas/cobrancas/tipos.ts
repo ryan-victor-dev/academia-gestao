@@ -16,7 +16,7 @@ export interface Cobranca {
   situacao: SituacaoDaCobranca;
   diasDeAtraso: number;
   devidoHoje: Devido | null;
-  pagamento: { total: number; acrescimo: number; juros: number; meio: Meio; em: string } | null;
+  pagamento: { total: number; acrescimo: number; juros: number; meio: Meio; codigoTransacao?: string | null; em: string } | null;
   cancelamento: { em: string; motivo: string } | null;
 }
 
@@ -29,6 +29,7 @@ export interface Lancamento {
   tipo: 'PAGAMENTO' | 'ESTORNO';
   total: number;
   meio: Meio;
+  codigoTransacao?: string | null;
   em: string;
   motivo: string | null;
 }
@@ -36,6 +37,11 @@ export interface Lancamento {
 export const NOME_DO_MEIO_DO_BALCAO: Record<MeioDoBalcao, string> = {
   DINHEIRO: 'Dinheiro', PIX: 'Pix', CARTAO_DEBITO: 'Cartão de débito', CARTAO_CREDITO: 'Cartão de crédito',
 };
+
+/** Pix e cartão do balcão levam o código da transação do comprovante (ADR 0046, item 10). */
+export function exigeCodigo(meio: string): boolean {
+  return meio === 'PIX' || meio === 'CARTAO_DEBITO' || meio === 'CARTAO_CREDITO';
+}
 
 export const NOME_DO_MEIO: Record<Meio, string> = {
   ...NOME_DO_MEIO_DO_BALCAO, PIX_ONLINE: 'Pix pelo app', BOLETO: 'Boleto pelo app',

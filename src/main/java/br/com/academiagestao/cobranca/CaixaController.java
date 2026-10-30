@@ -1,11 +1,14 @@
 package br.com.academiagestao.cobranca;
 
+import br.com.academiagestao.alunos.AlunosParaOutrosModulos;
+import br.com.academiagestao.auth.NomesDaEquipe;
 import br.com.academiagestao.cobranca.CaixaService.Consulta;
 import br.com.academiagestao.cobranca.CaixaService.DiaDoRelatorio;
 import br.com.academiagestao.cobranca.CaixaService.Relatorio;
 import br.com.academiagestao.cobranca.dominio.Caixa;
 import br.com.academiagestao.cobranca.dominio.Caixa.Fechamento;
 import br.com.academiagestao.cobranca.dominio.Caixa.Reabertura;
+import br.com.academiagestao.cobranca.dominio.Lancamento;
 import br.com.academiagestao.cobranca.dominio.MeioDePagamento;
 import br.com.academiagestao.cobranca.dominio.MovimentoDoDia;
 import br.com.academiagestao.cobranca.dominio.MovimentoDoDia.Movimento;
@@ -33,6 +36,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * O caixa do dia (ADR 0031). A recepção (ou o ADMIN) abre o de hoje com o troco e fecha com o
@@ -45,9 +49,13 @@ import java.util.UUID;
 class CaixaController {
 
     private final CaixaService service;
+    private final AlunosParaOutrosModulos alunos;
+    private final NomesDaEquipe equipe;
 
-    CaixaController(CaixaService service) {
+    CaixaController(CaixaService service, AlunosParaOutrosModulos alunos, NomesDaEquipe equipe) {
         this.service = service;
+        this.alunos = alunos;
+        this.equipe = equipe;
     }
 
     /** Abre o caixa de hoje (o dia vem do relógio, no fuso da academia). */
@@ -87,6 +95,22 @@ class CaixaController {
             throw new AccessDeniedException("A recepção vê só o caixa de hoje e os dias ainda abertos");
         }
         return visao(consulta, autenticacao);
+    }
+
+    /**
+     * Só o ADMIN: cada pagamento e estorno do caixa do dia, com a hora, a forma, o valor, o código
+     * da transação, o aluno e quem registrou, para conferir com o extrato e a maquininha (ADR 0046,
+     * item 10). A recepção não vê: a lista revelaria o dinheiro da contagem às cegas.
+     */
+    @GetMapping("/{dia}/lancamentos")
+    @PreAuthorize("hasRole('ADMIN')")
+    List<LancamentoDoDiaResponse> lancamentos(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia) {
+        List<LancamentoRepository.DoAluno> doDia = service.lancamentosDoDia(dia);
+        Map<UUID, String> alunos = this.alunos.nomes(doDia.stream().map(LancamentoRepository.DoAluno::alunoId)
+                .collect(Collectors.toSet()));
+        Map<UUID, String> equipe = this.equipe.nomes(doDia.stream().map(d -> d.lancamento().por())
+                .collect(Collectors.toSet()));
+        return doDia.stream().map(d -> LancamentoDoDiaResponse.de(d, alunos, equipe)).toList();
     }
 
     /**
@@ -223,6 +247,18 @@ class CaixaController {
         static FechamentoResponse de(Fechamento f) {
             return new FechamentoResponse(f.contado(), f.retirado(), f.esperado(), f.diferenca(), f.justificativa(),
                     f.em(), f.por());
+        }
+    }
+
+    /** {@code motivo} só no estorno; {@code codigoTransacao} só no Pix e no cartão. */
+    record LancamentoDoDiaResponse(UUID id, Lancamento.Tipo tipo, Instant em, MeioDePagamento forma, BigDecimal total,
+                                   String codigoTransacao, UUID cobrancaId, UUID alunoId, String alunoNome, UUID por,
+                                   String porNome, String motivo) {
+        static LancamentoDoDiaResponse de(LancamentoRepository.DoAluno d, Map<UUID, String> alunos,
+                                          Map<UUID, String> equipe) {
+            Lancamento l = d.lancamento();
+            return new LancamentoDoDiaResponse(l.id(), l.tipo(), l.em(), l.meio(), l.total(), l.codigo(), l.cobrancaId(),
+                    d.alunoId(), alunos.get(d.alunoId()), l.por(), equipe.get(l.por()), l.motivo());
         }
     }
 

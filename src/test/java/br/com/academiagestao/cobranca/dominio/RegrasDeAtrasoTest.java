@@ -99,7 +99,7 @@ class RegrasDeAtrasoTest {
     @Test
     void soCobrancaEmAbertoTemDevido() {
         Cobranca paga = cobranca("100");
-        paga.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), MeioDePagamento.PIX,
+        paga.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), MeioDePagamento.PIX, "E2E123",
                 UUID.randomUUID(), Instant.now());
         assertThatThrownBy(() -> RegrasDeAtraso.PADRAO.devido(paga, VENCIMENTO.plusDays(5)))
                 .isInstanceOf(IllegalStateException.class);
@@ -119,7 +119,7 @@ class RegrasDeAtrasoTest {
     @Test
     void cobrancaPagaNaoBloqueia() {
         Cobranca paga = cobranca("100");
-        paga.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), MeioDePagamento.PIX,
+        paga.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO, new BigDecimal("100"), MeioDePagamento.PIX, "E2E123",
                 UUID.randomUUID(), Instant.now());
         assertThat(RegrasDeAtraso.PADRAO.bloqueia(paga, VENCIMENTO.plusDays(60))).isFalse();
     }

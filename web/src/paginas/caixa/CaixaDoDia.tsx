@@ -5,6 +5,7 @@ import { data, dataHora, dinheiro, hoje } from '../../formato';
 import { chamar, ErroDaApi } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
 import { NOME_DO_MEIO, type Meio } from '../cobrancas/tipos';
+import { LancamentosDoDia } from './LancamentosDoDia';
 import { RelatorioDoCaixa } from './RelatorioDoCaixa';
 
 interface Forma { forma: Meio; recebido: number; pagamentos: number; estornado: number; estornos: number; liquido: number }
@@ -30,7 +31,7 @@ export interface Caixa {
 /**
  * O caixa do dia (ADR 0031): abrir com o troco, ver o movimento por forma e fechar contando o
  * dinheiro da gaveta. Com o caixa aberto, a recepção não vê o dinheiro (contagem às cegas).
- * O ADMIN vê qualquer dia e reabre um dia fechado.
+ * O ADMIN vê qualquer dia, cada pagamento do dia com o código da transação, e reabre um dia fechado.
  */
 export function CaixaDoDia() {
   const usuario = useUsuario();
@@ -132,6 +133,8 @@ export function CaixaDoDia() {
                 <td>{dinheiro(caixa.movimento.total.estornado)}</td><td>{dinheiro(caixa.movimento.total.liquido)}</td></tr>
             </tfoot>
           </table>
+
+          {admin && <LancamentosDoDia dia={caixa.dia} versao={caixa} />}
 
           {caixa.situacao === 'ABERTO' && (
             <FormularioDeAcao titulo="Fechar o caixa" rotulo="Fechar caixa"

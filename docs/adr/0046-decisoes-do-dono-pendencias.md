@@ -101,3 +101,42 @@ O `CaixaTest` e o `CaixaControllerTest.aberturaComparadaComOQueFicouNaGavetaSoPa
 conta, o último fechamento do dia, quem vê e o relatório; o `bancoRecusaCaixaEFechamentoIncoerentes`, as
 travas do banco. Na tela, quem fecha tem o campo do retirado, e o ADMIN vê a diferença da abertura
 no caixa do dia e uma coluna no relatório.
+
+### 10 — Código da transação no Pix e no cartão do balcão
+Antes: a recepção registrava um pagamento no Pix ou no cartão sem nada que o ligasse ao dinheiro de
+verdade. O dinheiro, o fechamento do caixa confere; o Pix e o cartão, só o ADMIN, comparando o total
+do dia com o extrato e a maquininha. Um pagamento registrado sem ter sido recebido (ou o mesmo
+comprovante usado em duas cobranças) só aparecia como uma diferença no total, sem dizer qual era.
+
+**Decisão do dono:** o código da transação passa a ser obrigatório no Pix e no cartão do balcão, e o
+código repetido é recusado (409). Detalhes, também do dono:
+
+- **Pix:** o código (o ID da transação) nunca repete entre as cobranças pagas. O estorno libera: o Pix
+  foi devolvido, e o mesmo comprovante pode pagar de novo.
+- **Cartão:** o código (NSU ou autorização) não repete na mesma forma (débito ou crédito) no mesmo dia,
+  no fuso da academia: a numeração da maquininha recomeça. O estorno também libera.
+- **Formato:** texto livre, de 1 a 100 caracteres, guardado sem espaços (inclusive o que não quebra, do
+  copiar e colar) e em maiúsculas: "e2e 123" e "E2E123" são o mesmo comprovante. Caractere de controle
+  é recusado. Dinheiro não tem código (400 se vier um).
+- **Lista do dia:** o ADMIN vê cada pagamento e estorno do caixa do dia (hora, forma, valor, código,
+  aluno e quem registrou) em `GET /api/caixas/{dia}/lancamentos` e na tela do caixa. A recepção não
+  vê: a lista daria o dinheiro da contagem às cegas. Só o balcão: o online não passa pelo caixa, e a
+  empresa de pagamentos já confirma cada um.
+
+Ficaram de fora: só documentar, e exigir o código também no dinheiro (não há comprovante).
+
+- **No banco (V54):** `codigo_transacao` na cobrança (o pagamento em vigor) e no registro de
+  lançamentos (o estorno repete o do pagamento). Quem barra o repetido são dois índices únicos
+  parciais, um do Pix e um do cartão por forma e dia (no fuso de São Paulo, que o `FusoNoBancoTest`
+  confere também nos índices); o serviço traduz a violação em 409, também numa corrida. Não há
+  checagem antes no Java: daria a mesma resposta, e repetiria a regra do dia. O código só aparece no
+  Pix e no cartão, e limpo (CHECK). Todo pagamento novo nessas formas tem código (CHECK `NOT VALID`:
+  os de antes ficaram sem, e o registro só aceita INSERT).
+- **Trilha:** o pagamento leva `codigoTransacao`.
+- **Nomes de quem registrou:** a lista pede ao módulo de autenticação, pela porta nova `NomesDaEquipe`
+  (só o nome, nem o login nem o e-mail).
+
+O `PagamentoTest` cobre a limpeza e os limites; o `CobrancaControllerTest`, a recusa sem o código, o Pix
+repetido até o estorno, o cartão no mesmo dia e em outro, e dois pagamentos ao mesmo tempo com o mesmo
+Pix (sempre um 200 e um 409, cada lado ganhando em parte das rodadas); o `CobrancaRepositoryTest`, as
+travas do banco; o `CaixaControllerTest`, a lista do dia só para o ADMIN.

@@ -30,7 +30,7 @@ class CobrancaRepository {
 
     private static final String COLUNAS = """
             id, matricula_id, aluno_id, tipo, parcela, valor, vencimento, status, pago_acrescimo, pago_juros,
-            pago_total, meio_de_pagamento, paga_em, paga_por, cancelada_em, cancelada_por, motivo_cancelamento, estornada_no_dia,
+            pago_total, meio_de_pagamento, codigo_transacao, paga_em, paga_por, cancelada_em, cancelada_por, motivo_cancelamento, estornada_no_dia,
             fora_do_cronograma, versao""";
 
     private final JdbcTemplate jdbc;
@@ -96,13 +96,13 @@ class CobrancaRepository {
         int linhas = jdbc.update("""
                 UPDATE cobrancas
                 SET vencimento = ?, status = ?, pago_acrescimo = ?, pago_juros = ?, pago_total = ?, meio_de_pagamento = ?,
-                    paga_em = ?, paga_por = ?, cancelada_em = ?, cancelada_por = ?, motivo_cancelamento = ?,
+                    codigo_transacao = ?, paga_em = ?, paga_por = ?, cancelada_em = ?, cancelada_por = ?, motivo_cancelamento = ?,
                     estornada_no_dia = ?, fora_do_cronograma = ?, versao = versao + 1
                 WHERE id = ? AND versao = ?""",
                 cobranca.getVencimento(), cobranca.getStatus().name(),
                 pagamento == null ? null : pagamento.acrescimo(), pagamento == null ? null : pagamento.juros(),
                 pagamento == null ? null : pagamento.total(), pagamento == null ? null : pagamento.meio().name(),
-                pagamento == null ? null : Timestamp.from(pagamento.em()), pagamento == null ? null : pagamento.por(),
+                pagamento == null ? null : pagamento.codigo(), pagamento == null ? null : Timestamp.from(pagamento.em()), pagamento == null ? null : pagamento.por(),
                 cancelamento == null ? null : Timestamp.from(cancelamento.em()),
                 cancelamento == null ? null : cancelamento.por(), cancelamento == null ? null : cancelamento.motivo(),
                 cobranca.getEstornadaNoDia(), cobranca.isForaDoCronograma(), cobranca.getId(), cobranca.getVersao());
@@ -135,7 +135,8 @@ class CobrancaRepository {
     private Cobranca mapear(ResultSet rs, int linha) throws SQLException {
         Pagamento pagamento = rs.getTimestamp("paga_em") == null ? null : new Pagamento(
                 rs.getBigDecimal("pago_acrescimo"), rs.getBigDecimal("pago_juros"), rs.getBigDecimal("pago_total"),
-                MeioDePagamento.valueOf(rs.getString("meio_de_pagamento")), rs.getTimestamp("paga_em").toInstant(),
+                MeioDePagamento.valueOf(rs.getString("meio_de_pagamento")), rs.getString("codigo_transacao"),
+                rs.getTimestamp("paga_em").toInstant(),
                 rs.getObject("paga_por", UUID.class));
         Cancelamento cancelamento = rs.getTimestamp("cancelada_em") == null ? null : new Cancelamento(
                 rs.getTimestamp("cancelada_em").toInstant(), rs.getObject("cancelada_por", UUID.class),

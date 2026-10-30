@@ -207,10 +207,19 @@ confere("sem caixa aberto, nada se recebe (409)", s == 409 and "não foi aberto"
 s, b, _ = req("POST", "/api/caixas", {"troco": 50}, REC)
 confere("recepção abre o caixa do dia com o troco", s == 201 and b["situacao"] == "ABERTO", (s, b))
 DIA = b.get("dia")
-s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 200, "meioDePagamento": "PIX"}, REC)
+s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 200, "meioDePagamento": "PIX",
+              "codigoTransacao": "E2EMULTA0"}, REC)
 confere("pagar valor diferente = 409 com o devido", s == 409 and b["devidoHoje"]["total"] == 219.78, (s, b))
 s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDePagamento": "PIX"}, REC)
-confere("recepção recebe a multa", s == 200 and b["situacao"] == "PAGA", (s, b))
+confere("Pix sem o código da transação: 400", s == 400 and "código da transação" in b.get("detail", ""), (s, b))
+s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDePagamento": "PIX",
+              "codigoTransacao": " e2e multa 1 "}, REC)
+confere("recepção recebe a multa, com o código limpo", s == 200 and b["situacao"] == "PAGA"
+        and b["pagamento"]["codigoTransacao"] == "E2EMULTA1", (s, b))
+mensal1 = next((c for c in cs if c["tipo"] == "MENSALIDADE" and c["situacao"] == "PENDENTE"), {})
+s, b, _ = req("POST", f"/api/cobrancas/{mensal1.get('id')}/pagar", {"valor": (mensal1.get("devidoHoje") or {}).get("total"),
+              "meioDePagamento": "PIX", "codigoTransacao": "E2EMULTA1"}, REC)
+confere("o mesmo Pix não paga outra cobrança (409)", s == 409 and "Pix" in b.get("detail", ""), (s, b))
 confere("recepção não estorna", req("POST", f"/api/cobrancas/{multa}/estornar", {"motivo": "x"}, REC)[0] == 403)
 s, b, _ = req("POST", f"/api/cobrancas/{multa}/estornar", {"motivo": "Pix devolvido"}, ADM)
 confere("ADMIN estorna: volta a dever", s == 200 and b["situacao"] == "PENDENTE" and b["pagamento"] is None, (s, b))
@@ -219,7 +228,8 @@ confere("trilha do pagamento e do estorno", s == 200 and [r["acao"] for r in b["
 s, b, _ = req("GET", f"/api/cobrancas/{multa}/lancamentos", token=REC)
 confere("registro guarda o pagamento e o estorno apontando para ele", s == 200
         and [l["tipo"] for l in b] == ["PAGAMENTO", "ESTORNO"] and b[1]["estorna"] == b[0]["id"]
-        and b[0]["total"] == 219.78 and b[1]["motivo"] == "Pix devolvido", (s, b))
+        and b[0]["total"] == 219.78 and b[1]["motivo"] == "Pix devolvido"
+        and [l["codigoTransacao"] for l in b] == ["E2EMULTA1", "E2EMULTA1"], (s, b))
 
 s, b, _ = req("POST", "/api/alunos", {"nome": "Ana Atrasada", "cpf": "390.533.447-05"}, REC)
 ANA = b["id"]
@@ -250,13 +260,20 @@ secao("caixa e auditoria")
 s, b, _ = req("GET", f"/api/caixas/{DIA}", token=REC)
 confere("caixa aberto: a recepção não vê o dinheiro (contagem às cegas)", s == 200 and b["dinheiroOculto"] is True
         and "DINHEIRO" not in [f["forma"] for f in b["movimento"]["formas"]], (s, b))
+s, b, _ = req("GET", f"/api/caixas/{DIA}/lancamentos", token=ADM)
+confere("ADMIN vê cada pagamento e estorno do dia, com o código, o aluno e quem registrou", s == 200
+        and [(l["tipo"], l["forma"], l["codigoTransacao"]) for l in b] == [("PAGAMENTO", "PIX", "E2EMULTA1"),
+            ("ESTORNO", "PIX", "E2EMULTA1"), ("PAGAMENTO", "DINHEIRO", None)]
+        and b[2]["alunoNome"] == "Ana Atrasada" and all(l["porNome"] for l in b), (s, b))
+confere("a recepção não vê a lista do dia", req("GET", f"/api/caixas/{DIA}/lancamentos", token=REC)[0] == 403)
 s, b, _ = req("POST", f"/api/caixas/{DIA}/fechar", {"contado": 180}, REC)
 confere("diferença sem justificativa: 400", s == 400, (s, b))
 # Troco 50 + 132,98 em dinheiro; o PIX (pago e estornado) não passa pela gaveta.
 s, b, _ = req("POST", f"/api/caixas/{DIA}/fechar", {"contado": 182.98}, REC)
 confere("recepção fecha: esperado 182,98, sem diferença", s == 200 and b["fechamentos"][0]["esperado"] == 182.98
         and b["fechamentos"][0]["diferenca"] == 0, (s, b))
-s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDePagamento": "PIX"}, REC)
+s, b, _ = req("POST", f"/api/cobrancas/{multa}/pagar", {"valor": 219.78, "meioDePagamento": "PIX",
+              "codigoTransacao": "E2EMULTA2"}, REC)
 confere("dia fechado não recebe (409)", s == 409 and "fechado" in b.get("detail", ""), (s, b))
 confere("recepção não reabre", req("POST", f"/api/caixas/{DIA}/reabrir", {"motivo": "x"}, REC)[0] == 403)
 s, b, _ = req("GET", f"/api/caixas/relatorio?de={DIA}&ate={DIA}", token=ADM)

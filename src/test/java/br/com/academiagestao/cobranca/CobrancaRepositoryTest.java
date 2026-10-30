@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
@@ -71,6 +72,11 @@ class CobrancaRepositoryTest {
         limpeza.apagar("usuarios", usuario);
     }
 
+    /** Um código de Pix novo: o Pix nunca repete entre as pagas, e o banco é dividido. */
+    private static String pix() {
+        return "E2E" + UUID.randomUUID();
+    }
+
     private List<Cobranca> gravarCronograma() {
         var dados = new MatriculaParaCobranca(matricula, aluno, new BigDecimal("100"), 2, false, inicio, List.of(), null);
         Cronograma.acertar(dados, List.of(), inicio, Instant.now()).novas().forEach(repository::inserir);
@@ -80,7 +86,7 @@ class CobrancaRepositoryTest {
     @Test
     void gravaELeIgual() {
         Cobranca lida = gravarCronograma().getFirst();
-        lida.pagar(RegrasDeAtraso.PADRAO, inicio, new BigDecimal("100"), MeioDePagamento.PIX, usuario,
+        lida.pagar(RegrasDeAtraso.PADRAO, inicio, new BigDecimal("100"), MeioDePagamento.PIX, pix(), usuario,
                 Instant.parse("2026-10-17T15:00:00.123456Z"));
         repository.atualizar(lida);
 
@@ -105,7 +111,7 @@ class CobrancaRepositoryTest {
     void foraDoCronogramaGravadoENuncaEmAberto() {
         List<Cobranca> gravadas = gravarCronograma();
         Cobranca pagaAdiantada = gravadas.get(1);
-        pagaAdiantada.pagar(RegrasDeAtraso.PADRAO, inicio, new BigDecimal("100"), MeioDePagamento.PIX, usuario,
+        pagaAdiantada.pagar(RegrasDeAtraso.PADRAO, inicio, new BigDecimal("100"), MeioDePagamento.PIX, pix(), usuario,
                 Instant.parse("2026-10-17T15:00:00Z"));
         repository.atualizar(pagaAdiantada);
         var cancelada = new MatriculaParaCobranca(matricula, aluno, new BigDecimal("100"), 2, false, inicio, List.of(),
@@ -117,7 +123,8 @@ class CobrancaRepositoryTest {
         assertThat(repository.travar(gravadas.getFirst().getId()).orElseThrow().isForaDoCronograma()).isFalse();
         assertThatThrownBy(() -> jdbc.update("""
                 UPDATE cobrancas SET status = 'PENDENTE', pago_acrescimo = NULL, pago_juros = NULL, pago_total = NULL,
-                    meio_de_pagamento = NULL, paga_em = NULL, paga_por = NULL WHERE id = ?""", pagaAdiantada.getId()))
+                    meio_de_pagamento = NULL, codigo_transacao = NULL, paga_em = NULL, paga_por = NULL WHERE id = ?""",
+                pagaAdiantada.getId()))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_cobrancas_fora_do_cronograma");
     }
@@ -133,7 +140,7 @@ class CobrancaRepositoryTest {
         Cobranca estornadaDepois = cronograma.get(1);
         Cobranca estornadaAntes = cronograma.get(2);
         for (Cobranca c : List.of(estornadaDepois, estornadaAntes)) {
-            c.pagar(RegrasDeAtraso.PADRAO, inicio, c.getValor(), MeioDePagamento.PIX, usuario,
+            c.pagar(RegrasDeAtraso.PADRAO, inicio, c.getValor(), MeioDePagamento.PIX, pix(), usuario,
                     Instant.parse("2026-10-17T15:00:00Z"));
         }
         estornadaDepois.estornar(estornadaDepois.getVencimento().plusDays(45), usuario, Instant.now());
@@ -172,7 +179,7 @@ class CobrancaRepositoryTest {
                 RegrasDeAtraso.JUROS_MAXIMOS_AO_MES, 10);
         LocalDate vinteAnosDepois = inicio.plusYears(20);
         BigDecimal devido = regras.devido(aVista, vinteAnosDepois).total();
-        aVista.pagar(regras, vinteAnosDepois, devido, MeioDePagamento.PIX, usuario, Instant.now());
+        aVista.pagar(regras, vinteAnosDepois, devido, MeioDePagamento.PIX, pix(), usuario, Instant.now());
         repository.atualizar(aVista);
 
         assertThat(repository.travarDaMatricula(matricula).getFirst().getPagamento().total())
@@ -181,8 +188,8 @@ class CobrancaRepositoryTest {
 
     private static final String LANCAMENTO = """
             INSERT INTO lancamentos (id, cobranca_id, tipo, estorna, valor, acrescimo, juros, total, meio_de_pagamento,
-                                     registrado_em, registrado_por, motivo, caixa_id)
-            VALUES (?, ?, ?, ?, 100, 2, 1, ?, 'PIX', now(), ?, ?, ?)""";
+                                     codigo_transacao, registrado_em, registrado_por, motivo, caixa_id)
+            VALUES (?, ?, ?, ?, 100, 2, 1, ?, 'PIX', 'E2E1', now(), ?, ?, ?)""";
 
     /** As travas do registro (V24), também para quem grava sem passar pelo Java. */
     @Test
@@ -207,6 +214,71 @@ class CobrancaRepositoryTest {
         recusa("lancamentos_estorna_key", primeira, "ESTORNO", pagamento, "103", "De novo");
     }
 
+    /**
+     * O código da transação (V54, ADR 0046, item 10): obrigatório no pagamento novo no Pix e no
+     * cartão, limpo (sem espaços, em maiúsculas), e só nessas formas.
+     */
+    @Test
+    void bancoRecusaCodigoDaTransacaoIncoerente() {
+        UUID cobranca = gravarCronograma().getFirst().getId();
+        String insere = """
+                INSERT INTO lancamentos (id, cobranca_id, tipo, valor, acrescimo, juros, total, meio_de_pagamento,
+                                         codigo_transacao, registrado_em, registrado_por, caixa_id)
+                VALUES (?, ?, 'PAGAMENTO', 100, 0, 0, 100, ?, ?, now(), ?, ?)""";
+
+        for (String[] caso : new String[][]{{"PIX", null, "ck_lancamentos_codigo_obrigatorio"},
+                {"CARTAO_CREDITO", null, "ck_lancamentos_codigo_obrigatorio"},
+                {"PIX", "", "ck_lancamentos_codigo_transacao"}, {"PIX", "e2e1", "ck_lancamentos_codigo_transacao"},
+                {"PIX", "E2E 1", "ck_lancamentos_codigo_transacao"}, {"PIX", "E2E\t1", "ck_lancamentos_codigo_transacao"},
+                {"DINHEIRO", "E2E1", "ck_lancamentos_codigo_transacao"}}) {
+            assertThatThrownBy(() -> jdbc.update(insere, UUID.randomUUID(), cobranca, caso[0], caso[1], usuario, caixa))
+                    .as("%s %s", caso[0], caso[1]).isInstanceOf(DataIntegrityViolationException.class)
+                    .hasMessageContaining(caso[2]);
+        }
+        jdbc.update(insere, UUID.randomUUID(), cobranca, "DINHEIRO", null, usuario, caixa);
+        jdbc.update(insere, UUID.randomUUID(), cobranca, "CARTAO_DEBITO", "NSU-1", usuario, caixa);
+
+        // Na cobrança, só no pagamento em vigor no Pix e no cartão, e limpo.
+        String paga = """
+                UPDATE cobrancas SET status = 'PAGA', pago_acrescimo = 0, pago_juros = 0, pago_total = 100,
+                    meio_de_pagamento = ?, codigo_transacao = ?, paga_em = now(), paga_por = ? WHERE id = ?""";
+        assertThatThrownBy(() -> jdbc.update("UPDATE cobrancas SET codigo_transacao = 'E2E1' WHERE id = ?", cobranca))
+                .as("em aberto").isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_cobrancas_codigo_transacao");
+        assertThatThrownBy(() -> jdbc.update(paga, "DINHEIRO", "E2E1", usuario, cobranca))
+                .as("dinheiro").isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_cobrancas_codigo_transacao");
+        assertThatThrownBy(() -> jdbc.update(paga, "PIX", "e2e1", usuario, cobranca))
+                .as("minúsculas").isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_cobrancas_codigo_transacao");
+    }
+
+    /**
+     * Os índices únicos da V54 barram o código repetido mesmo sem a checagem do Java (a corrida):
+     * o Pix entre as pagas; o cartão na mesma forma e no mesmo dia.
+     */
+    @Test
+    void bancoRecusaCodigoRepetido() {
+        List<Cobranca> cobrancas = gravarCronograma();
+        UUID primeira = cobrancas.get(0).getId();
+        UUID segunda = cobrancas.get(1).getId();
+        String paga = """
+                UPDATE cobrancas SET status = 'PAGA', pago_acrescimo = 0, pago_juros = 0, pago_total = 100,
+                    meio_de_pagamento = ?, codigo_transacao = ?, paga_em = ?::timestamptz, paga_por = ? WHERE id = ?""";
+        String codigo = pix().toUpperCase();
+
+        jdbc.update(paga, "PIX", codigo, "2026-10-01T12:00:00-03:00", usuario, primeira);
+        assertThatThrownBy(() -> jdbc.update(paga, "PIX", codigo, "2027-03-01T12:00:00-03:00", usuario, segunda))
+                .isInstanceOf(DuplicateKeyException.class).hasMessageContaining("uq_cobrancas_codigo_do_pix");
+
+        jdbc.update(paga, "CARTAO_DEBITO", codigo, "2026-10-01T12:00:00-03:00", usuario, primeira);
+        assertThatThrownBy(() -> jdbc.update(paga, "CARTAO_DEBITO", codigo, "2026-10-01T23:30:00-03:00", usuario, segunda))
+                .isInstanceOf(DuplicateKeyException.class).hasMessageContaining("uq_cobrancas_codigo_do_cartao_no_dia");
+        // 00:30 em São Paulo é outro dia, embora em UTC ainda seja o mesmo (03:30): vale o fuso da academia.
+        jdbc.update(paga, "CARTAO_DEBITO", codigo, "2026-10-02T00:30:00-03:00", usuario, segunda);
+        jdbc.update(paga, "CARTAO_CREDITO", codigo, "2026-10-01T12:00:00-03:00", usuario, segunda);
+    }
+
     private void recusa(String restricao, UUID cobranca, String tipo, UUID estorna, String total, String motivo) {
         assertThatThrownBy(() -> jdbc.update(LANCAMENTO, UUID.randomUUID(), cobranca, tipo, estorna,
                 new BigDecimal(total), usuario, motivo, caixa)).as(restricao)
@@ -221,7 +293,7 @@ class CobrancaRepositoryTest {
         primeira.cancelar("Engano", usuario, Instant.now());
         repository.atualizar(primeira);
 
-        mesmaLeitura.pagar(RegrasDeAtraso.PADRAO, inicio, new BigDecimal("100"), MeioDePagamento.PIX, usuario,
+        mesmaLeitura.pagar(RegrasDeAtraso.PADRAO, inicio, new BigDecimal("100"), MeioDePagamento.PIX, pix(), usuario,
                 Instant.now());
         assertThatThrownBy(() -> repository.atualizar(mesmaLeitura))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);

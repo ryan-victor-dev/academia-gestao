@@ -139,7 +139,20 @@ class CobrancaControllerTest {
 
     private ResultActions pagar(UUID id, String valor, RequestPostProcessor quem) throws Exception {
         return mvc.perform(post("/api/cobrancas/" + id + "/pagar").with(quem).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"valor\": " + valor + ", \"meioDePagamento\": \"PIX\"}"));
+                .content("{\"valor\": " + valor + ", \"meioDePagamento\": \"PIX\", \"codigoTransacao\": \""
+                        + codigoNovo() + "\"}"));
+    }
+
+    /** Um código de Pix que nenhum outro teste usou (o banco é dividido, e o Pix nunca repete). */
+    private static String codigoNovo() {
+        return "E2E" + UUID.randomUUID().toString().replace("-", "").toUpperCase();
+    }
+
+    private ResultActions pagarCom(UUID id, String meio, String codigo) throws Exception {
+        String corpo = "{\"valor\": 100, \"meioDePagamento\": \"" + meio + "\""
+                + (codigo == null ? "" : ", \"codigoTransacao\": \"" + codigo + "\"") + "}";
+        return mvc.perform(post("/api/cobrancas/" + id + "/pagar").with(recepcao()).contentType(MediaType.APPLICATION_JSON)
+                .content(corpo));
     }
 
     private ResultActions acao(UUID id, String acao, String motivo, RequestPostProcessor quem) throws Exception {
@@ -593,6 +606,83 @@ class CobrancaControllerTest {
             finais.add(statusNoBanco(id));
         }
         assertThat(finais).containsExactlyInAnyOrder("PAGA", "CANCELADA");
+    }
+
+    // Código da transação no Pix e no cartão (ADR 0046, item 10).
+
+    @ParameterizedTest
+    @CsvSource(value = {"PIX,", "CARTAO_DEBITO,", "CARTAO_CREDITO,'  '", "DINHEIRO,123"}, nullValues = "")
+    void codigoDaTransacaoSoNoPixENoCartaoEObrigatorio(String meio, String codigo) throws Exception {
+        UUID id = cobranca(1, 0);
+
+        pagarCom(id, meio, codigo).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail", containsString("código da transação")));
+
+        assertThat(statusNoBanco(id)).isEqualTo("PENDENTE");
+    }
+
+    @Test
+    void oPixNaoPagaDuasCobrancasAteSerEstornado() throws Exception {
+        String codigo = codigoNovo();
+        UUID primeira = cobranca(1, 0);
+        UUID segunda = cobranca(2, 0);
+
+        pagarCom(primeira, "PIX", " " + codigo.toLowerCase() + " ").andExpect(status().isOk())
+                .andExpect(jsonPath("$.pagamento.codigoTransacao").value(codigo));
+        pagarCom(segunda, "PIX", codigo).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Código da transação já usado"))
+                .andExpect(jsonPath("$.detail", containsString("Pix")));
+        // O Pix nunca repete: nem num pagamento de outro dia.
+        jdbc.update("UPDATE cobrancas SET paga_em = paga_em - interval '40 days' WHERE id = ?", primeira);
+        pagarCom(segunda, "PIX", codigo).andExpect(status().isConflict());
+        assertThat(statusNoBanco(segunda)).isEqualTo("PENDENTE");
+        assertThat(trilha(primeira, "PAGA"))
+                .contains("\"codigoTransacao\": {\"antes\": null, \"depois\": \"" + codigo + "\"}");
+
+        // O estorno libera o código: o Pix foi devolvido.
+        acao(primeira, "estornar", "Pix devolvido", admin()).andExpect(status().isOk());
+        pagarCom(segunda, "PIX", codigo).andExpect(status().isOk());
+
+        mvc.perform(get("/api/cobrancas/" + primeira + "/lancamentos").with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].codigoTransacao", contains(codigo, codigo)));
+    }
+
+    @Test
+    void oCodigoDoCartaoNaoRepeteNaMesmaFormaNoMesmoDia() throws Exception {
+        String codigo = codigoNovo();
+        UUID primeira = cobranca(1, 0);
+        UUID segunda = cobranca(2, 0);
+        UUID terceira = cobranca(3, 0);
+
+        pagarCom(primeira, "CARTAO_DEBITO", codigo).andExpect(status().isOk());
+        pagarCom(segunda, "CARTAO_DEBITO", codigo).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail", containsString("cartão")));
+        // No crédito, é outra transação da maquininha.
+        pagarCom(segunda, "CARTAO_CREDITO", codigo).andExpect(status().isOk());
+        // Em outro dia, o número volta a valer.
+        jdbc.update("UPDATE cobrancas SET paga_em = paga_em - interval '1 day' WHERE id = ?", primeira);
+        pagarCom(terceira, "CARTAO_DEBITO", codigo).andExpect(status().isOk());
+    }
+
+    /**
+     * Dois pagamentos com o mesmo Pix ao mesmo tempo passam juntos pela checagem; quem barra o
+     * segundo é o índice único (V54), e isso tem de ser 409, nunca 500.
+     */
+    @Test
+    void doisPagamentosAoMesmoTempoComOMesmoPix() throws Exception {
+        Set<String> vencedoras = new HashSet<>();
+        for (int rodada = 0; rodada < 20; rodada++) {
+            String codigo = codigoNovo();
+            UUID a = cobranca(10 + 2 * rodada, 0);
+            UUID b = cobranca(11 + 2 * rodada, 0);
+
+            List<Integer> resultados = correr(rodada, () -> pagarCom(a, "PIX", codigo), () -> pagarCom(b, "PIX", codigo));
+
+            assertThat(resultados).as("rodada %d", rodada).containsExactly(-409, 200);
+            vencedoras.add(statusNoBanco(a).equals("PAGA") ? "a" : "b");
+        }
+        assertThat(vencedoras).as("cada lado ganha em parte das rodadas").containsExactlyInAnyOrder("a", "b");
     }
 
     private interface Chamada {

@@ -14,7 +14,7 @@ const cobranca = (mudancas: Partial<Cobranca> = {}): Cobranca => ({
   pagamento: null, cancelamento: null, ...mudancas,
 });
 const paga = cobranca({ id: 'c2', situacao: 'PAGA', diasDeAtraso: 0, devidoHoje: null,
-  pagamento: { total: 100, acrescimo: 0, juros: 0, meio: 'PIX', em: '2026-10-02T15:00:00Z' } });
+  pagamento: { total: 100, acrescimo: 0, juros: 0, meio: 'PIX', codigoTransacao: 'E2E9', em: '2026-10-02T15:00:00Z' } });
 
 function abrir(lista: Cobranca[], rotas: Parameters<typeof apiFalsa>[0] = {}, perfil: 'RECEPCAO' | 'ADMIN' = 'RECEPCAO') {
   const api = apiFalsa({ 'GET /api/cobrancas': json(200, lista), ...rotas });
@@ -31,16 +31,48 @@ describe('cobranças do aluno', () => {
     expect(screen.getByText(/acréscimo R\$\s2,00, juros R\$\s0,17/)).toBeInTheDocument();
   });
 
-  it('receber manda o valor exato de hoje e a forma, e recarrega', async () => {
+  it('receber manda o valor exato de hoje, a forma e o código da transação, e recarrega', async () => {
     const api = abrir([cobranca()], { 'POST /api/cobrancas/c1/pagar': json(200, paga) });
     await userEvent.click(await screen.findByRole('button', { name: 'Receber' }));
 
     await userEvent.selectOptions(screen.getByLabelText('Forma de pagamento'), 'PIX');
+    expect(screen.getByText(/ID da transação no comprovante do Pix/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Código da transação'), 'E2E123abc');
     await userEvent.click(screen.getByRole('button', { name: /Receber R\$\s102,17/ }));
 
-    expect(api.de('POST /api/cobrancas/c1/pagar')[0].corpo).toEqual({ valor: 102.17, meioDePagamento: 'PIX' });
+    expect(api.de('POST /api/cobrancas/c1/pagar')[0].corpo)
+      .toEqual({ valor: 102.17, meioDePagamento: 'PIX', codigoTransacao: 'E2E123abc' });
     await screen.findByRole('button', { name: 'Receber' });
     expect(api.de('GET /api/cobrancas')).toHaveLength(2);
+  });
+
+  it('no cartão, o código é obrigatório; no dinheiro, o campo nem aparece', async () => {
+    const api = abrir([cobranca()], { 'POST /api/cobrancas/c1/pagar': json(200, paga) });
+    await userEvent.click(await screen.findByRole('button', { name: 'Receber' }));
+
+    expect(screen.queryByLabelText('Código da transação')).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('Forma de pagamento'), 'CARTAO_CREDITO');
+    expect(screen.getByLabelText('Código da transação')).toBeRequired();
+    expect(screen.getByLabelText('Código da transação')).toHaveAttribute('maxLength', '100');
+    expect(screen.getByText(/NSU ou o código de autorização/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Código da transação'), 'abc');
+    await userEvent.selectOptions(screen.getByLabelText('Forma de pagamento'), 'DINHEIRO');
+    expect(screen.queryByLabelText('Código da transação')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Receber R\$\s102,17/ }));
+
+    expect(api.de('POST /api/cobrancas/c1/pagar')[0].corpo).toEqual({ valor: 102.17, meioDePagamento: 'DINHEIRO' });
+  });
+
+  it('código já usado: mostra o motivo da API', async () => {
+    abrir([cobranca()], { 'POST /api/cobrancas/c1/pagar': json(409,
+      { title: 'Código da transação já usado', detail: 'Este código de Pix já pagou outra cobrança: confira o comprovante' }) });
+    await userEvent.click(await screen.findByRole('button', { name: 'Receber' }));
+    await userEvent.selectOptions(screen.getByLabelText('Forma de pagamento'), 'PIX');
+    await userEvent.type(screen.getByLabelText('Código da transação'), 'E2E1');
+    await userEvent.click(screen.getByRole('button', { name: /Receber R\$/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Este código de Pix já pagou outra cobrança');
   });
 
   it('sem caixa aberto: mostra o motivo e o caminho para abrir', async () => {
@@ -61,7 +93,7 @@ describe('cobranças do aluno', () => {
     expect(screen.queryByRole('button', { name: 'Estornar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Receber' })).toHaveLength(1);
-    expect(screen.getByText(/Paga em .*R\$\s100,00 \(Pix\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Paga em .*R\$\s100,00 \(Pix, código E2E9\)/)).toBeInTheDocument();
   });
 
   it('ADMIN estorna a paga e cancela a em aberto, com motivo', async () => {
@@ -84,14 +116,16 @@ describe('cobranças do aluno', () => {
 
   it('histórico mostra pagamentos e estornos', async () => {
     abrir([paga], { 'GET /api/cobrancas/c2/lancamentos': json(200, [
-      { id: 'l1', tipo: 'PAGAMENTO', total: 100, meio: 'PIX', em: '2026-10-02T15:00:00Z', motivo: null },
-      { id: 'l2', tipo: 'ESTORNO', total: 100, meio: 'PIX', em: '2026-10-03T15:00:00Z', motivo: 'engano' },
+      { id: 'l1', tipo: 'PAGAMENTO', total: 100, meio: 'PIX', codigoTransacao: 'E2E9', em: '2026-10-02T15:00:00Z', motivo: null },
+      { id: 'l2', tipo: 'ESTORNO', total: 100, meio: 'PIX', codigoTransacao: 'E2E9', em: '2026-10-03T15:00:00Z', motivo: 'engano' },
+      { id: 'l3', tipo: 'PAGAMENTO', total: 100, meio: 'DINHEIRO', codigoTransacao: null, em: '2026-10-04T15:00:00Z', motivo: null },
     ]) });
 
     await userEvent.click(await screen.findByRole('button', { name: 'Histórico' }));
 
-    expect(await screen.findByText(/Pagamento de R\$\s100,00 \(Pix\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Estorno de R\$\s100,00 \(Pix\): engano/)).toBeInTheDocument();
+    expect(await screen.findByText(/Pagamento de R\$\s100,00 \(Pix, código E2E9\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Estorno de R\$\s100,00 \(Pix, código E2E9\): engano/)).toBeInTheDocument();
+    expect(screen.getByText(/Pagamento de R\$\s100,00 \(Dinheiro\)$/)).toBeInTheDocument();
   });
 
   it('quando a matrícula muda (prop "atualizar"), recarrega', async () => {

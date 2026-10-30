@@ -75,7 +75,7 @@ public class Cobranca {
      * devido: sem parcial, sem desconto, e sem receber menos porque a tela era de ontem.
      */
     public void pagar(RegrasDeAtraso regras, LocalDate hoje, BigDecimal informado, MeioDePagamento meio,
-                      UUID por, Instant agora) {
+                      String codigo, UUID por, Instant agora) {
         conferirTransicao(StatusCobranca.PAGA);
         if (meio == null) {
             throw new CobrancaInvalidaException("meio de pagamento é obrigatório");
@@ -83,13 +83,14 @@ public class Cobranca {
         if (meio.online()) {
             throw new CobrancaInvalidaException("Pix online e boleto só se recebem pelo app (empresa de pagamentos)");
         }
+        String codigoLimpo = Pagamento.codigoValido(meio, codigo);
         Objects.requireNonNull(por, "quem registrou é obrigatório");
         ValorDevido devido = regras.devido(this, hoje);
         if (informado == null || informado.compareTo(devido.total()) != 0) {
             throw new PagamentoRecusadoException(devido);
         }
         this.status = StatusCobranca.PAGA;
-        this.pagamento = new Pagamento(devido.acrescimo(), devido.juros(), devido.total(), meio,
+        this.pagamento = new Pagamento(devido.acrescimo(), devido.juros(), devido.total(), meio, codigoLimpo,
                 agora.truncatedTo(ChronoUnit.MICROS), por);
     }
 
@@ -110,7 +111,7 @@ public class Cobranca {
             throw new PagamentoRecusadoException(combinado);
         }
         this.status = StatusCobranca.PAGA;
-        this.pagamento = new Pagamento(combinado.acrescimo(), combinado.juros(), combinado.total(), meio,
+        this.pagamento = new Pagamento(combinado.acrescimo(), combinado.juros(), combinado.total(), meio, null,
                 agora.truncatedTo(ChronoUnit.MICROS), por);
     }
 

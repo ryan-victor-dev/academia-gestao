@@ -17,4 +17,12 @@ public enum MeioDePagamento {
     public boolean online() {
         return this == PIX_ONLINE || this == BOLETO || this == CREDITO_ONLINE || this == DEBITO_ONLINE;
     }
+
+    /**
+     * Pix e cartão do balcão levam o código da transação (ADR 0046, item 10): o ADMIN confere com o
+     * extrato e com a maquininha. Dinheiro se confere na contagem; o online, pela empresa.
+     */
+    public boolean exigeCodigo() {
+        return this == PIX || this == CARTAO_DEBITO || this == CARTAO_CREDITO;
+    }
 }

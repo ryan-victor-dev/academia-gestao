@@ -5,9 +5,31 @@ import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { data, dataHora, dinheiro } from '../../formato';
 import { chamar } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
-import { descricao, NOME_DA_SITUACAO, NOME_DO_MEIO, NOME_DO_MEIO_DO_BALCAO, type Cobranca, type Lancamento, type MeioDoBalcao } from './tipos';
+import { descricao, exigeCodigo, NOME_DA_SITUACAO, NOME_DO_MEIO, NOME_DO_MEIO_DO_BALCAO, type Cobranca, type Lancamento, type MeioDoBalcao } from './tipos';
 
 type Acao = { tipo: 'receber' | 'estornar' | 'cancelar' | 'historico'; id: string };
+
+/** A forma e, no Pix e no cartão, o código da transação do comprovante. */
+function FormaDoRecebimento() {
+  const [meio, setMeio] = useState('');
+  return (
+    <>
+      <label>Forma de pagamento
+        <select name="meio" required value={meio} onChange={(e) => setMeio(e.target.value)} aria-label="Forma de pagamento">
+          <option value="" disabled>Escolha…</option>
+          {Object.entries(NOME_DO_MEIO_DO_BALCAO).map(([m, nome]) => <option key={m} value={m}>{nome}</option>)}
+        </select>
+      </label>
+      {exigeCodigo(meio) && (
+        <>
+          <label>Código da transação<input name="codigo" required maxLength={100} autoComplete="off" /></label>
+          <p className="suave">{meio === 'PIX' ? 'O ID da transação no comprovante do Pix.'
+            : 'O NSU ou o código de autorização no comprovante da maquininha.'}</p>
+        </>
+      )}
+    </>
+  );
+}
 
 /**
  * Cobranças do aluno (recepção e ADMIN): receber no balcão pelo devido de hoje; o ADMIN também
@@ -59,7 +81,7 @@ export function CobrancasDoAluno({ alunoId, atualizar }: { alunoId: string; atua
   return (
     <section className="secao">
       <h2>Cobranças</h2>
-      <MensagemDeErro erro={erro} rotulos={{ valor: 'Valor', meioDePagamento: 'Forma de pagamento', motivo: 'Motivo' }} />
+      <MensagemDeErro erro={erro} rotulos={{ valor: 'Valor', meioDePagamento: 'Forma de pagamento', codigoTransacao: 'Código da transação', motivo: 'Motivo' }} />
       {semCaixa && <p><Link to="/caixa">Abrir o caixa de hoje</Link></p>}
       {cobrancas?.length === 0 && <p className="suave">Nenhuma cobrança.</p>}
       <ul className="cartoes">
@@ -75,7 +97,7 @@ export function CobrancasDoAluno({ alunoId, atualizar }: { alunoId: string; atua
               <p>Devido hoje: <strong>{dinheiro(c.devidoHoje.total)}</strong>
                 {' '}(acréscimo {dinheiro(c.devidoHoje.acrescimo)}, juros {dinheiro(c.devidoHoje.juros)})</p>
             )}
-            {c.pagamento && <p className="suave">Paga em {dataHora(c.pagamento.em)}: {dinheiro(c.pagamento.total)} ({NOME_DO_MEIO[c.pagamento.meio]})</p>}
+            {c.pagamento && <p className="suave">Paga em {dataHora(c.pagamento.em)}: {dinheiro(c.pagamento.total)} ({NOME_DO_MEIO[c.pagamento.meio]}{c.pagamento.codigoTransacao && `, código ${c.pagamento.codigoTransacao}`})</p>}
             {c.cancelamento && <p className="suave">Cancelada: {c.cancelamento.motivo}</p>}
 
             <div className="acoes">
@@ -93,14 +115,11 @@ export function CobrancasDoAluno({ alunoId, atualizar }: { alunoId: string; atua
 
             {acao?.id === c.id && acao.tipo === 'receber' && c.devidoHoje && (
               <FormularioDeAcao titulo="Receber" rotulo={`Receber ${dinheiro(c.devidoHoje.total)}`} aoCancelar={() => setAcao(null)}
-                                aoEnviar={(f) => executar(`/api/cobrancas/${c.id}/pagar`,
-                                  { valor: c.devidoHoje!.total, meioDePagamento: f.get('meio') as MeioDoBalcao })}>
-                <label>Forma de pagamento
-                  <select name="meio" required defaultValue="" aria-label="Forma de pagamento">
-                    <option value="" disabled>Escolha…</option>
-                    {Object.entries(NOME_DO_MEIO_DO_BALCAO).map(([meio, nome]) => <option key={meio} value={meio}>{nome}</option>)}
-                  </select>
-                </label>
+                                aoEnviar={(f) => executar(`/api/cobrancas/${c.id}/pagar`, {
+                                  valor: c.devidoHoje!.total, meioDePagamento: f.get('meio') as MeioDoBalcao,
+                                  ...(exigeCodigo(f.get('meio') as string) && { codigoTransacao: f.get('codigo') }),
+                                })}>
+                <FormaDoRecebimento />
                 <p>Valor exato de hoje: <strong>{dinheiro(c.devidoHoje.total)}</strong></p>
               </FormularioDeAcao>
             )}
@@ -119,7 +138,7 @@ export function CobrancasDoAluno({ alunoId, atualizar }: { alunoId: string; atua
                   <ul>
                     {lancamentos.map((l) => (
                       <li key={l.id}>{dataHora(l.em)} · {l.tipo === 'PAGAMENTO' ? 'Pagamento' : 'Estorno'} de {dinheiro(l.total)}
-                        {' '}({NOME_DO_MEIO[l.meio]}){l.motivo ? `: ${l.motivo}` : ''}</li>
+                        {' '}({NOME_DO_MEIO[l.meio]}{l.codigoTransacao && `, código ${l.codigoTransacao}`}){l.motivo ? `: ${l.motivo}` : ''}</li>
                     ))}
                   </ul>
                 )}

@@ -192,6 +192,13 @@ class CaixaService {
         return consulta(repository.doDia(dia).orElseThrow(() -> new CaixaNaoEncontradoException(dia)));
     }
 
+    /** Os pagamentos e estornos do caixa do dia, um a um (só o ADMIN, ADR 0046, item 10). */
+    @Transactional(readOnly = true)
+    List<LancamentoRepository.DoAluno> lancamentosDoDia(LocalDate dia) {
+        Caixa caixa = repository.doDia(dia).orElseThrow(() -> new CaixaNaoEncontradoException(dia));
+        return lancamentos.doCaixa(caixa.getId());
+    }
+
     private Caixa travar(LocalDate dia) {
         return repository.travar(dia).orElseThrow(() -> new CaixaNaoEncontradoException(dia));
     }

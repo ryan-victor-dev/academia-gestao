@@ -16,6 +16,12 @@ export function dataHora(iso: string | null | undefined): string {
     .format(new Date(iso));
 }
 
+/** Instante → "14:05", no fuso da academia (para listas de um dia só). */
+export function hora(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: FUSO, timeStyle: 'short' }).format(new Date(iso));
+}
+
 const REAIS = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function dinheiro(valor: number | string | null | undefined): string {

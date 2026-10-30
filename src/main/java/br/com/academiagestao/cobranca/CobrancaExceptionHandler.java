@@ -58,6 +58,13 @@ class CobrancaExceptionHandler {
         return problema;
     }
 
+    @ExceptionHandler(CodigoDaTransacaoEmUsoException.class)
+    ProblemDetail codigoEmUso(CodigoDaTransacaoEmUsoException e) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        problema.setTitle("Código da transação já usado");
+        return problema;
+    }
+
     @ExceptionHandler(TransicaoInvalidaException.class)
     ProblemDetail transicaoInvalida(TransicaoInvalidaException e) {
         String detalhe = switch (e.getOrigem()) {

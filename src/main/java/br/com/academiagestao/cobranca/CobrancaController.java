@@ -105,13 +105,16 @@ class CobrancaController {
         return service.lancamentos(id).stream().map(LancamentoResponse::de).toList();
     }
 
-    /** O valor precisa ser o devido hoje (o "devidoHoje.total" da consulta). */
+    /**
+     * O valor precisa ser o devido hoje (o "devidoHoje.total" da consulta). Pix e cartão levam o
+     * código da transação, que não pode ter pago outra cobrança (ADR 0046, item 10).
+     */
     @PostMapping("/{id}/pagar")
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
     CobrancaResponse pagar(@PathVariable UUID id, @Valid @RequestBody PagamentoRequest request,
                            @AuthenticationPrincipal Jwt jwt) {
         return CobrancaResponse.de(service.pagar(id, request.valor(), request.meioDePagamento(),
-                UUID.fromString(jwt.getSubject())));
+                request.codigoTransacao(), UUID.fromString(jwt.getSubject())));
     }
 
     @PostMapping("/{id}/estornar")
@@ -130,7 +133,8 @@ class CobrancaController {
 
     record PagamentoRequest(
             @NotNull(message = "é obrigatório") BigDecimal valor,
-            @NotNull(message = "é obrigatório") MeioDePagamento meioDePagamento) {
+            @NotNull(message = "é obrigatório") MeioDePagamento meioDePagamento,
+            String codigoTransacao) {
     }
 
     record MotivoRequest(String motivo) {
@@ -185,19 +189,19 @@ class CobrancaController {
     }
 
     record PagamentoResponse(BigDecimal total, BigDecimal acrescimo, BigDecimal juros, MeioDePagamento meio,
-                             Instant em, UUID por) {
+                             String codigoTransacao, Instant em, UUID por) {
         static PagamentoResponse de(Pagamento p) {
-            return new PagamentoResponse(p.total(), p.acrescimo(), p.juros(), p.meio(), p.em(), p.por());
+            return new PagamentoResponse(p.total(), p.acrescimo(), p.juros(), p.meio(), p.codigo(), p.em(), p.por());
         }
     }
 
     /** {@code estorna} e {@code motivo} só no estorno. */
     record LancamentoResponse(UUID id, Lancamento.Tipo tipo, UUID estorna, BigDecimal valor, BigDecimal acrescimo,
-                              BigDecimal juros, BigDecimal total, MeioDePagamento meio, Instant em, UUID por,
-                              String motivo) {
+                              BigDecimal juros, BigDecimal total, MeioDePagamento meio, String codigoTransacao,
+                              Instant em, UUID por, String motivo) {
         static LancamentoResponse de(Lancamento l) {
             return new LancamentoResponse(l.id(), l.tipo(), l.estorna(), l.valor(), l.acrescimo(), l.juros(), l.total(),
-                    l.meio(), l.em(), l.por(), l.motivo());
+                    l.meio(), l.codigo(), l.em(), l.por(), l.motivo());
         }
     }
 

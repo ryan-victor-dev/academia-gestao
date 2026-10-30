@@ -160,7 +160,7 @@ class CronogramaTest {
     void encerramentoCancelaAsEmAbertoECriaAMulta() {
         List<Cobranca> gravadas = Cronograma.acertar(mensal(3, List.of(), null), List.of(), INICIO, AGORA).novas();
         Cobranca pagaAdiantada = gravadas.get(2);
-        pagaAdiantada.pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX,
+        pagaAdiantada.pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX, "E2E123",
                 UUID.randomUUID(), AGORA);
         var cancelada = mensal(3, List.of(), new Encerramento(Encerramento.Tipo.CANCELAMENTO, INICIO,
                 new BigDecimal("80")));
@@ -191,7 +191,7 @@ class CronogramaTest {
     @Test
     void pagaNoCronogramaNaoEhMarcada() {
         List<Cobranca> gravadas = Cronograma.acertar(mensal(2, List.of(), null), List.of(), INICIO, AGORA).novas();
-        gravadas.getFirst().pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX,
+        gravadas.getFirst().pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX, "E2E123",
                 UUID.randomUUID(), AGORA);
 
         Cronograma.Acerto acerto = Cronograma.acertar(mensal(2, List.of(), null), gravadas, INICIO, AGORA);
@@ -378,7 +378,7 @@ class CronogramaTest {
     void pagaAdiantadaViraCreditoNaTroca() {
         var mensal = mensal(3, List.of(), null);
         List<Cobranca> gravadas = Cronograma.acertar(mensal, List.of(), INICIO, AGORA).novas();
-        gravadas.get(2).pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX,
+        gravadas.get(2).pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX, "E2E123",
                 UUID.randomUUID(), AGORA);
 
         assertThat(Cronograma.continuacao(mensal, gravadas, dia(2026, 11, 1)).credito()).isEqualByComparingTo("100");
@@ -387,7 +387,7 @@ class CronogramaTest {
         var aVista = new MatriculaParaCobranca(MATRICULA, ALUNO, new BigDecimal("100.00"), 12, true, INICIO,
                 List.of(), null);
         Cobranca total = Cronograma.acertar(aVista, List.of(), INICIO, AGORA).novas().getFirst();
-        total.pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("1200"), MeioDePagamento.PIX, UUID.randomUUID(),
+        total.pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("1200"), MeioDePagamento.PIX, "E2E123", UUID.randomUUID(),
                 AGORA);
         assertThat(Cronograma.continuacao(aVista, List.of(total), INICIO).credito()).isEqualByComparingTo("1200");
     }
@@ -400,7 +400,7 @@ class CronogramaTest {
     void trocaNaoMarcaAPagaAdiantadaEOEstornoAFazDever() {
         List<Cobranca> gravadas = Cronograma.acertar(mensal(3, List.of(), null), List.of(), INICIO, AGORA).novas();
         Cobranca pagaAdiantada = gravadas.get(2);
-        pagaAdiantada.pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX,
+        pagaAdiantada.pagar(RegrasDeAtraso.PADRAO, INICIO, new BigDecimal("100"), MeioDePagamento.PIX, "E2E123",
                 UUID.randomUUID(), AGORA);
         var trocada = mensal(3, List.of(), new Encerramento(Encerramento.Tipo.TROCA, dia(2026, 11, 1), null));
 

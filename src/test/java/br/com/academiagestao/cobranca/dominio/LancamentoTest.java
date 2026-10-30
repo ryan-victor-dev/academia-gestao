@@ -28,7 +28,7 @@ class LancamentoTest {
     private static Cobranca paga() {
         Cobranca cobranca = emAberto();
         cobranca.pagar(RegrasDeAtraso.PADRAO, VENCIMENTO.plusDays(15), new BigDecimal("102.50"),
-                MeioDePagamento.CARTAO_DEBITO, RECEPCAO, Instant.parse("2026-10-25T13:00:00.123456789Z"));
+                MeioDePagamento.CARTAO_DEBITO, "E2E123", RECEPCAO, Instant.parse("2026-10-25T13:00:00.123456789Z"));
         return cobranca;
     }
 
@@ -47,6 +47,7 @@ class LancamentoTest {
         assertThat(pagamento.juros()).isEqualByComparingTo("0.50");
         assertThat(pagamento.total()).isEqualByComparingTo("102.50");
         assertThat(pagamento.meio()).isEqualTo(MeioDePagamento.CARTAO_DEBITO);
+        assertThat(pagamento.codigo()).isEqualTo("E2E123");
         assertThat(pagamento.em()).isEqualTo(cobranca.getPagamento().em());
         assertThat(pagamento.por()).isEqualTo(RECEPCAO);
         assertThat(pagamento.caixaId()).isEqualTo(CAIXA);
@@ -96,8 +97,8 @@ class LancamentoTest {
         assertThat(estorno.estorna()).isEqualTo(pagamento.id());
         assertThat(estorno.cobrancaId()).isEqualTo(pagamento.cobrancaId());
         assertThat(estorno).extracting(Lancamento::valor, Lancamento::acrescimo, Lancamento::juros, Lancamento::total,
-                Lancamento::meio).containsExactly(pagamento.valor(), pagamento.acrescimo(), pagamento.juros(),
-                pagamento.total(), pagamento.meio());
+                Lancamento::meio, Lancamento::codigo).containsExactly(pagamento.valor(), pagamento.acrescimo(),
+                pagamento.juros(), pagamento.total(), pagamento.meio(), "E2E123");
         assertThat(estorno.motivo()).isEqualTo("Cartão contestado");
         assertThat(estorno.por()).isEqualTo(ADMIN);
         // O dinheiro sai do caixa do dia do estorno, não do dia do pagamento (ADR 0031).

@@ -12,6 +12,7 @@ import br.com.academiagestao.cobranca.dominio.ValorDevido;
 import br.com.academiagestao.compartilhado.Auditoria;
 import br.com.academiagestao.compartilhado.Calendario;
 import br.com.academiagestao.compartilhado.Pagina;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -91,7 +92,7 @@ class CobrancaService {
      * caixa de hoje aberto (ADR 0031).
      */
     @Transactional
-    Consulta pagar(UUID id, BigDecimal valor, MeioDePagamento meio, UUID usuarioId) {
+    Consulta pagar(UUID id, BigDecimal valor, MeioDePagamento meio, String codigo, UUID usuarioId) {
         existe(id);
         Instant agora = relogio.instant();
         LocalDate hoje = Calendario.hoje(agora);
@@ -99,8 +100,15 @@ class CobrancaService {
         Cobranca cobranca = travar(id);
         Map<String, Object> antes = retrato(cobranca);
         RegrasDeAtraso regras = configuracao.ler().regras();
-        cobranca.pagar(regras, hoje, valor, meio, usuarioId, agora);
-        Consulta paga = gravar(cobranca, "PAGA", antes, null, regras, hoje);
+        cobranca.pagar(regras, hoje, valor, meio, codigo, usuarioId, agora);
+        Consulta paga;
+        try {
+            paga = gravar(cobranca, "PAGA", antes, null, regras, hoje);
+        } catch (DuplicateKeyException e) {
+            // Quem barra o código repetido é o índice único (V54), também numa corrida: o Pix entre
+            // as pagas, o cartão na mesma forma e no mesmo dia. É a única chave que o pagamento muda.
+            throw new CodigoDaTransacaoEmUsoException(meio);
+        }
         lancamentos.inserir(Lancamento.doPagamento(cobranca, caixa.getId()));
         return paga;
     }
@@ -246,7 +254,8 @@ class CobrancaService {
         return Auditoria.campos("status", cobranca.getStatus().name(), "valor", cobranca.getValor(),
                 "vencimento", cobranca.getVencimento().toString(), "foraDoCronograma", cobranca.isForaDoCronograma(),
                 "pagoTotal", pagamento == null ? null : pagamento.total(),
-                "meioDePagamento", pagamento == null ? null : pagamento.meio().name());
+                "meioDePagamento", pagamento == null ? null : pagamento.meio().name(),
+                "codigoTransacao", pagamento == null ? null : pagamento.codigo());
     }
 
     private LocalDate hoje() {
