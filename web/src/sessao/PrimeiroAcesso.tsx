@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { criarSenhaDoPrimeiroAcesso, ErroDaApi, pedirCodigoDoPrimeiroAcesso } from './api';
+import { AvisoDeEspera, useEspera } from './Espera';
 
 const MINIMO = 12;
 
@@ -17,9 +18,12 @@ export function PrimeiroAcesso({ emailInicial, aoVoltar }: { emailInicial: strin
   const [confirmacao, setConfirmacao] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const espera = useEspera();
 
   // Aceita "000.000.000-00" ou só os números; vai só com os números.
   const digitos = cpf.replace(/\D/g, '');
+  const conta = email.trim().toLowerCase();
+  const { restante } = espera.de(conta);
   const problema =
     senha.length > 0 && senha.length < MINIMO ? `A senha precisa ter pelo menos ${MINIMO} caracteres.`
       : confirmacao.length > 0 && confirmacao !== senha ? 'A confirmação não é igual à senha.'
@@ -31,7 +35,7 @@ export function PrimeiroAcesso({ emailInicial, aoVoltar }: { emailInicial: strin
     try {
       await acao();
     } catch (e) {
-      setErro(e instanceof ErroDaApi ? e.message : 'Erro inesperado. Tente de novo.');
+      if (!espera.aguardar(e, conta)) setErro(e instanceof ErroDaApi ? e.message : 'Erro inesperado. Tente de novo.');
     } finally {
       setEnviando(false);
     }
@@ -68,8 +72,9 @@ export function PrimeiroAcesso({ emailInicial, aoVoltar }: { emailInicial: strin
           E-mail
           <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
+        <AvisoDeEspera {...espera.de(conta)} />
         {erro && <p className="erro" role="alert">{erro}</p>}
-        <button type="submit" disabled={enviando || digitos.length !== 11 || !email.includes('@')}>
+        <button type="submit" disabled={enviando || digitos.length !== 11 || !email.includes('@') || restante > 0}>
           {enviando ? 'Enviando…' : 'Enviar código'}
         </button>
         <button type="button" className="secundario" onClick={() => aoVoltar(false)}>Voltar para o login</button>
@@ -96,8 +101,9 @@ export function PrimeiroAcesso({ emailInicial, aoVoltar }: { emailInicial: strin
         Repita a senha
         <input type="password" autoComplete="new-password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} />
       </label>
+      <AvisoDeEspera {...espera.de(conta)} />
       {(problema || erro) && <p className="erro" role="alert">{erro ?? problema}</p>}
-      <button type="submit" disabled={enviando || codigo.length !== 6 || !senha || confirmacao !== senha || problema !== null}>
+      <button type="submit" disabled={enviando || codigo.length !== 6 || !senha || confirmacao !== senha || problema !== null || restante > 0}>
         {enviando ? 'Salvando…' : 'Criar o acesso'}
       </button>
       <button type="button" className="secundario" onClick={() => aoVoltar(false)}>Voltar para o login</button>

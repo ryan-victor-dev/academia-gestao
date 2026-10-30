@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { ErroDaApi, pedirCodigoDeSenha, redefinirSenha } from './api';
+import { AvisoDeEspera, useEspera } from './Espera';
 
 const MINIMO = 12;
 
@@ -15,6 +16,9 @@ export function EsqueciASenha({ emailInicial, aoVoltar }: { emailInicial: string
   const [confirmacao, setConfirmacao] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const espera = useEspera();
+  const conta = email.trim().toLowerCase();
+  const { restante } = espera.de(conta);
 
   const problema =
     nova.length > 0 && nova.length < MINIMO ? `A nova senha precisa ter pelo menos ${MINIMO} caracteres.`
@@ -27,7 +31,7 @@ export function EsqueciASenha({ emailInicial, aoVoltar }: { emailInicial: string
     try {
       await acao();
     } catch (e) {
-      setErro(e instanceof ErroDaApi ? e.message : 'Erro inesperado. Tente de novo.');
+      if (!espera.aguardar(e, conta)) setErro(e instanceof ErroDaApi ? e.message : 'Erro inesperado. Tente de novo.');
     } finally {
       setEnviando(false);
     }
@@ -58,8 +62,9 @@ export function EsqueciASenha({ emailInicial, aoVoltar }: { emailInicial: string
           E-mail
           <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
+        <AvisoDeEspera {...espera.de(conta)} />
         {erro && <p className="erro" role="alert">{erro}</p>}
-        <button type="submit" disabled={enviando || !email.includes('@')}>{enviando ? 'Enviando…' : 'Enviar código'}</button>
+        <button type="submit" disabled={enviando || !email.includes('@') || restante > 0}>{enviando ? 'Enviando…' : 'Enviar código'}</button>
         <button type="button" className="secundario" onClick={() => aoVoltar(false)}>Voltar para o login</button>
       </form>
     );
@@ -83,8 +88,9 @@ export function EsqueciASenha({ emailInicial, aoVoltar }: { emailInicial: string
         Repita a nova senha
         <input type="password" autoComplete="new-password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} />
       </label>
+      <AvisoDeEspera {...espera.de(conta)} />
       {(problema || erro) && <p className="erro" role="alert">{erro ?? problema}</p>}
-      <button type="submit" disabled={enviando || codigo.length !== 6 || !nova || confirmacao !== nova || problema !== null}>
+      <button type="submit" disabled={enviando || codigo.length !== 6 || !nova || confirmacao !== nova || problema !== null || restante > 0}>
         {enviando ? 'Salvando…' : 'Salvar nova senha'}
       </button>
       <button type="button" className="secundario" onClick={() => aoVoltar(false)}>Voltar para o login</button>

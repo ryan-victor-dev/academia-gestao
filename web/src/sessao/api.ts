@@ -30,13 +30,25 @@ interface RespostaDeLogin {
 export class ErroDaApi extends Error {
   readonly status: number;
   readonly erros: Record<string, string>;
+  /** Segundos até poder tentar de novo (o Retry-After do 429 e do 503), quando a API diz. */
+  readonly esperar: number | null;
+  /** O título do problema ("Muitas tentativas"), mais curto que a explicação. */
+  readonly titulo: string | null;
 
-  constructor(status: number, mensagem: string, erros: Record<string, string> = {}) {
+  constructor(status: number, mensagem: string, erros: Record<string, string> = {},
+              { esperar = null, titulo = null }: { esperar?: number | null; titulo?: string | null } = {}) {
     super(mensagem);
     this.name = 'ErroDaApi';
     this.status = status;
     this.erros = erros;
+    this.esperar = esperar;
+    this.titulo = titulo;
   }
+}
+
+/** O Retry-After em segundos; a forma de data (que a API não usa) fica de fora. */
+function segundosDe(retryAfter: string | null): number | null {
+  return retryAfter !== null && /^\d+$/.test(retryAfter) && Number(retryAfter) > 0 ? Number(retryAfter) : null;
 }
 
 let token: string | null = null;
@@ -48,9 +60,11 @@ async function erroDe(resposta: Response): Promise<ErroDaApi> {
     // Erros de validação vêm como [{campo, mensagem}]; viram {campo: mensagem}.
     const erros = Object.fromEntries(
       ((problema.erros ?? []) as Array<{ campo: string; mensagem: string }>).map((e) => [e.campo, e.mensagem]));
-    return new ErroDaApi(resposta.status, problema.detail ?? problema.title ?? 'Erro inesperado.', erros);
+    return new ErroDaApi(resposta.status, problema.detail ?? problema.title ?? 'Erro inesperado.', erros,
+      { esperar: segundosDe(resposta.headers.get('Retry-After')), titulo: problema.title ?? null });
   } catch {
-    return new ErroDaApi(resposta.status, 'Erro inesperado.');
+    return new ErroDaApi(resposta.status, 'Erro inesperado.', {},
+      { esperar: segundosDe(resposta.headers.get('Retry-After')) });
   }
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { entrar, ErroDaApi, opcoesDoLogin, type OpcoesDoLogin } from './api';
+import { AvisoDeEspera, useEspera } from './Espera';
 import { EsqueciASenha } from './EsqueciASenha';
 import { PrimeiroAcesso } from './PrimeiroAcesso';
 
@@ -16,6 +17,10 @@ export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
   const [perguntas, setPerguntas] = useState(0);
   const [outraTela, setOutraTela] = useState<'esqueci' | 'primeiro' | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const espera = useEspera();
+  // O limite é por conta: a espera vale para o e-mail que a recebeu.
+  const conta = email.trim().toLowerCase();
+  const { restante } = espera.de(conta);
 
   useEffect(() => {
     let ativo = true;
@@ -48,7 +53,7 @@ export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
       await entrar(email, senha);
       aoEntrar();
     } catch (e) {
-      setErro(mensagemDe(e));
+      if (!espera.aguardar(e, conta)) setErro(mensagemDe(e));
       setEnviando(false);
     }
   }
@@ -85,8 +90,9 @@ export function TelaDeLogin({ aoEntrar }: { aoEntrar: () => void }) {
           <input type="password" autoComplete="current-password" required value={senha}
                  onChange={(e) => setSenha(e.target.value)} />
         </label>
+        <AvisoDeEspera {...espera.de(conta)} />
         {erro && <p className="erro" role="alert">{erro}</p>}
-        <button type="submit" disabled={enviando || !email || !senha}>
+        <button type="submit" disabled={enviando || !email || !senha || restante > 0}>
           {enviando ? 'Entrando…' : 'Entrar'}
         </button>
         {oferece.esqueciSenha && (
