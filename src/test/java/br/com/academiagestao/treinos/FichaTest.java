@@ -90,7 +90,7 @@ class FichaTest {
                 i -> new DadosFicha.Item(SUPINO, 3, "10", "x".repeat(31), null, null),
                 i -> new DadosFicha.Item(SUPINO, 3, "10", null, -1, null),
                 i -> new DadosFicha.Item(SUPINO, 3, "10", null, 601, null),
-                i -> new DadosFicha.Item(SUPINO, 3, "10", null, null, "x".repeat(501)),
+                i -> new DadosFicha.Item(SUPINO, 3, "10", null, null, "x".repeat(201)),
                 i -> null);
     }
 
@@ -105,7 +105,7 @@ class FichaTest {
     @Test
     void limitesAceitos() {
         DadosFicha.Item noLimite = new DadosFicha.Item(SUPINO, 20, "x".repeat(20), "x".repeat(30), 600,
-                "x".repeat(500));
+                "x".repeat(200));
         DadosFicha.Item noMinimo = new DadosFicha.Item(SUPINO, 1, "1", null, 0, null);
         List<DadosFicha.Item> vinte = Collections.nCopies(20, noLimite);
         List<DadosFicha.Divisao> sete = Stream.of("A", "B", "C", "D", "E", "F", "x".repeat(40))

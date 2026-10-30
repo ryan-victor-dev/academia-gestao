@@ -41,7 +41,8 @@ class ExercicioDaFicha {
     @Column(name = "descanso_segundos", updatable = false)
     private Integer descansoSegundos;
 
-    @Column(updatable = false, length = Ficha.TAMANHO_MAXIMO_OBSERVACAO)
+    // A coluna continua com 500: as fichas de antes do limite de 200 (ADR 0046, item 15) seguem valendo.
+    @Column(updatable = false, length = 500)
     private String observacao;
 
     // Exigido pelo JPA. Protegido para ninguém criar um item vazio pelo código.

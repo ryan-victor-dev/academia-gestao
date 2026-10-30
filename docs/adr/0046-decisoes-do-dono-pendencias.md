@@ -27,3 +27,25 @@ O motivo do cancelamento continua na trilha: é a justificativa de uma alteraç�
 sistema ainda não foi ao ar, e só existem dados de desenvolvimento.
 
 O `TrilhaDasMatriculasTest` confere que a linha `TRANCADA` não tem o motivo.
+
+### 15 — A observação do exercício na ficha vai até 200 caracteres
+Antes: a ficha aceitava 7 divisões de 20 exercícios, cada um com observação de até 500 caracteres. A
+maior ficha que as regras aceitavam dava uns 98 KB, e o limite de cada pedido é 64 KB (ADR 0012): ela
+seria recusada com 413, embora válida.
+
+**Decisão do dono:** a observação do exercício na ficha passa a ir até 200 caracteres. A maior ficha
+cai para uns 55 KB e cabe no limite. A observação do catálogo de exercícios continua em 500 (ela vai
+num pedido pequeno).
+
+Ficaram de fora: um limite maior só nas rotas da ficha (o servidor passaria a aceitar pedidos maiores
+nelas) e só documentar.
+
+- A coluna no banco continua com 500: as fichas de antes seguem valendo e aparecem inteiras. Corrigir
+  uma delas exige encurtar a observação longa (400, com o campo).
+- A tela para de aceitar letras no 200º caractere.
+- A conta vale para texto comum. Uma ficha no limite de tudo, com todas as observações cheias só de
+  letras acentuadas (2 bytes cada no UTF-8), ainda passaria de 64 KB e receberia 413. Uma ficha de
+  verdade fica muito longe disso.
+
+O `FichaControllerTest.aMaiorFichaCabeNoLimiteDoCorpo` monta a maior ficha pelas constantes da regra e
+confere o 201 (com 500, dá 413).

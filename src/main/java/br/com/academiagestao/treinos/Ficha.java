@@ -42,7 +42,8 @@ class Ficha {
     static final int TAMANHO_MAXIMO_REPETICOES = 20;
     static final int TAMANHO_MAXIMO_CARGA = 30;
     static final int MAXIMO_DESCANSO_SEGUNDOS = 600;
-    static final int TAMANHO_MAXIMO_OBSERVACAO = 500;
+    // 200, e não 500 como no catálogo: assim a maior ficha cabe no limite de 64 KB do pedido (ADR 0046, item 15).
+    static final int TAMANHO_MAXIMO_OBSERVACAO = 200;
     // Teto da data de revisão, contado do dia em que ela é definida (decisão do dono, D2).
     static final int REVISAO_MAXIMA_ANOS = 1;
     // A maior página do histórico (FichaController): as divisões dela vêm numa consulta só.

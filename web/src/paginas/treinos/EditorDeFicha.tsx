@@ -165,7 +165,7 @@ export function EditorDeFicha({ base, correcao = false, titulo, aoSalvar, aoCanc
                                  onChange={(e) => mudarItem(i, k, { carga: e.target.value })} /></label>
               <label>Descanso (s)<input type="number" min={0} max={LIMITES.descanso} value={item.descansoSegundos}
                                         onChange={(e) => mudarItem(i, k, { descansoSegundos: e.target.value })} /></label>
-              <label className="largo">Observação<input value={item.observacao} maxLength={500}
+              <label className="largo">Observação<input value={item.observacao} maxLength={200}
                                                         onChange={(e) => mudarItem(i, k, { observacao: e.target.value })} /></label>
               <div className="acoes largo">
                 <button type="button" className="secundario" disabled={k === 0} onClick={() => moverItem(i, k, -1)}>Subir</button>

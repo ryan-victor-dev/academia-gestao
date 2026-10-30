@@ -244,7 +244,7 @@ class FichaControllerTest {
                 [{"nome": " ", "exercicios": []},
                  {"nome": "B", "exercicios": [{"series": 0, "repeticoes": "", "carga": "%s", "descansoSegundos": 601,
                                                "observacao": "%s"}]}]"""
-                .formatted("x".repeat(31), "x".repeat(501)))
+                .formatted("x".repeat(31), "x".repeat(201)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erros[*].campo", hasItems("divisoes[0].nome", "divisoes[0].exercicios",
                         "divisoes[1].exercicios[0].exercicioId", "divisoes[1].exercicios[0].series",
@@ -255,6 +255,24 @@ class FichaControllerTest {
         montar(aluno, "[" + oito + "]").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erros[*].campo", hasItems("divisoes")));
         ver("/api/fichas?alunoId=" + aluno).andExpect(jsonPath("$.conteudo").isEmpty());
+    }
+
+    /** Item 15 (ADR 0046): a maior ficha que as regras aceitam cabe no limite de 64 KB do pedido. */
+    @Test
+    void aMaiorFichaCabeNoLimiteDoCorpo() throws Exception {
+        String noLimite = """
+                {"exercicioId": "%s", "series": %d, "repeticoes": "%s", "carga": "%s", "descansoSegundos": %d,
+                 "observacao": "%s"}""".formatted(supino, Ficha.MAXIMO_SERIES,
+                "x".repeat(Ficha.TAMANHO_MAXIMO_REPETICOES), "x".repeat(Ficha.TAMANHO_MAXIMO_CARGA),
+                Ficha.MAXIMO_DESCANSO_SEGUNDOS, "x".repeat(Ficha.TAMANHO_MAXIMO_OBSERVACAO));
+        String exercicios = String.join(", ", java.util.Collections.nCopies(Ficha.MAXIMO_EXERCICIOS_POR_DIVISAO, noLimite));
+        // Os nomes das divisões não se repetem: cada uma é uma letra repetida até o limite.
+        String maior = java.util.stream.IntStream.range(0, Ficha.MAXIMO_DIVISOES)
+                .mapToObj(d -> "{\"nome\": \"%s\", \"exercicios\": [%s]}".formatted(
+                        String.valueOf((char) ('A' + d)).repeat(Ficha.TAMANHO_MAXIMO_NOME_DIVISAO), exercicios))
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+
+        montar(aluno, maior).andExpect(status().isCreated());
     }
 
     /** T5 do diagnóstico da etapa 7: sem teto, 9999-12-31 era gravado, e um ano maior dava 500. */
