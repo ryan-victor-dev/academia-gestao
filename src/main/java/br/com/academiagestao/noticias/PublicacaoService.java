@@ -1,6 +1,10 @@
 package br.com.academiagestao.noticias;
 
 import br.com.academiagestao.compartilhado.Auditoria;
+import br.com.academiagestao.compartilhado.DadosInvalidosException;
+import br.com.academiagestao.compartilhado.PublicacaoExcluida;
+import br.com.academiagestao.compartilhado.PublicacaoParaAvisar;
+import org.springframework.context.ApplicationEventPublisher;
 import br.com.academiagestao.noticias.DadosDaPublicacao.Tipo;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -25,11 +29,13 @@ class PublicacaoService {
 
     private final Publicacoes publicacoes;
     private final Auditoria auditoria;
+    private final ApplicationEventPublisher eventos;
     private final Clock relogio;
 
-    PublicacaoService(Publicacoes publicacoes, Auditoria auditoria, Clock relogio) {
+    PublicacaoService(Publicacoes publicacoes, Auditoria auditoria, ApplicationEventPublisher eventos, Clock relogio) {
         this.publicacoes = publicacoes;
         this.auditoria = auditoria;
+        this.eventos = eventos;
         this.relogio = relogio;
     }
 
@@ -48,11 +54,22 @@ class PublicacaoService {
         return publicacoes.buscar(id).orElseThrow(PublicacaoNaoEncontradaException::new);
     }
 
+    /**
+     * Com {@code avisar}, o evento ou comunicado vai também por e-mail e SMS a alunos e equipe (ADR 0047, decisão 8): o
+     * módulo de avisos põe na fila depois do commit. A notícia não avisa (só "eventos e comunicados", pediu o dono).
+     */
     @Transactional
-    Publicacao publicar(DadosDaPublicacao dados, UUID autor) {
+    Publicacao publicar(DadosDaPublicacao dados, UUID autor, boolean avisar) {
+        if (avisar && dados.tipo() == Tipo.NOTICIA) {
+            throw new DadosInvalidosException("avisar: só eventos e comunicados são avisados por e-mail e SMS");
+        }
         UUID id = UUID.randomUUID();
         publicacoes.inserir(id, dados, relogio.instant(), autor);
-        auditoria.registrar(PUBLICACAO, id, "PUBLICADA", Map.of(), retrato(dados));
+        auditoria.registrar(PUBLICACAO, id, avisar ? "PUBLICADA_COM_AVISO" : "PUBLICADA", Map.of(), retrato(dados));
+        if (avisar) {
+            eventos.publishEvent(new PublicacaoParaAvisar(id, dados.tipo().name(), dados.titulo(), dados.texto(),
+                    dados.eventoInicio(), dados.eventoFim(), dados.eventoLocal()));
+        }
         return buscar(id);
     }
 
@@ -70,6 +87,7 @@ class PublicacaoService {
         Publicacao antes = publicacoes.travar(id).orElseThrow(PublicacaoNaoEncontradaException::new);
         publicacoes.excluir(id);
         auditoria.registrar(PUBLICACAO, id, "EXCLUIDA", retrato(antes.dados()), Map.of());
+        eventos.publishEvent(new PublicacaoExcluida(id));
     }
 
     private static Map<String, Object> retrato(DadosDaPublicacao d) {

@@ -233,7 +233,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/pagamentos-online/balcao/boleto` (`alunoId` e `cobrancaId`: o boleto de qualquer cobrança em aberto do aluno, para ele pagar depois; devolve o que ainda vale; ADR 0047) | ADMIN, RECEPCAO |
 | `GET /api/publicacoes` (notícias, comunicados e eventos, da mais nova para a mais antiga; `tipo`, `pagina`, `tamanho` até 50; ADR 0047) | Qualquer perfil logado |
 | `GET /api/publicacoes/proximos-eventos` (os que ainda não terminaram, pelo início; até 5) e `GET /api/publicacoes/{id}` | Qualquer perfil logado |
-| `POST /api/publicacoes`, `PUT /api/publicacoes/{id}`, `DELETE /api/publicacoes/{id}` (`tipo`, `titulo`, `texto`, `links` até 10, só http(s); o evento com `eventoInicio`, `eventoFim` e `eventoLocal`) | ADMIN, RECEPCAO |
+| `POST /api/publicacoes`, `PUT /api/publicacoes/{id}`, `DELETE /api/publicacoes/{id}` (`tipo`, `titulo`, `texto`, `links` até 10, só http(s); o evento com `eventoInicio`, `eventoFim` e `eventoLocal`; `avisar`, ao publicar evento ou comunicado: também por e-mail e SMS) | ADMIN, RECEPCAO |
 | `POST /api/publicacoes/{id}/anexos` (o arquivo cru no corpo, com o nome em `X-Nome-Do-Arquivo`, codificado como na URL; foto JPEG, PNG, WebP ou GIF até 5 MB, PDF até 10 MB, vídeo MP4 ou WebM até 50 MB, reconhecidos pelo conteúdo; até 10 por publicação; ADR 0047) e `DELETE /api/publicacoes/{id}/anexos/{anexoId}` | ADMIN, RECEPCAO |
 | `GET /api/anexos/{id}?expira=&assinatura=` (o endereço assinado que vem em cada publicação, válido por 1 a 2 horas; aceita `Range`) | Sem login (quem autoriza é a assinatura) |
 | `POST /api/pagamentos-online/aviso` (o aviso da empresa de pagamentos; só dispara a consulta a ela) | sem login (a empresa prova quem é no aviso) |
@@ -360,6 +360,9 @@ dia antes do vencimento, no dia, e com 1, 3 e 5 dias de atraso. Quem pagou não 
 antes de cada envio), e o mesmo aviso nunca sai duas vezes (`avisos_de_fatura`).
 Com `SMS_PROVEDOR=simulado` (só desenvolvimento: guarda em `sms_simulados`, recusado com `DOMINIO`), o aviso vai também
 por SMS ao celular do aluno. A empresa de SMS de verdade ainda será escolhida.
+Avisos da academia (ADR 0047): o evento ou comunicado publicado com "avisar" vai por e-mail e SMS aos alunos ativos e por
+e-mail à equipe, menos a quem desligou em "Meus dados" (`GET`/`PUT /api/avisos/preferencias`, qualquer perfil, a própria
+pessoa). O aviso de fatura não se desliga.
 
 ¹⁴ Excluir (ADR 0043): só o cadastro que nunca foi usado sai, o feito por engano. Com histórico, 409,
 e o caminho é inativar. A trilha registra `EXCLUIDO` com o último retrato.

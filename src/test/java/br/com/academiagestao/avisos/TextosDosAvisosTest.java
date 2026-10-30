@@ -113,4 +113,47 @@ class TextosDosAvisosTest {
         assertThat(antes.length()).isLessThanOrEqualTo(200);
         assertThat(atrasada.length()).isLessThanOrEqualTo(200);
     }
+
+    private static final java.time.Instant SABADO_9H = java.time.Instant.parse("2030-11-09T12:00:00Z");
+
+    private static TextosDosAvisos.DaAcademia evento(java.time.Instant fim, String local) {
+        return new TextosDosAvisos.DaAcademia("EVENTO", "Aulão de sábado", "Traga água.\nVagas limitadas.", SABADO_9H, fim, local);
+    }
+
+    @Test
+    void emailDoEventoComQuandoOndeEComoDesligar() {
+        TextosDosAvisos.Texto t = TextosDosAvisos.daAcademia(evento(SABADO_9H.plusSeconds(7200), "Sala 2"), "Rita Alves");
+
+        assertThat(t.assunto()).isEqualTo("Evento da academia: Aulão de sábado");
+        assertThat(t.corpo()).startsWith("Olá, Rita!\n\nTem evento novo na academia:\n\nAulão de sábado\n\n09/11/2030 às 09:00 até 11:00 · Sala 2\n")
+                .contains("Traga água.\nVagas limitadas.").contains("Veja também na página inicial do app.")
+                .endsWith("desligue em Meus dados, no app. Os lembretes de fatura continuam.");
+    }
+
+    @Test
+    void emailDoComunicadoSemQuando() {
+        TextosDosAvisos.Texto t = TextosDosAvisos.daAcademia(
+                new TextosDosAvisos.DaAcademia("COMUNICADO", "Feriado", "Fechados na sexta.", null, null, null), "Rita");
+        assertThat(t.assunto()).isEqualTo("Comunicado da academia: Feriado");
+        assertThat(t.corpo()).startsWith("Olá, Rita!\n\nComunicado da academia:\n\nFeriado\n\nFechados na sexta.").doesNotContain(" às ");
+    }
+
+    @Test
+    void quandoEOndeDoEvento() {
+        assertThat(TextosDosAvisos.quandoEOnde(evento(null, null))).isEqualTo("09/11/2030 às 09:00");
+        assertThat(TextosDosAvisos.quandoEOnde(evento(SABADO_9H.plusSeconds(86_400 + 3600), "Parque")))
+                .isEqualTo("09/11/2030 às 09:00 até 10/11/2030 às 10:00 · Parque");
+    }
+
+    @Test
+    void smsDaAcademiaCurto() {
+        assertThat(TextosDosAvisos.daAcademiaSms(evento(null, "Sala 2"))).isEqualTo("Academia: evento: Aulão de sábado - 09/11 09:00, Sala 2. Veja no app.");
+        assertThat(TextosDosAvisos.daAcademiaSms(evento(null, null))).isEqualTo("Academia: evento: Aulão de sábado - 09/11 09:00. Veja no app.");
+        assertThat(TextosDosAvisos.daAcademiaSms(new TextosDosAvisos.DaAcademia("COMUNICADO", "Feriado", "x", null, null, null)))
+                .isEqualTo("Academia: comunicado: Feriado. Veja no app.");
+        String longo = TextosDosAvisos.daAcademiaSms(new TextosDosAvisos.DaAcademia("COMUNICADO", "a".repeat(150), "x", null, null, null));
+        assertThat(longo).isEqualTo("Academia: comunicado: " + "a".repeat(79) + "…. Veja no app.");
+        assertThat(TextosDosAvisos.daAcademiaSms(new TextosDosAvisos.DaAcademia("COMUNICADO", "a".repeat(80), "x", null, null, null)))
+                .contains("a".repeat(80) + ". Veja");
+    }
 }

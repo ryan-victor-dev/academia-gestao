@@ -207,3 +207,23 @@ quem nunca recebeu nada.
 - **Só celular:** 11 dígitos com o 9 depois do DDD; telefone fixo não recebe SMS.
 - **Cada canal com a sua reserva** em `avisos_de_fatura`: o e-mail fora do ar não segura o SMS, e um não repete o
   outro. Os avisos rodam se houver e-mail ou SMS ligado.
+
+### Avisos de eventos e comunicados, e desligar (decisão 8)
+Ao publicar um evento ou comunicado, quem publica marca "avisar alunos e equipe por e-mail e SMS" (vem marcado; a
+notícia não avisa, e a API recusa `avisar` nela). O módulo de notícias solta o evento `PublicacaoParaAvisar` (no
+`compartilhado`), e o de avisos o ouve **depois do commit** (sem ciclo entre os módulos, e uma publicação desfeita não
+avisa ninguém).
+
+- **Fila:** o que foi publicado fica guardado como estava (`avisos_da_academia`, V61), e cada pessoa e canal entra em
+  `envios_da_academia`, cuja chave impede o repetido. Uma tarefa manda 100 de cada vez, a cada minuto, fora de
+  transação: milhares de alunos não seguram a publicação nem o banco. Falha tenta de novo, até 3 vezes.
+- **Quem recebe:** alunos ativos (e-mail e, com SMS ligado, celular) e a equipe ativa (só e-mail: a equipe não tem
+  telefone no sistema), menos quem desligou. O contato não é copiado para a fila: é lido do cadastro na hora do envio,
+  e quem desligou, saiu ou ficou sem contato nesse meio tempo é cancelado.
+- **Desligar:** em "Meus dados", para alunos e equipe (`GET`/`PUT /api/avisos/preferencias`, o id vem do token).
+  Vale só para eventos e comunicados: o aviso de fatura não se desliga. O e-mail do aviso diz como desligar. O aluno
+  inativo (só de leitura) consulta, mas não muda (e já não recebe).
+- **Excluir a publicação** (evento `PublicacaoExcluida`) cancela o que ainda não saiu.
+- **Limite conhecido:** a fila é montada logo depois do commit, numa transação nova (uma conexão a mais por um
+  instante, ADR 0020); se ela falhar, a publicação fica sem aviso (o erro vai para o log). A fila não é apagada (cresce
+  com alunos × publicações avisadas; para uma academia, milhares de linhas por ano).

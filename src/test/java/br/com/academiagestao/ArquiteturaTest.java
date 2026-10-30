@@ -67,7 +67,8 @@ class ArquiteturaTest {
     // Porta pública de cada módulo: o que outros módulos podem usar. O resto é interno.
     @ArchTest
     static final ArchRule authSoPelaPortaPublica = soPelaPortaPublica("auth",
-            Set.of("LoginsDeAlunos", "ClaimsDoToken", "CredenciaisTemporarias", "RecuperacaoDeAdmin", "NomesDaEquipe"));
+            Set.of("LoginsDeAlunos", "ClaimsDoToken", "CredenciaisTemporarias", "RecuperacaoDeAdmin", "NomesDaEquipe",
+                    "ContatosDaEquipe", "ContatoDaEquipe"));
 
     @ArchTest
     static final ArchRule alunosSoPelaPortaPublica = soPelaPortaPublica("alunos",

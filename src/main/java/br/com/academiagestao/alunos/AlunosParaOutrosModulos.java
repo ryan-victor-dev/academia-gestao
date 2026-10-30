@@ -78,4 +78,11 @@ public class AlunosParaOutrosModulos {
         return repository.findAllById(ids).stream().collect(Collectors.toMap(Aluno::getId,
                 a -> new Contato(a.getNome(), a.getEmail(), a.getTelefone(), a.isAtivo())));
     }
+
+    /** O contato de todos os alunos ativos (os avisos da academia, ADR 0047). */
+    @Transactional(readOnly = true)
+    public Map<UUID, Contato> contatosDosAtivos() {
+        return repository.contatosDosAtivos().stream().collect(Collectors.toMap(AlunoRepository.ContatoDoAluno::id,
+                c -> new Contato(c.nome(), c.email(), c.telefone(), true)));
+    }
 }

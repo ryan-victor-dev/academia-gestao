@@ -27,6 +27,15 @@ public interface AlunoRepository extends JpaRepository<Aluno, UUID>, JpaSpecific
     @Query("SELECT a FROM Aluno a WHERE a.id = :id")
     Optional<Aluno> travarPorId(UUID id);
 
+    /** Só o contato dos ativos, sem carregar o cadastro inteiro (os avisos da academia, ADR 0047). */
+    @Query("""
+            SELECT new br.com.academiagestao.alunos.AlunoRepository$ContatoDoAluno(a.id, a.nome, a.email, a.telefone)
+            FROM Aluno a WHERE a.ativo = true""")
+    List<ContatoDoAluno> contatosDosAtivos();
+
+    record ContatoDoAluno(UUID id, String nome, String email, String telefone) {
+    }
+
     @Query("""
             SELECT new br.com.academiagestao.alunos.AlunoRepository$NomeDoAluno(a.id, a.nome)
             FROM Aluno a WHERE a.id IN :ids AND a.ativo = true""")

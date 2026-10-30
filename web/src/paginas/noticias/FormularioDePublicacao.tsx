@@ -14,6 +14,8 @@ export interface PedidoDePublicacao {
   eventoFim: string | null;
   eventoLocal: string | null;
   links: LinkDaPublicacao[];
+  /** Só ao publicar evento ou comunicado: manda também por e-mail e SMS (ADR 0047). */
+  avisar: boolean;
 }
 
 /**
@@ -28,6 +30,8 @@ export function FormularioDePublicacao({ inicial, aoEnviar, aoCancelar }: {
   const [links, setLinks] = useState<LinkDaPublicacao[]>(inicial?.links ?? []);
   // Os arquivos vêm do campo, e não do FormData: assim chegam os mesmos no navegador e nos testes (jsdom).
   const [arquivos, setArquivos] = useState<File[]>([]);
+  const [avisar, setAvisar] = useState(true);
+  const podeAvisar = !inicial && tipo !== 'NOTICIA';
   const evento = tipo === 'EVENTO';
 
   function mudarLink(i: number, campo: keyof LinkDaPublicacao, valor: string) {
@@ -46,6 +50,7 @@ export function FormularioDePublicacao({ inicial, aoEnviar, aoCancelar }: {
                         eventoFim: f.get('eventoFim') ? instanteDaAcademia(String(f.get('eventoFim'))) : null,
                         eventoLocal: String(f.get('eventoLocal') ?? '') || null,
                         links: links.map((l) => ({ url: l.url.trim(), rotulo: l.rotulo?.trim() || null })),
+                        avisar: podeAvisar && avisar,
                       }, arquivos)}>
       <label>Tipo
         <select aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoDePublicacao)}>
@@ -85,6 +90,12 @@ export function FormularioDePublicacao({ inicial, aoEnviar, aoCancelar }: {
           </button>
         )}
       </fieldset>
+      {podeAvisar && (
+        <label className="marcar">
+          <input type="checkbox" checked={avisar} onChange={(e) => setAvisar(e.target.checked)} />
+          Avisar alunos e equipe por e-mail e SMS (menos quem desligou os avisos)
+        </label>
+      )}
       {!inicial && (
         <label>Fotos, vídeos ou documentos (opcional)
           <input type="file" multiple accept={TIPOS_ACEITOS}

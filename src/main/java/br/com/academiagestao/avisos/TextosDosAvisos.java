@@ -2,7 +2,9 @@ package br.com.academiagestao.avisos;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
@@ -27,6 +29,19 @@ final class TextosDosAvisos {
 
     record Texto(String assunto, String corpo) {
     }
+
+    /** Um evento ou comunicado publicado com "avisar" (ADR 0047, decisão 8), como estava ao publicar. */
+    record DaAcademia(String tipo, String titulo, String texto, Instant eventoInicio, Instant eventoFim, String eventoLocal) {
+
+        boolean evento() {
+            return "EVENTO".equals(tipo);
+        }
+    }
+
+    private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
+    private static final DateTimeFormatter DATA_E_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm");
+    private static final DateTimeFormatter DIA_E_HORA_CURTOS = DateTimeFormatter.ofPattern("dd/MM HH:mm");
+    private static final int TITULO_NO_SMS = 80;
 
     private TextosDosAvisos() {
     }
@@ -75,6 +90,36 @@ final class TextosDosAvisos {
         return "Academia: " + nome + ", sua " + nome(f) + " está atrasada há " + dias(f.diasDeAtraso()) + ". Hoje: "
                 + dinheiro(f.devidoHoje()) + ". O atraso aumenta o valor e bloqueia o acesso"
                 + (faltam > 0 ? " em " + dias(faltam) : " (já bloqueado)") + ". Pagou por boleto há pouco? Desconsidere.";
+    }
+
+    /** O e-mail do evento ou comunicado: o conteúdo inteiro e, no fim, como deixar de receber. */
+    static Texto daAcademia(DaAcademia a, String nomeDaPessoa) {
+        String quando = !a.evento() ? "" : "\n" + quandoEOnde(a) + "\n";
+        return new Texto((a.evento() ? "Evento da academia: " : "Comunicado da academia: ") + a.titulo(),
+                "Olá, " + primeiroNome(nomeDaPessoa) + "!\n\n" + (a.evento() ? "Tem evento novo na academia:" : "Comunicado da academia:")
+                        + "\n\n" + a.titulo() + "\n" + quando + "\n" + a.texto() + "\n\nVeja também na página inicial do app."
+                        + "\n\n--\nPara não receber mais avisos de eventos e comunicados, desligue em Meus dados, no app."
+                        + " Os lembretes de fatura continuam.");
+    }
+
+    /** O SMS do evento ou comunicado: só o título (até 80 caracteres), quando e onde, e para ver no app. */
+    static String daAcademiaSms(DaAcademia a) {
+        String titulo = a.titulo().length() > TITULO_NO_SMS ? a.titulo().substring(0, TITULO_NO_SMS - 1) + "…" : a.titulo();
+        String quando = !a.evento() ? "" : " - " + DIA_E_HORA_CURTOS.format(a.eventoInicio().atZone(FUSO))
+                + (a.eventoLocal() == null ? "" : ", " + a.eventoLocal());
+        return "Academia: " + (a.evento() ? "evento: " : "comunicado: ") + titulo + quando + ". Veja no app.";
+    }
+
+    /** "07/11/2030 às 09:00 até 11:00 · Sala 2" (o fim em outro dia leva a data). */
+    static String quandoEOnde(DaAcademia a) {
+        var inicio = a.eventoInicio().atZone(FUSO);
+        String fim = "";
+        if (a.eventoFim() != null) {
+            var ate = a.eventoFim().atZone(FUSO);
+            fim = " até " + (ate.toLocalDate().equals(inicio.toLocalDate()) ? DateTimeFormatter.ofPattern("HH:mm").format(ate)
+                    : DATA_E_HORA.format(ate));
+        }
+        return DATA_E_HORA.format(inicio) + fim + (a.eventoLocal() == null ? "" : " · " + a.eventoLocal());
     }
 
     /** "mensalidade 3", "multa por sair antes", "plano à vista". */

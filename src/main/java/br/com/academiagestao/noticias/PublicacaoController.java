@@ -67,7 +67,8 @@ class PublicacaoController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
     ResponseEntity<PublicacaoResponse> publicar(@RequestBody PublicacaoRequest pedido, @AuthenticationPrincipal Jwt jwt) {
-        Publicacao publicada = service.publicar(pedido.paraDados(), UUID.fromString(jwt.getSubject()));
+        Publicacao publicada = service.publicar(pedido.paraDados(), UUID.fromString(jwt.getSubject()),
+                Boolean.TRUE.equals(pedido.avisar()));
         var location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(publicada.id()).toUri();
         return ResponseEntity.created(location).body(PublicacaoResponse.de(publicada, assinatura));
     }
@@ -85,9 +86,12 @@ class PublicacaoController {
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
-    /** As regras ficam em {@link DadosDaPublicacao}: a quebra delas vira 400 com a mensagem. */
+    /**
+     * As regras ficam em {@link DadosDaPublicacao}: a quebra delas vira 400 com a mensagem. {@code avisar} (só ao
+     * publicar, evento ou comunicado): manda também por e-mail e SMS a alunos e equipe.
+     */
     record PublicacaoRequest(Tipo tipo, String titulo, String texto, Instant eventoInicio, Instant eventoFim,
-                             String eventoLocal, List<LinkRequest> links) {
+                             String eventoLocal, List<LinkRequest> links, Boolean avisar) {
 
         DadosDaPublicacao paraDados() {
             return new DadosDaPublicacao(tipo, titulo, texto, eventoInicio, eventoFim, eventoLocal,

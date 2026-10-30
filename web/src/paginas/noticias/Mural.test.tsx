@@ -74,7 +74,7 @@ describe('notícias e eventos (ADR 0047)', () => {
 
     expect(api.de('POST /api/publicacoes')[0].corpo).toEqual({ tipo: 'EVENTO', titulo: 'Aulão', texto: 'Traga água',
       eventoInicio: '2026-11-07T12:00:00.000Z', eventoFim: null, eventoLocal: 'Sala 2',
-      links: [{ url: 'https://mapa.exemplo', rotulo: null }, { url: 'https://inscricao.exemplo', rotulo: 'Inscrição' }] });
+      links: [{ url: 'https://mapa.exemplo', rotulo: null }, { url: 'https://inscricao.exemplo', rotulo: 'Inscrição' }], avisar: true });
     expect(api.de('GET /api/publicacoes').length).toBeGreaterThan(1);
   });
 
@@ -85,8 +85,9 @@ describe('notícias e eventos (ADR 0047)', () => {
     await userEvent.type(screen.getByLabelText('Título'), 'Notícia');
     await userEvent.type(screen.getByLabelText('Texto'), 'Texto');
     await userEvent.click(screen.getByRole('button', { name: 'Publicar' }));
+    expect(screen.queryByLabelText(/Avisar alunos e equipe/)).not.toBeInTheDocument();
     expect(api.de('POST /api/publicacoes')[0].corpo).toEqual({ tipo: 'NOTICIA', titulo: 'Notícia', texto: 'Texto',
-      eventoInicio: null, eventoFim: null, eventoLocal: null, links: [] });
+      eventoInicio: null, eventoFim: null, eventoLocal: null, links: [], avisar: false });
   });
 
   it('editar vem preenchido (a hora na academia) e manda o PUT; excluir confirma', async () => {
@@ -120,5 +121,21 @@ describe('notícias e eventos (ADR 0047)', () => {
     renderizar(<Mural />, { perfil: 'ALUNO' });
     expect(await screen.findByText('Nada publicado ainda.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Próximos eventos' })).not.toBeInTheDocument();
+  });
+
+  it('comunicado: avisar vem marcado e dá para desmarcar; na edição não aparece', async () => {
+    const api = abrir('RECEPCAO', { 'POST /api/publicacoes': json(201, publicacao()), 'PUT /api/publicacoes/e1': json(200, evento) });
+    await userEvent.click(await screen.findByRole('button', { name: 'Nova publicação' }));
+    await userEvent.selectOptions(screen.getByLabelText('Tipo'), 'COMUNICADO');
+    const avisar = screen.getByLabelText(/Avisar alunos e equipe por e-mail e SMS/);
+    expect(avisar).toBeChecked();
+    await userEvent.click(avisar);
+    await userEvent.type(screen.getByLabelText('Título'), 'Feriado');
+    await userEvent.type(screen.getByLabelText('Texto'), 'Fechados');
+    await userEvent.click(screen.getByRole('button', { name: 'Publicar' }));
+    expect(api.de('POST /api/publicacoes')[0].corpo).toMatchObject({ tipo: 'COMUNICADO', avisar: false });
+
+    await userEvent.click(within(cartao('Aulão de sábado')).getByRole('button', { name: 'Editar' }));
+    expect(screen.queryByLabelText(/Avisar alunos e equipe/)).not.toBeInTheDocument();
   });
 });
