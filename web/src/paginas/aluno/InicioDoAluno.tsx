@@ -7,12 +7,13 @@ import { useUsuario } from '../../sessao/contexto';
 import type { Aluno } from '../alunos/tipos';
 import type { Matricula } from '../alunos/MatriculasDoAluno';
 import type { CobrancaDoAluno } from './MeusPagamentos';
+import { Mural } from '../noticias/Mural';
 
 const SITUACAO: Record<Matricula['situacao'], string> = {
   AGENDADA: 'começa em', VIGENTE: 'vale até', TRANCADA: 'trancada; vale até', ENCERRADA: 'encerrada em', CANCELADA: 'cancelada',
 };
 
-/** O início do aluno: a matrícula, o que está em aberto e o atalho para o treino. */
+/** O início do aluno: o aviso de atraso, as notícias e os eventos (ADR 0047), a matrícula e o atalho para o treino. */
 export function InicioDoAluno() {
   const usuario = useUsuario();
   const [matriculas, setMatriculas] = useState<Matricula[] | null>(null);
@@ -40,6 +41,7 @@ export function InicioDoAluno() {
           <Link to="/minhas-cobrancas">Ver pagamentos</Link>
         </p>
       )}
+      <Mural />
       <ul className="atalhos">
         <li><Link to="/meu-treino">Meu treino</Link></li>
         <li><Link to="/minhas-cobrancas">Pagamentos</Link></li>

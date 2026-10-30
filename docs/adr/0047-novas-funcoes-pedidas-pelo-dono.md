@@ -115,3 +115,27 @@ gerou fica no pagamento (`gerado_por`). A tela mostra a linha digitável, o bot�
   as vencidas ou a próxima) continua só no app. Decisão técnica: o balcão já recebe qualquer uma em dinheiro.
 - Sem empresa, ou com o boleto desligado na configuração, o botão nem aparece (`GET
   /api/pagamentos-online/balcao`), e a API recusa (409).
+
+### Notícias, comunicados e eventos como página inicial (decisão 6)
+Módulo novo, `noticias`, sem porta pública por enquanto (ADR 0015). Tabelas `publicacoes` e `publicacao_links`
+(V57). Cada publicação é uma notícia, um comunicado ou um evento, com título (até 150), texto (até 5.000) e até
+10 links; só o evento tem quando (início obrigatório, fim opcional, não antes do início) e onde. Os anexos vêm
+na parte seguinte.
+
+- **Quem:** todos que têm login leem (`GET /api/publicacoes`, filtro por tipo, e `/proximos-eventos`); o ADMIN
+  e a recepção publicam, editam e excluem. A página inicial de todos os perfis mostra o mural depois do
+  "Olá"; a do aluno mantém antes o aviso de atraso e depois a matrícula.
+- **Segurança:** o texto é texto simples, guardado como veio e mostrado como texto (o React escapa; nada de
+  `innerHTML`). Os links só com `http://` ou `https://`, em minúsculas e com servidor, conferidos na aplicação e
+  no banco (CHECK): um `javascript:` viraria código no navegador de quem clicasse. Abrem fora do app, com
+  `rel="noopener noreferrer"`.
+- **Trilha:** `PUBLICADA`, `EDITADA` e `EXCLUIDA`, com o retrato (o conteúdo é público, não é dado pessoal).
+  A aplicação tem DELETE nas duas tabelas (exclusão e troca dos links), mas não TRUNCATE.
+- **Hora do evento:** o campo da tela não tem fuso; a tela converte para a hora da academia, e não a do aparelho
+  (testado com o aparelho em Tóquio).
+- **Edição ao mesmo tempo:** a última vence (sem ETag, ao contrário dos cadastros do ADR 0009): é um texto de
+  mural, editado por poucas pessoas, e a trilha guarda a versão anterior. Edição e exclusão juntas se esperam
+  (trava na linha).
+
+Mutantes equivalentes na tela: mandar data e local fora do evento, e filtrar os links vazios (os campos nem
+existem fora do evento, e o link vazio é barrado pelo campo obrigatório).

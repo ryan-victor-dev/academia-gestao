@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cpf, data, dataHora, diaDe, diaSeguinte, dinheiro, telefone } from './formato';
+import { cpf, data, dataHora, diaDe, diaSeguinte, dinheiro, instanteDaAcademia, paraCampoDeDataHora, telefone } from './formato';
 
 describe('formatos', () => {
   it('data pura não muda de dia por causa do fuso', () => {
@@ -34,5 +34,13 @@ describe('formatos', () => {
 
   it('dia de um instante no fuso da academia', () => {
     expect(diaDe('2026-10-24T02:30:00Z')).toBe('2026-10-23');
+  });
+
+  it('campo de data e hora: lido e mostrado na hora da academia, qualquer que seja o fuso do aparelho', () => {
+    expect(instanteDaAcademia('2026-11-20T19:00')).toBe('2026-11-20T22:00:00.000Z');
+    expect(instanteDaAcademia('2026-12-31T23:30')).toBe('2027-01-01T02:30:00.000Z');
+    expect(paraCampoDeDataHora('2026-11-20T22:00:00Z')).toBe('2026-11-20T19:00');
+    expect(paraCampoDeDataHora('2027-01-01T02:30:00Z')).toBe('2026-12-31T23:30');
+    expect(paraCampoDeDataHora(null)).toBe('');
   });
 });

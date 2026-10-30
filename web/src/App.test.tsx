@@ -104,7 +104,9 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Olá, Ana' })).toBeInTheDocument();
     const urls = fetch.mock.calls.map((c) => c[0]);
     // Confirmado, renova o token (sem a restrição) antes de carregar o usuário de novo.
-    expect(urls.slice(urls.indexOf('/api/auth/email/confirmar'))).toEqual(['/api/auth/email/confirmar', '/api/auth/renovar', '/api/me']);
+    // Depois do /api/me, a página inicial busca as notícias (ADR 0047): o que importa é a ordem até ele.
+    const confirmar = urls.indexOf('/api/auth/email/confirmar');
+    expect(urls.slice(confirmar, confirmar + 3)).toEqual(['/api/auth/email/confirmar', '/api/auth/renovar', '/api/me']);
   });
 
   it('aluno inativo: avisa que é só consulta', async () => {

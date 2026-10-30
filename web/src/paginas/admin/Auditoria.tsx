@@ -27,7 +27,8 @@ interface Acesso {
 
 const ENTIDADES: Record<string, string> = {
   ALUNO: 'Aluno', MATRICULA: 'Matrícula', COBRANCA: 'Cobrança', CAIXA: 'Caixa', PLANO: 'Plano', USUARIO: 'Usuário',
-  CONFIGURACAO: 'Configuração', EXERCICIO: 'Exercício', FICHA: 'Ficha',
+  CONFIGURACAO: 'Configuração', EXERCICIO: 'Exercício', FICHA: 'Ficha', PAGAMENTO_ONLINE: 'Pagamento online',
+  PUBLICACAO: 'Publicação',
 };
 const TIPOS_DE_ACESSO: Record<Acesso['tipo'], string> = {
   CONSULTA_ALUNO: 'Abriu o cadastro de um aluno', LOGIN: 'Entrou', LOGIN_FALHO: 'Senha errada',

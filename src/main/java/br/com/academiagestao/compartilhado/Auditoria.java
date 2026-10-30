@@ -14,7 +14,7 @@ import java.util.UUID;
  */
 public interface Auditoria {
 
-    enum Entidade { PLANO, ALUNO, USUARIO, COBRANCA, CONFIGURACAO, EXERCICIO, FICHA, CAIXA, MATRICULA, PAGAMENTO_ONLINE }
+    enum Entidade { PLANO, ALUNO, USUARIO, COBRANCA, CONFIGURACAO, EXERCICIO, FICHA, CAIXA, MATRICULA, PAGAMENTO_ONLINE, PUBLICACAO }
 
     /**
      * @param antes  os campos antes da alteração (vazio numa criação)

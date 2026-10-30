@@ -39,6 +39,7 @@ br.com.academiagestao
 ├── treinos        fichas de treino
 ├── auth           autenticação e perfis
 ├── auditoria      registro de quem fez o quê (alterações) e de quem acessou (consultas e logins)
+├── noticias       notícias, comunicados e eventos da academia (a página inicial)
 └── compartilhado  o que é comum a todos os módulos
 ```
 
@@ -230,6 +231,9 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/pagamentos-online/me/{id}/simular-pagamento` (só com o provedor `simulado`: finge que o aluno pagou) | ALUNO (os próprios) |
 | `GET /api/pagamentos-online/balcao` (se o balcão pode gerar o boleto: `boleto`) | ADMIN, RECEPCAO |
 | `POST /api/pagamentos-online/balcao/boleto` (`alunoId` e `cobrancaId`: o boleto de qualquer cobrança em aberto do aluno, para ele pagar depois; devolve o que ainda vale; ADR 0047) | ADMIN, RECEPCAO |
+| `GET /api/publicacoes` (notícias, comunicados e eventos, da mais nova para a mais antiga; `tipo`, `pagina`, `tamanho` até 50; ADR 0047) | Qualquer perfil logado |
+| `GET /api/publicacoes/proximos-eventos` (os que ainda não terminaram, pelo início; até 5) e `GET /api/publicacoes/{id}` | Qualquer perfil logado |
+| `POST /api/publicacoes`, `PUT /api/publicacoes/{id}`, `DELETE /api/publicacoes/{id}` (`tipo`, `titulo`, `texto`, `links` até 10, só http(s); o evento com `eventoInicio`, `eventoFim` e `eventoLocal`) | ADMIN, RECEPCAO |
 | `POST /api/pagamentos-online/aviso` (o aviso da empresa de pagamentos; só dispara a consulta a ela) | sem login (a empresa prova quem é no aviso) |
 | `GET /api/pagamentos-online/a-devolver` (dinheiro que chegou sem ter o que pagar, ou a sobra de quem pagou a mais) | ADMIN |
 | `POST /api/pagamentos-online/{id}/devolver` (o sistema devolve pela empresa¹²), `POST /api/pagamentos-online/{id}/devolvido` (devolvido por fora) | ADMIN |

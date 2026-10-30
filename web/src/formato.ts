@@ -61,3 +61,26 @@ export function diaSeguinte(iso: string): string {
 export function diaDe(instante: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: FUSO }).format(new Date(instante));
 }
+
+/** As partes de um instante no fuso da academia: "2026-11-20T19:00". */
+function localNaAcademia(instante: number): string {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: FUSO, hourCycle: 'h23', year: 'numeric',
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(instante))
+    .map((parte) => [parte.type, parte.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+/**
+ * Valor de um `<input type="datetime-local">` ("2026-11-20T19:00"), lido como hora da academia, → instante ISO.
+ * O campo não tem fuso: sem isto, a hora seguiria o fuso do aparelho de quem digitou.
+ */
+export function instanteDaAcademia(local: string): string {
+  const comoSeFosseUtc = Date.parse(`${local}:00Z`);
+  const deslocamento = Date.parse(`${localNaAcademia(comoSeFosseUtc)}:00Z`) - comoSeFosseUtc;
+  return new Date(comoSeFosseUtc - deslocamento).toISOString();
+}
+
+/** Instante ISO → valor de `<input type="datetime-local">` na hora da academia (o contrário do de cima). */
+export function paraCampoDeDataHora(iso: string | null | undefined): string {
+  return iso ? localNaAcademia(Date.parse(iso)) : '';
+}

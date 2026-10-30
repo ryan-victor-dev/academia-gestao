@@ -53,7 +53,7 @@ class ArquiteturaTest {
             .that().resideInAPackage("..compartilhado..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..auth..", "..alunos..", "..planos..", "..matriculas..", "..cobranca..", "..treinos..",
-                    "..auditoria..", "..pagamentos..")
+                    "..auditoria..", "..pagamentos..", "..noticias..")
             .because("compartilhado é a base comum: se dependesse de um módulo, todos dependeriam dele");
 
     @ArchTest
@@ -61,7 +61,7 @@ class ArquiteturaTest {
             .that().resideInAPackage("..auth..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..alunos..", "..planos..", "..matriculas..", "..cobranca..", "..treinos..", "..auditoria..",
-                    "..pagamentos..")
+                    "..pagamentos..", "..noticias..")
             .because("os outros módulos dependem do auth, nunca o contrário (sem ciclos)");
 
     // Porta pública de cada módulo: o que outros módulos podem usar. O resto é interno.
@@ -89,6 +89,10 @@ class ArquiteturaTest {
     static final ArchRule pagamentosSoPelaPortaPublica = soPelaPortaPublica("pagamentos",
             Set.of("ProvedorDePagamento", "Forma", "Pagador", "Pedido", "Gerado", "Estado", "Situacao",
                     "ProvedorIndisponivelException", "AvisoRecusadoException"));
+
+    // Notícias e eventos (ADR 0047): ninguém de fora usa por enquanto.
+    @ArchTest
+    static final ArchRule noticiasSoPelaPortaPublica = soPelaPortaPublica("noticias", Set.of());
 
     @ArchTest
     static final ArchRule cobrancaEmJavaPuro = classes()
