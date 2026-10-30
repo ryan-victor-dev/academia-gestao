@@ -76,6 +76,18 @@ class CobrancaRepository {
                 + "ORDER BY prazo, id LIMIT ? OFFSET ?", this::mapear, hoje, tamanho, (long) pagina * tamanho);
     }
 
+    /** As em aberto cujo prazo é um destes dias (os avisos de fatura, ADR 0047). */
+    List<Cobranca> emAbertoComPrazoEm(Collection<LocalDate> prazos) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM cobrancas WHERE status = 'PENDENTE' AND prazo = ANY (?) ORDER BY prazo, id",
+                this::mapear, (Object) prazos.stream().map(java.sql.Date::valueOf).toArray(java.sql.Date[]::new));
+    }
+
+    /** Trava a cobrança para leitura (FOR SHARE) e diz se ela continua em aberto: um pagamento ao mesmo tempo espera. */
+    boolean continuaEmAberto(UUID id) {
+        return jdbc.queryForList("SELECT 1 FROM cobrancas WHERE id = ? AND status = 'PENDENTE' FOR SHARE", Integer.class, id)
+                .size() == 1;
+    }
+
     long contarAtrasadas(LocalDate hoje) {
         return jdbc.queryForObject("SELECT count(*) FROM cobrancas WHERE status = 'PENDENTE' AND prazo < ?",
                 Long.class, hoje);

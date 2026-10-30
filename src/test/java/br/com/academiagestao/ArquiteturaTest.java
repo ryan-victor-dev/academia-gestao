@@ -53,7 +53,7 @@ class ArquiteturaTest {
             .that().resideInAPackage("..compartilhado..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..auth..", "..alunos..", "..planos..", "..matriculas..", "..cobranca..", "..treinos..",
-                    "..auditoria..", "..pagamentos..", "..noticias..")
+                    "..auditoria..", "..pagamentos..", "..noticias..", "..avisos..")
             .because("compartilhado é a base comum: se dependesse de um módulo, todos dependeriam dele");
 
     @ArchTest
@@ -61,7 +61,7 @@ class ArquiteturaTest {
             .that().resideInAPackage("..auth..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..alunos..", "..planos..", "..matriculas..", "..cobranca..", "..treinos..", "..auditoria..",
-                    "..pagamentos..", "..noticias..")
+                    "..pagamentos..", "..noticias..", "..avisos..")
             .because("os outros módulos dependem do auth, nunca o contrário (sem ciclos)");
 
     // Porta pública de cada módulo: o que outros módulos podem usar. O resto é interno.
@@ -72,7 +72,7 @@ class ArquiteturaTest {
     @ArchTest
     static final ArchRule alunosSoPelaPortaPublica = soPelaPortaPublica("alunos",
             Set.of("AlunosParaOutrosModulos", "EstadoDoAluno", "ImpedimentoParaInativar",
-                    "AoMudarASituacaoDoAluno", "Pagador"));
+                    "AoMudarASituacaoDoAluno", "Pagador", "Contato"));
 
     @ArchTest
     static final ArchRule planosSoPelaPortaPublica = soPelaPortaPublica("planos",
@@ -82,7 +82,7 @@ class ArquiteturaTest {
     static final ArchRule cobrancaSoPelaPortaPublica = soPelaPortaPublica("cobranca",
             Set.of("CobrancasDasMatriculas", "MatriculaParaCobranca", "Pausa", "Encerramento", "Tipo",
                     "Continuacao", "CobrancasParaPagamentoOnline", "CobrancaEmAberto", "ValorCombinado",
-                    "FormaOnline", "ResultadoDoRecebimento"));
+                    "FormaOnline", "ResultadoDoRecebimento", "CobrancasParaAvisos", "FaturaEmAberto", "RegrasDoAtraso"));
 
     // Para outra empresa, uma classe nova que implementa a porta (ADR 0034); o resto é interno.
     @ArchTest
@@ -93,6 +93,10 @@ class ArquiteturaTest {
     // Notícias e eventos (ADR 0047): ninguém de fora usa por enquanto.
     @ArchTest
     static final ArchRule noticiasSoPelaPortaPublica = soPelaPortaPublica("noticias", Set.of());
+
+    // Avisos de fatura e da academia (ADR 0047): ninguém de fora usa.
+    @ArchTest
+    static final ArchRule avisosSoPelaPortaPublica = soPelaPortaPublica("avisos", Set.of());
 
     @ArchTest
     static final ArchRule cobrancaEmJavaPuro = classes()

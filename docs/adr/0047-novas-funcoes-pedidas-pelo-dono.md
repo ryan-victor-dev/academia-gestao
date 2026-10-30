@@ -170,3 +170,26 @@ de espaço total (`ANEXOS_ESPACO_TOTAL`, 5 GB por padrão) e a escolha de vídeo
 
 Ficou de fora: comprimir ou converter vídeo (pesado para o servidor; o celular já grava comprimido) e miniatura das
 fotos (o navegador reduz na tela; com 5 MB por foto, o peso é aceitável para uma academia).
+
+### Avisos de fatura por e-mail (decisão 7)
+Módulo novo, `avisos`, sem porta pública. Ele usa duas portas novas: `CobrancasParaAvisos` (as faturas em aberto
+por prazo, com o devido de hoje, as regras do atraso e a conferência com trava) e os contatos dos alunos
+(`AlunosParaOutrosModulos.contatos`).
+
+- **Quando:** a cada 10 minutos, a partir das 9h no fuso da academia; os do dia saem quando o servidor voltar, se
+  ele estava desligado às 9h. Marcos: 5, 3 e 1 dia antes do prazo, no dia, e 1, 3 e 5 dias de atraso, só no dia
+  exato (um dia inteiro com o servidor desligado não é recuperado depois).
+- **Quem pagou nunca recebe:** para cada aviso, uma transação trava a fatura para leitura (`FOR SHARE`), confere que
+  ela continua em aberto e reserva o aviso em `avisos_de_fatura` (V59), cuja chave (fatura, marco, canal) impede o
+  aviso repetido, mesmo com o servidor reiniciando. O envio vem depois, fora da transação (ele vai para a rede). O
+  único caso de aviso a quem pagou é um pagamento nas frações de segundo entre a reserva e o envio. O boleto pago
+  ainda não confirmado pelo banco (até 3 dias úteis) não é conhecido pelo sistema: por isso o aviso de atraso diz
+  para desconsiderar quem já pagou por boleto nos últimos dias.
+- **Textos:** antes do vencimento, amigáveis ("passando para adiantar uma boa notícia: ainda dá tempo de pagar sem
+  nenhum acréscimo"), dizendo também que o atraso aumenta o valor e bloqueia o acesso. Em atraso, o valor de hoje
+  (com acréscimo e juros), o aumento e o bloqueio, com os números da configuração da cobrança (acréscimo, juros,
+  dias para bloquear) e quantos dias faltam para o bloqueio.
+- **Quem recebe:** o aluno ativo com e-mail. Quem saiu da academia (inativo) não recebe: a dívida dele é tratada
+  pela recepção. O aviso de fatura não se desliga (decisão 7).
+- **Falha:** o servidor de e-mail fora do ar marca `FALHOU`, e a rodada seguinte tenta de novo, até 3 vezes no dia.
+  Sem e-mail configurado, nada roda.

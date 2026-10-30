@@ -67,4 +67,15 @@ public class AlunosParaOutrosModulos {
     public Optional<Pagador> pagador(UUID alunoId) {
         return repository.findById(alunoId).map(a -> new Pagador(a.getNome(), a.getCpf(), a.getEmail()));
     }
+
+    /** Como falar com o aluno (os avisos, ADR 0047): e-mail e telefone podem faltar. */
+    public record Contato(String nome, String email, String telefone, boolean ativo) {
+    }
+
+    /** O contato de cada aluno entre {@code ids} (inexistentes ficam de fora). */
+    @Transactional(readOnly = true)
+    public Map<UUID, Contato> contatos(Collection<UUID> ids) {
+        return repository.findAllById(ids).stream().collect(Collectors.toMap(Aluno::getId,
+                a -> new Contato(a.getNome(), a.getEmail(), a.getTelefone(), a.isAtivo())));
+    }
 }
