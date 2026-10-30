@@ -286,7 +286,8 @@ contam do dia do estorno; o estorno de uma paga adiantada de matrícula cancelad
 (ADR 0026). Na troca de plano, a nova cobra a partir do próximo vencimento da antiga, e o
 que foi cobrado e não usado (o à vista, a paga adiantada) vira crédito abatido das primeiras
 parcelas dela; crédito maior que o plano novo inteiro recusa a troca (409). As matrículas
-que já existiam antes da cobrança ganharam só as cobranças de hoje em diante. O valor
+que já existiam antes da cobrança ganharam só as cobranças de hoje em diante (geração
+desligada por padrão desde o ADR 0044: numa instalação nova não há nenhuma). O valor
 mensal de um plano vai até R$ 100.000.
 ⁸ Treinos (ADR 0027): os instrutores mantêm o catálogo de exercícios (nome único entre os
 ativos, grupo muscular, observação de execução); exercício usado não se apaga, é inativado e sai

@@ -25,3 +25,18 @@ e a rotina não fica presa (o próximo ciclo, em 5 minutos, tenta de novo).
 Verificado num banco isolado que sobe 10 s depois do backup (a versão antiga falha, a nova faz o
 backup), num banco que nunca sobe (desiste em 2 minutos com o erro) e com dois mutantes: sem o teto,
 trava; com espera curta, falha.
+
+### 20 — A geração das cobranças antigas desligada por padrão
+Quando a cobrança chegou (ADR 0024), as matrículas que já existiam ganharam as cobranças de hoje
+em diante numa rotina que roda ao subir a aplicação (`CobrancasDasMatriculasAntigas`). Ela ficou
+ligada por padrão e roda em **toda** subida, varrendo todas as matrículas em lotes, com o Tomcat
+já atendendo. Depois da primeira vez não sobra nada a gerar: as matrículas novas ganham as
+cobranças na própria transação.
+
+Numa instalação nova não há matrícula de antes da cobrança. Agora a rotina só sobe com
+`academia.cobranca.gerar-das-antigas-ao-subir=true`, para quem atualizar uma instalação de antes
+da cobrança (hoje, nenhuma: o Docker local do dono tem todas as matrículas com cronograma). O
+código fica, com os testes dele, em vez de sair: é ele que cobre esse caso, se aparecer.
+
+O `CobrancasDasMatriculasAntigasAoSubirTest` sobe só a rotina (a configuração de teste a desliga
+explicitamente e esconderia o padrão): sem a propriedade, ela não existe; com `true`, existe.

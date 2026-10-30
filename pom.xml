@@ -221,6 +221,7 @@
 								<param>br.com.academiagestao.compartilhado.ProxyConfiavelTest</param>
 								<param>br.com.academiagestao.compartilhado.UsuarioDaAplicacaoNoBancoValidacaoTest</param>
 								<param>br.com.academiagestao.compartilhado.VersaoEsperadaTest</param>
+								<param>br.com.academiagestao.matriculas.CobrancasDasMatriculasAntigasAoSubirTest</param>
 								<param>br.com.academiagestao.matriculas.FormaDePagamentoTest</param>
 								<param>br.com.academiagestao.matriculas.MatriculaTest</param>
 								<param>br.com.academiagestao.pagamentos.ConfiguracaoDoPagamentoOnlineTest</param>

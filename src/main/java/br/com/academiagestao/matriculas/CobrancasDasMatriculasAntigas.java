@@ -18,8 +18,12 @@ import java.util.UUID;
 /**
  * Ao subir, gera as cobranças das matrículas que já existiam antes da cobrança (ADR 0024):
  * só as que vencem de hoje em diante. Depois da primeira vez, não sobra nenhuma: as novas
- * ganham as cobranças na própria transação. Fora da recuperação de ADMIN (sobe sem web) e
- * desligável nos testes, que chamam {@link #gerar()} quando querem.
+ * ganham as cobranças na própria transação. Fora da recuperação de ADMIN (sobe sem web); os
+ * testes chamam {@link #gerar()} quando querem.
+ * <p>
+ * Desligada por padrão (ADR 0044, item 20): numa instalação nova não há matrícula de antes da
+ * cobrança, e ela varreria todas as matrículas a cada subida para nada. Quem atualiza uma
+ * instalação de antes da cobrança liga a propriedade numa subida.
  * <p>
  * Uma matrícula que falha fica sem cronograma e é tentada de novo na próxima subida: o erro
  * vai para o log, e a aplicação sobe mesmo assim. Uma exceção solta aqui derrubaria a subida,
@@ -27,8 +31,7 @@ import java.util.UUID;
  */
 @Component
 @ConditionalOnWebApplication
-@ConditionalOnProperty(name = "academia.cobranca.gerar-das-antigas-ao-subir", havingValue = "true",
-        matchIfMissing = true)
+@ConditionalOnProperty(name = "academia.cobranca.gerar-das-antigas-ao-subir", havingValue = "true")
 class CobrancasDasMatriculasAntigas implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(CobrancasDasMatriculasAntigas.class);

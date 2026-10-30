@@ -19,7 +19,8 @@ academia:
     por-minuto: 1000000
   cobranca:
     # Os testes geram as cobranças das matrículas antigas quando querem (ver
-    # CobrancasDasMatriculasAntigasTest), e não a cada contexto novo do Spring.
+    # CobrancasDaMatriculaTest), e não a cada contexto novo do Spring. Já é o padrão (ADR
+    # 0044); fica explícito porque um contexto que a ligasse geraria as de outros testes.
     gerar-das-antigas-ao-subir: false
   banco:
     # Senha do usuário academia_app no Postgres descartável dos testes.

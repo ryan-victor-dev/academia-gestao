@@ -133,7 +133,7 @@ resto, decidido pelo dono do projeto em 2026-10-19, e como foi implementado.
   cobrança à vista e fica só com a multa, se houver.
 - **Matrículas antigas:** ao subir, a aplicação gera as cobranças das matrículas sem
   cronograma, em lotes de 500, cada matrícula na sua transação
-  (`academia.cobranca.gerar-das-antigas-ao-subir`, ligado por padrão, desligado nos testes).
+  (`academia.cobranca.gerar-das-antigas-ao-subir`; desligado por padrão desde o ADR 0044).
 - **Banco:** o usuário da aplicação não apaga cobranças nem cria ou apaga a configuração
   (só altera). Os `CHECK` da V22 exigem o pagamento inteiro quando a cobrança está paga e o
   total igual a valor + acréscimo + juros.
