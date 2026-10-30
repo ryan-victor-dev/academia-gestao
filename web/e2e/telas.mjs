@@ -78,18 +78,20 @@ try {
   });
 
   await menu(adm, 'Equipe');
-  const criarLogin = async (nome, email, perfil) => {
+  // O CPF é obrigatório no login novo da equipe (ADR 0047).
+  const criarLogin = async (nome, email, perfil, cpf) => {
     await adm.getByRole('button', { name: 'Novo login' }).click();
     await adm.getByLabel('Nome', { exact: true }).fill(nome);
     await adm.getByLabel('E-mail (é o login)').fill(email);
+    await adm.getByLabel('CPF', { exact: true }).fill(cpf);
     await adm.getByLabel('Perfil', { exact: true }).selectOption(perfil);
     await adm.getByRole('button', { name: 'Criar' }).click();
     const senha = await senhaNaTela(adm);
     await adm.getByRole('button', { name: 'Já passei, esconder' }).click();
     return senha;
   };
-  const temporariaRec = await criarLogin('Rita das Telas', 'rita.telas@academia.local', 'RECEPCAO');
-  const temporariaIns = await criarLogin('Ivo das Telas', 'ivo.telas@academia.local', 'INSTRUTOR');
+  const temporariaRec = await criarLogin('Rita das Telas', 'rita.telas@academia.local', 'RECEPCAO', cpfValido());
+  const temporariaIns = await criarLogin('Ivo das Telas', 'ivo.telas@academia.local', 'INSTRUTOR', cpfValido());
   confere('dois logins da equipe criados', temporariaRec.length >= 8 && temporariaIns.length >= 8);
 
   await menu(adm, 'Planos');
