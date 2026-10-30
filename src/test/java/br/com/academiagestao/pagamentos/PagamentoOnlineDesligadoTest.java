@@ -53,4 +53,17 @@ class PagamentoOnlineDesligadoTest {
                 .andExpect(jsonPath("$.provedor").value("desligado"))
                 .andExpect(jsonPath("$.simulado").value(false));
     }
+
+    /** O boleto do balcão (ADR 0047) também não existe sem empresa: a tela nem oferece, e a API recusa. */
+    @Test
+    void desligadoOBalcaoNaoGeraBoleto() throws Exception {
+        RequestPostProcessor recepcao = jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))
+                .authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"));
+        mvc.perform(get("/api/pagamentos-online/balcao").with(recepcao))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.boleto").value(false));
+        mvc.perform(post("/api/pagamentos-online/balcao/boleto").with(recepcao).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"alunoId\": \"" + UUID.randomUUID() + "\", \"cobrancaId\": \"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("O pagamento online está desligado"));
+    }
 }

@@ -228,6 +228,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/pagamentos-online/me` (se o app oferece pagar, as formas e as cobranças que se pagam hoje, com o que já foi gerado em cada forma¹²) | ALUNO (as próprias) |
 | `POST /api/pagamentos-online/me` (`cobrancaId` e `forma`: `PIX`, `BOLETO`, `CREDITO` ou `DEBITO`; devolve o que ainda vale ou gera outro; no cartão, o link da página da empresa) | ALUNO |
 | `POST /api/pagamentos-online/me/{id}/simular-pagamento` (só com o provedor `simulado`: finge que o aluno pagou) | ALUNO (os próprios) |
+| `GET /api/pagamentos-online/balcao` (se o balcão pode gerar o boleto: `boleto`) | ADMIN, RECEPCAO |
+| `POST /api/pagamentos-online/balcao/boleto` (`alunoId` e `cobrancaId`: o boleto de qualquer cobrança em aberto do aluno, para ele pagar depois; devolve o que ainda vale; ADR 0047) | ADMIN, RECEPCAO |
 | `POST /api/pagamentos-online/aviso` (o aviso da empresa de pagamentos; só dispara a consulta a ela) | sem login (a empresa prova quem é no aviso) |
 | `GET /api/pagamentos-online/a-devolver` (dinheiro que chegou sem ter o que pagar, ou a sobra de quem pagou a mais) | ADMIN |
 | `POST /api/pagamentos-online/{id}/devolver` (o sistema devolve pela empresa¹²), `POST /api/pagamentos-online/{id}/devolvido` (devolvido por fora) | ADMIN |

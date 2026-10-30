@@ -101,3 +101,17 @@ lista da equipe e o `/api/me` não trazem esses campos.
 
 Mutantes equivalentes nas telas: mandar a descrição fora da opção "outra" (o campo nem existe na tela, e o
 valor sai nulo do mesmo jeito).
+
+### Boleto gerado no balcão (decisão 4)
+Antes, só o aluno gerava o boleto, pelo app; no balcão, a recepção só registrava dinheiro, Pix ou cartão.
+Agora a recepção e o ADMIN geram, na página do aluno, o boleto de uma cobrança em aberto
+(`POST /api/pagamentos-online/balcao/boleto`), o mesmo do app (ADR 0034): o valor de hoje, o prazo do
+vencimento (ou alguns dias, na vencida), devolve o que ainda vale e cancela na empresa o que venceu. Quem
+gerou fica no pagamento (`gerado_por`). A tela mostra a linha digitável, o botão de copiar e o link do boleto
+(quando a empresa manda um); o aluno também vê o boleto no app.
+
+- O boleto não passa pelo caixa (V41): a cobrança fica paga quando a empresa avisa, como no app.
+- O balcão gera para **qualquer** cobrança em aberto, como o recebimento no balcão; o limite de adiantar (só
+  as vencidas ou a próxima) continua só no app. Decisão técnica: o balcão já recebe qualquer uma em dinheiro.
+- Sem empresa, ou com o boleto desligado na configuração, o botão nem aparece (`GET
+  /api/pagamentos-online/balcao`), e a API recusa (409).

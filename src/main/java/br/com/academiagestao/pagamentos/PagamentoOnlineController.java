@@ -76,6 +76,27 @@ class PagamentoOnlineController {
                 .body(PagamentoOnlineResponse.de(gerado));
     }
 
+    /** Se o balcão pode gerar o boleto (pagamento online ligado e o boleto disponível, ADR 0047). */
+    @GetMapping("/balcao")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    PagamentoOnlineService.OpcoesDoBalcao opcoesDoBalcao() {
+        return service.opcoesDoBalcao();
+    }
+
+    /**
+     * A recepção ou o ADMIN gera o boleto de uma cobrança em aberto do aluno (ADR 0047), para ele pagar
+     * depois; ou devolve o que ainda vale. Quem gerou fica no pagamento. Sem cache, como o do aluno.
+     */
+    @PostMapping("/balcao/boleto")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO')")
+    ResponseEntity<PagamentoOnlineResponse> gerarBoletoNoBalcao(@Valid @RequestBody BoletoNoBalcaoRequest pedido,
+                                                                @AuthenticationPrincipal Jwt jwt) {
+        PagamentoOnline gerado = service.gerarBoletoNoBalcao(pedido.alunoId(), UUID.fromString(jwt.getSubject()),
+                pedido.cobrancaId());
+        return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
+                .body(PagamentoOnlineResponse.de(gerado));
+    }
+
     /** Só com o provedor simulado (desenvolvimento e testes). */
     @PostMapping("/me/{id}/simular-pagamento")
     @PreAuthorize("hasRole('ALUNO')")
@@ -150,6 +171,10 @@ class PagamentoOnlineController {
 
     record PedidoRequest(@NotNull(message = "é obrigatório") UUID cobrancaId,
                          @NotNull(message = "é obrigatório") Forma forma) {
+    }
+
+    record BoletoNoBalcaoRequest(@NotNull(message = "é obrigatório") UUID alunoId,
+                                 @NotNull(message = "é obrigatório") UUID cobrancaId) {
     }
 
     record PagamentoOnlineResponse(UUID id, UUID cobrancaId, UUID alunoId, Forma forma, BigDecimal valor,

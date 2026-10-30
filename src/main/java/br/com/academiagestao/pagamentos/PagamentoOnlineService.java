@@ -87,24 +87,45 @@ class PagamentoOnlineService {
                 empresa.disponivel(config, Forma.DEBITO), pagaveis);
     }
 
+    /** O que o balcão pode gerar para o aluno pagar depois (ADR 0047): hoje, só o boleto. */
+    record OpcoesDoBalcao(boolean boleto) {
+    }
+
+    OpcoesDoBalcao opcoesDoBalcao() {
+        return new OpcoesDoBalcao(empresa.disponivel(configuracao.ler(), Forma.BOLETO));
+    }
+
     /**
      * Gera (ou devolve o que ainda vale) um Pix ou boleto para uma cobrança do aluno. O valor é o
      * de hoje; se mudou desde o último gerado, o antigo é cancelado na empresa.
      */
     PagamentoOnline gerar(UUID alunoId, UUID usuarioId, UUID cobrancaId, Forma forma) {
+        return gerar(alunoId, usuarioId, cobrancaId, forma, false);
+    }
+
+    /**
+     * O boleto gerado pela recepção ou pelo ADMIN para o aluno pagar depois (ADR 0047), o mesmo que o
+     * aluno geraria no app. Vale para qualquer cobrança em aberto do aluno, como o recebimento no
+     * balcão: o limite de adiantar (só as que vencem até hoje, ou a próxima) é do app.
+     */
+    PagamentoOnline gerarBoletoNoBalcao(UUID alunoId, UUID usuarioId, UUID cobrancaId) {
+        return gerar(alunoId, usuarioId, cobrancaId, Forma.BOLETO, true);
+    }
+
+    private PagamentoOnline gerar(UUID alunoId, UUID usuarioId, UUID cobrancaId, Forma forma, boolean noBalcao) {
         ProvedorDePagamento empresa = this.empresa.ligada();
         ConfiguracaoDoPagamentoOnline config = configuracao.ler();
         if (!this.empresa.disponivel(config, forma)) {
             String nome = forma.nome();
             throw new PagamentoOnlineRecusadoException(Character.toUpperCase(nome.charAt(0)) + nome.substring(1)
-                    + " não está disponível no app");
+                    + (noBalcao ? " não está disponível" : " não está disponível no app"));
         }
         Instant agora = relogio.instant();
         LocalDate hoje = Calendario.hoje(agora);
         List<CobrancaEmAberto> emAberto = cobrancas.emAberto(alunoId);
         CobrancaEmAberto cobranca = emAberto.stream().filter(c -> c.id().equals(cobrancaId)).findFirst()
                 .orElseThrow(() -> new PagamentoOnlineNaoEncontradoException("Cobrança em aberto não encontrada"));
-        if (config.pagaveis(emAberto, hoje).stream().noneMatch(c -> c.id().equals(cobrancaId))) {
+        if (!noBalcao && config.pagaveis(emAberto, hoje).stream().noneMatch(c -> c.id().equals(cobrancaId))) {
             throw new PagamentoOnlineRecusadoException("Esta cobrança ainda não pode ser paga pelo app");
         }
 

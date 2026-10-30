@@ -142,4 +142,37 @@ describe('cobranças do aluno', () => {
 
     await vi.waitFor(() => expect(api.de('GET /api/cobrancas')).toHaveLength(2));
   });
+
+  const boleto = { id: 'p1', cobrancaId: 'c1', forma: 'BOLETO', total: 102.17, pixCopiaECola: null,
+    boletoLinhaDigitavel: '34191.79001 01043.510047 91020.150008 1 99990000010217', boletoUrl: 'https://banco.exemplo/b.pdf',
+    linkDePagamento: null, validoAte: '2026-10-09T03:00:00Z', situacao: 'AGUARDANDO' };
+
+  it('boleto no balcão (ADR 0047): gera para a cobrança em aberto e mostra a linha digitável', async () => {
+    const api = abrir([cobranca(), paga], { 'GET /api/pagamentos-online/balcao': json(200, { boleto: true }),
+      'POST /api/pagamentos-online/balcao/boleto': json(201, boleto) });
+    await screen.findByText(/Paga em/);
+    const botoes = await screen.findAllByRole('button', { name: 'Gerar boleto' });
+    expect(botoes).toHaveLength(1);
+
+    await userEvent.click(botoes[0]);
+    expect(await screen.findByLabelText('Linha digitável do boleto')).toHaveValue(boleto.boletoLinhaDigitavel);
+    expect(api.de('POST /api/pagamentos-online/balcao/boleto')[0].corpo).toEqual({ alunoId: 'a1', cobrancaId: 'c1' });
+    expect(screen.getByRole('link', { name: 'Abrir o boleto' })).toHaveAttribute('href', boleto.boletoUrl);
+    expect(screen.getByText(/Passe ao aluno: ele paga até 08\/10\/2026/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Gerar boleto' })).not.toBeInTheDocument();
+  });
+
+  it('sem boleto disponível, o botão não aparece; recusa da API aparece', async () => {
+    abrir([cobranca()], { 'GET /api/pagamentos-online/balcao': json(200, { boleto: false }) });
+    await screen.findByText('Mensalidade 2');
+    await screen.findByRole('button', { name: 'Receber' });
+    expect(screen.queryByRole('button', { name: 'Gerar boleto' })).not.toBeInTheDocument();
+  });
+
+  it('boleto recusado pela API: mostra o motivo', async () => {
+    abrir([cobranca()], { 'GET /api/pagamentos-online/balcao': json(200, { boleto: true }),
+      'POST /api/pagamentos-online/balcao/boleto': json(409, { detail: 'O boleto não está disponível' }) });
+    await userEvent.click(await screen.findByRole('button', { name: 'Gerar boleto' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('O boleto não está disponível');
+  });
 });

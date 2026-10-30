@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { FormularioDeAcao } from '../../componentes/FormularioDeAcao';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
+import { Gerado, ultimoMinuto, type PagamentoOnline } from '../../componentes/PagamentoGerado';
 import { data, dataHora, dinheiro } from '../../formato';
 import { chamar } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
@@ -33,7 +34,9 @@ function FormaDoRecebimento() {
 
 /**
  * Cobranças do aluno (recepção e ADMIN): receber no balcão pelo devido de hoje; o ADMIN também
- * estorna e cancela. Pagar e estornar exigem o caixa de hoje aberto (a API recusa sem ele).
+ * estorna e cancela. Pagar e estornar exigem o caixa de hoje aberto (a API recusa sem ele). Com o
+ * pagamento online ligado, o balcão também gera o boleto para o aluno pagar depois (ADR 0047): ele
+ * não passa pelo caixa, e a cobrança fica paga quando a empresa avisa.
  */
 export function CobrancasDoAluno({ alunoId, atualizar }: { alunoId: string; atualizar: number }) {
   const usuario = useUsuario();
@@ -41,7 +44,32 @@ export function CobrancasDoAluno({ alunoId, atualizar }: { alunoId: string; atua
   const [cobrancas, setCobrancas] = useState<Cobranca[] | null>(null);
   const [acao, setAcao] = useState<Acao | null>(null);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
+  const [comBoleto, setComBoleto] = useState(false);
+  const [boletos, setBoletos] = useState<Record<string, PagamentoOnline>>({});
+  const [gerando, setGerando] = useState<string | null>(null);
   const [erro, setErro] = useState<unknown>(null);
+
+  // Sem empresa ou com o boleto desligado, o botão nem aparece. Se a pergunta falhar, fica sem boleto.
+  useEffect(() => {
+    let atual = true;
+    chamar<{ boleto: boolean }>('/api/pagamentos-online/balcao')
+      .then((o) => { if (atual) setComBoleto(o.boleto); }).catch(() => { if (atual) setComBoleto(false); });
+    return () => { atual = false; };
+  }, []);
+
+  async function gerarBoleto(cobrancaId: string) {
+    setErro(null);
+    setGerando(cobrancaId);
+    try {
+      const boleto = await chamar<PagamentoOnline>('/api/pagamentos-online/balcao/boleto',
+        { metodo: 'POST', corpo: { alunoId, cobrancaId } });
+      setBoletos((b) => ({ ...b, [cobrancaId]: boleto }));
+    } catch (e) {
+      setErro(e);
+    } finally {
+      setGerando(null);
+    }
+  }
 
   const carregar = useCallback(async () => {
     try {
@@ -104,6 +132,11 @@ export function CobrancasDoAluno({ alunoId, atualizar }: { alunoId: string; atua
               {emAberto(c) && c.devidoHoje && (
                 <button type="button" onClick={() => setAcao({ tipo: 'receber', id: c.id })}>Receber</button>
               )}
+              {comBoleto && emAberto(c) && !boletos[c.id] && (
+                <button type="button" className="secundario" disabled={gerando === c.id} onClick={() => gerarBoleto(c.id)}>
+                  {gerando === c.id ? 'Gerando…' : 'Gerar boleto'}
+                </button>
+              )}
               {admin && c.situacao === 'PAGA' && (
                 <button type="button" className="perigo" onClick={() => setAcao({ tipo: 'estornar', id: c.id })}>Estornar</button>
               )}
@@ -113,6 +146,11 @@ export function CobrancasDoAluno({ alunoId, atualizar }: { alunoId: string; atua
               <button type="button" className="secundario" onClick={() => verHistorico(c.id)}>Histórico</button>
             </div>
 
+            {boletos[c.id] && (
+              <Gerado titulo="Linha digitável do boleto" codigo={boletos[c.id].boletoLinhaDigitavel ?? ''} pagamento={boletos[c.id]}
+                      aviso={`Passe ao aluno: ele paga até ${ultimoMinuto(boletos[c.id].validoAte)} no banco ou no app do banco. `
+                        + 'O boleto também aparece no app dele, e a cobrança fica paga quando o banco confirmar (até 3 dias úteis).'} />
+            )}
             {acao?.id === c.id && acao.tipo === 'receber' && c.devidoHoje && (
               <FormularioDeAcao titulo="Receber" rotulo={`Receber ${dinheiro(c.devidoHoje.total)}`} aoCancelar={() => setAcao(null)}
                                 aoEnviar={(f) => executar(`/api/cobrancas/${c.id}/pagar`, {
