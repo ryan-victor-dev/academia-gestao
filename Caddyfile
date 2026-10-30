@@ -25,9 +25,12 @@ http://{$DOMINIO:localhost}:{$HTTP_PORTA:80} {
 https://{$DOMINIO:localhost}:{$HTTPS_PORTA:443} {
 	# Segunda barreira contra corpos enormes (a aplicação também limita, em 64 KB). A exceção é o envio de anexo de
 	# uma publicação (ADR 0047): o arquivo cru, até o vídeo de 50 MB (a aplicação confere o perfil antes de ler).
+	# Só com o token no cabeçalho, como as telas mandam: sem ele, a aplicação recusa de qualquer jeito, e um
+	# anônimo não empurra 51 MB até a recusa (diagnóstico de 30/10).
 	@envio_de_anexo {
 		method POST
 		path_regexp ^/api/publicacoes/[^/]+/anexos$
+		header Authorization "Bearer *"
 	}
 	request_body @envio_de_anexo {
 		max_size 51MB
@@ -35,6 +38,7 @@ https://{$DOMINIO:localhost}:{$HTTPS_PORTA:443} {
 	@outros_pedidos not {
 		method POST
 		path_regexp ^/api/publicacoes/[^/]+/anexos$
+		header Authorization "Bearer *"
 	}
 	request_body @outros_pedidos {
 		max_size 1MB
