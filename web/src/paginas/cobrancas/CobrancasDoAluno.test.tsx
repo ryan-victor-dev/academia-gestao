@@ -16,6 +16,8 @@ const cobranca = (mudancas: Partial<Cobranca> = {}): Cobranca => ({
 const paga = cobranca({ id: 'c2', situacao: 'PAGA', diasDeAtraso: 0, devidoHoje: null,
   pagamento: { total: 100, acrescimo: 0, juros: 0, meio: 'PIX', codigoTransacao: 'E2E9', em: '2026-10-02T15:00:00Z' } });
 
+const verHistorico = async () => userEvent.click(await screen.findByRole('button', { name: /Ver histórico de pagamentos/ }));
+
 function abrir(lista: Cobranca[], rotas: Parameters<typeof apiFalsa>[0] = {}, perfil: 'RECEPCAO' | 'ADMIN' = 'RECEPCAO') {
   const api = apiFalsa({ 'GET /api/cobrancas': json(200, lista), ...rotas });
   renderizar(<CobrancasDoAluno alunoId="a1" atualizar={0} />, { perfil });
@@ -44,6 +46,7 @@ describe('cobranças do aluno', () => {
       .toEqual({ valor: 102.17, meioDePagamento: 'PIX', codigoTransacao: 'E2E123abc' });
     await screen.findByRole('button', { name: 'Receber' });
     expect(api.de('GET /api/cobrancas')).toHaveLength(2);
+    expect(screen.getByRole('status')).toHaveTextContent('Mensalidade 2 recebida: está no histórico de pagamentos.');
   });
 
   it('no cartão, o código é obrigatório; no dinheiro, o campo nem aparece', async () => {
@@ -89,6 +92,7 @@ describe('cobranças do aluno', () => {
   it('recepção não estorna nem cancela; paga não se recebe de novo', async () => {
     abrir([cobranca(), paga]);
     await screen.findAllByText('Mensalidade 2');
+    await verHistorico();
 
     expect(screen.queryByRole('button', { name: 'Estornar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
@@ -102,6 +106,7 @@ describe('cobranças do aluno', () => {
       'POST /api/cobrancas/c1/cancelar': json(200, cobranca({ situacao: 'CANCELADA' })),
     }, 'ADMIN');
 
+    await verHistorico();
     await userEvent.click(await screen.findByRole('button', { name: 'Estornar' }));
     expect(screen.getByText(/O dinheiro sai do caixa de hoje/)).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Motivo'), 'pagou duas vezes');
@@ -121,11 +126,46 @@ describe('cobranças do aluno', () => {
       { id: 'l3', tipo: 'PAGAMENTO', total: 100, meio: 'DINHEIRO', codigoTransacao: null, em: '2026-10-04T15:00:00Z', motivo: null },
     ]) });
 
+    await verHistorico();
     await userEvent.click(await screen.findByRole('button', { name: 'Histórico' }));
 
     expect(await screen.findByText(/Pagamento de R\$\s100,00 \(Pix, código E2E9\)/)).toBeInTheDocument();
     expect(screen.getByText(/Estorno de R\$\s100,00 \(Pix, código E2E9\): engano/)).toBeInTheDocument();
     expect(screen.getByText(/Pagamento de R\$\s100,00 \(Dinheiro\)$/)).toBeInTheDocument();
+  });
+
+  it('pagas e canceladas ficam escondidas até pedir o histórico de pagamentos', async () => {
+    const cancelada = cobranca({ id: 'c3', parcela: 3, situacao: 'CANCELADA', diasDeAtraso: 0, devidoHoje: null,
+      cancelamento: { em: '2026-10-03T15:00:00Z', motivo: 'cortesia' } });
+    abrir([paga, cobranca(), cancelada]);
+    await screen.findByRole('button', { name: 'Receber' });
+
+    expect(screen.getAllByText(/^Mensalidade/)).toHaveLength(1);
+    expect(screen.queryByText(/Paga em/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cancelada: cortesia/)).not.toBeInTheDocument();
+    const botao = screen.getByRole('button', { name: 'Ver histórico de pagamentos (2)' });
+    expect(botao).toHaveAttribute('aria-expanded', 'false');
+
+    await userEvent.click(botao);
+    expect(screen.getByRole('heading', { name: 'Histórico de pagamentos' })).toBeInTheDocument();
+    expect(screen.getByText(/Paga em .*R\$\s100,00/)).toBeInTheDocument();
+    expect(screen.getByText('Cancelada: cortesia')).toBeInTheDocument();
+    expect(botao).toHaveAttribute('aria-expanded', 'true');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Esconder histórico de pagamentos' }));
+    expect(screen.queryByText(/Paga em/)).not.toBeInTheDocument();
+  });
+
+  it('tudo pago: diz que não há nada em aberto e mostra o botão', async () => {
+    abrir([paga]);
+    expect(await screen.findByText('Nenhuma cobrança em aberto.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver histórico de pagamentos (1)' })).toBeInTheDocument();
+  });
+
+  it('sem cobrança nenhuma: nem o botão do histórico', async () => {
+    abrir([]);
+    expect(await screen.findByText('Nenhuma cobrança.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /histórico de pagamentos/ })).not.toBeInTheDocument();
   });
 
   it('quando a matrícula muda (prop "atualizar"), recarrega', async () => {
@@ -150,6 +190,7 @@ describe('cobranças do aluno', () => {
   it('boleto no balcão (ADR 0047): gera para a cobrança em aberto e mostra a linha digitável', async () => {
     const api = abrir([cobranca(), paga], { 'GET /api/pagamentos-online/balcao': json(200, { boleto: true }),
       'POST /api/pagamentos-online/balcao/boleto': json(201, boleto) });
+    await verHistorico();
     await screen.findByText(/Paga em/);
     const botoes = await screen.findAllByRole('button', { name: 'Gerar boleto' });
     expect(botoes).toHaveLength(1);

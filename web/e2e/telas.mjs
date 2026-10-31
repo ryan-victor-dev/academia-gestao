@@ -150,7 +150,12 @@ try {
   await mensalidade.getByRole('button', { name: 'Receber' }).click();
   await rec.getByLabel('Forma de pagamento').selectOption('DINHEIRO');
   await rec.getByRole('button', { name: /^Receber R\$/ }).click();
-  await passo('mensalidade recebida em dinheiro', async () => { await mensalidade.getByText('Paga', { exact: true }).waitFor(); });
+  await passo('mensalidade recebida sai das em aberto', async () => {
+    await rec.getByRole('status').getByText(/Mensalidade 1 recebida/).waitFor();
+    await mensalidade.waitFor({ state: 'detached' });
+  });
+  await rec.getByRole('button', { name: /Ver histórico de pagamentos/ }).click();
+  await passo('mensalidade recebida em dinheiro, no histórico', async () => { await mensalidade.getByText('Paga', { exact: true }).waitFor(); });
   await rec.getByRole('button', { name: 'Criar acesso' }).click();
   const temporariaAluno = await senhaNaTela(rec);
   confere('acesso do aluno criado', temporariaAluno.length >= 8);
