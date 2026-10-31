@@ -202,4 +202,46 @@ class BoletoNoBalcaoTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.erros.length()").value(2));
     }
+
+    private RequestPostProcessor aluno(UUID alunoId) {
+        // A própria aluna entra com o login dela (o Pix gerado guarda quem gerou); a outra, com um qualquer.
+        UUID login = alunoId.equals(aluno) ? usuarioDoAluno : UUID.randomUUID();
+        return jwt().jwt(j -> j.subject(login.toString()).claim("alunoId", alunoId.toString()))
+                .authorities(new SimpleGrantedAuthority("ROLE_ALUNO"));
+    }
+
+    /**
+     * No simulado, o "PDF do boleto" é uma tela do app (/boleto-simulado/{id}), que lê o boleto por esta rota: o aluno vê
+     * os dele, a recepção e o ADMIN veem os que geraram no balcão; o Pix não é boleto.
+     */
+    @Test
+    void oBoletoSimuladoTemOLinkDaTelaEQuemPodeVer() throws Exception {
+        UUID atrasada = cobranca(matricula, aluno, 1, 30);
+        String corpo = gerar(como("RECEPCAO", recepcao), aluno, atrasada).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = JsonPath.read(corpo, "$.id");
+        assertThat((String) JsonPath.read(corpo, "$.boletoUrl")).isEqualTo("/boleto-simulado/" + id);
+        String rota = "/api/pagamentos-online/" + id + "/boleto-simulado";
+
+        mvc.perform(get(rota).with(como("RECEPCAO", recepcao))).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", containsString("no-store")))
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.total").value(103.0))
+                .andExpect(jsonPath("$.boletoLinhaDigitavel").value((String) JsonPath.read(corpo, "$.boletoLinhaDigitavel")))
+                .andExpect(jsonPath("$.validoAte").isNotEmpty());
+        mvc.perform(get(rota).with(como("ADMIN", UUID.randomUUID()))).andExpect(status().isOk());
+        mvc.perform(get(rota).with(aluno(aluno))).andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id));
+        mvc.perform(get(rota).with(aluno(outroAluno))).andExpect(status().isNotFound());
+        mvc.perform(get(rota).with(como("INSTRUTOR", UUID.randomUUID()))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/pagamentos-online/" + UUID.randomUUID() + "/boleto-simulado").with(como("RECEPCAO", recepcao)))
+                .andExpect(status().isNotFound());
+
+        // O Pix não tem tela de boleto.
+        UUID outra = cobranca(matricula, aluno, 2, 3);
+        String pix = mvc.perform(post("/api/pagamentos-online/me").with(aluno(aluno)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cobrancaId\": \"" + outra + "\", \"forma\": \"PIX\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        mvc.perform(get("/api/pagamentos-online/" + JsonPath.read(pix, "$.id") + "/boleto-simulado").with(aluno(aluno)))
+                .andExpect(status().isNotFound());
+    }
 }

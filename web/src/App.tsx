@@ -16,6 +16,7 @@ import { RelatorioDePerfil } from './paginas/admin/RelatorioDePerfil';
 import { Folha } from './paginas/folha/Folha';
 import { InicioDoAluno } from './paginas/aluno/InicioDoAluno';
 import { MeusPagamentos } from './paginas/aluno/MeusPagamentos';
+import { BoletoSimulado } from './paginas/aluno/BoletoSimulado';
 import { CartaoSimulado } from './paginas/aluno/CartaoSimulado';
 import { MeuTreino } from './paginas/aluno/MeuTreino';
 import { Inicio } from './paginas/Inicio';
@@ -109,6 +110,8 @@ const SUBROTAS: Array<{ caminho: string; perfis: Perfil[]; elemento: ReactNode }
   { caminho: '/alunos/:id', perfis: ['ADMIN', 'RECEPCAO', 'INSTRUTOR'], elemento: <CadastroDoAluno /> },
   // A "página da empresa" do cartão no modo de teste (ADR 0037); a API recusa se não for o simulado.
   { caminho: '/cartao-simulado/:id', perfis: ['ALUNO'], elemento: <CartaoSimulado /> },
+  // O boleto no modo de teste: o aluno abre o dele; a recepção e o ADMIN, o que geraram no balcão (ADR 0047).
+  { caminho: '/boleto-simulado/:id', perfis: ['ALUNO', 'ADMIN', 'RECEPCAO'], elemento: <BoletoSimulado /> },
 ];
 
 /** Só as rotas do perfil existem: endereço de outro perfil cai em "não encontrada". */

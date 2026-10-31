@@ -89,6 +89,8 @@ button.secundario { background: transparent; color: var(--destaque); }
 .erro { margin: 0; color: var(--erro); }
 
 .aviso { color: var(--aviso); }
+/* A linha digitável (47 dígitos) quebra no celular, em vez de passar da tela. */
+.linha-digitavel code { overflow-wrap: anywhere; }
 
 .carregando { text-align: center; margin-top: 30vh; color: var(--texto-suave); }
 

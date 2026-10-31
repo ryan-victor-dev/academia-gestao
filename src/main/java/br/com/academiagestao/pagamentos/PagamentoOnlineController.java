@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -95,6 +96,20 @@ class PagamentoOnlineController {
                 pedido.cobrancaId());
         return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
                 .body(PagamentoOnlineResponse.de(gerado));
+    }
+
+    /**
+     * O boleto para a tela do boleto simulado, que faz o papel do PDF do banco no modo de teste. O aluno vê só os dele;
+     * a recepção e o ADMIN, os que geraram no balcão (ADR 0047). Sem o provedor simulado, 404.
+     */
+    @GetMapping("/{id}/boleto-simulado")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPCAO', 'ALUNO')")
+    ResponseEntity<PagamentoOnlineResponse> boletoSimulado(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt,
+                                                           Authentication autenticacao) {
+        boolean aluno = autenticacao.getAuthorities().stream().anyMatch(a -> "ROLE_ALUNO".equals(a.getAuthority()));
+        UUID alunoId = aluno ? alunoId(jwt) : null;
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(PagamentoOnlineResponse.de(service.boletoSimulado(id, alunoId)));
     }
 
     /** Só com o provedor simulado (desenvolvimento e testes). */

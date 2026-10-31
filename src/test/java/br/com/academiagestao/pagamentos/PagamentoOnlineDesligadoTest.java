@@ -66,4 +66,14 @@ class PagamentoOnlineDesligadoTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("O pagamento online está desligado"));
     }
+
+    /** A tela do boleto simulado só existe com o provedor simulado. */
+    @Test
+    void desligadoNaoHaBoletoSimulado() throws Exception {
+        RequestPostProcessor recepcao = jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))
+                .authorities(new SimpleGrantedAuthority("ROLE_RECEPCAO"));
+        mvc.perform(get("/api/pagamentos-online/" + UUID.randomUUID() + "/boleto-simulado").with(recepcao))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Simulação desligada"));
+    }
 }

@@ -87,6 +87,19 @@ class PagamentoOnlineService {
                 empresa.disponivel(config, Forma.DEBITO), pagaveis);
     }
 
+    /**
+     * O boleto para a tela do boleto simulado (a "página do banco" no modo de teste): só com o provedor simulado e só
+     * boleto. {@code alunoId}: o do token do aluno, que só vê os dele; nulo para a recepção e o ADMIN, que geram no balcão.
+     */
+    PagamentoOnline boletoSimulado(UUID id, UUID alunoId) {
+        if (!empresa.simulado()) {
+            throw new PagamentoOnlineNaoEncontradoException("Simulação desligada");
+        }
+        return repository.buscar(id).filter(p -> p.getForma() == Forma.BOLETO)
+                .filter(p -> alunoId == null || p.getAlunoId().equals(alunoId))
+                .orElseThrow(() -> new PagamentoOnlineNaoEncontradoException("Boleto não encontrado"));
+    }
+
     /** O que o balcão pode gerar para o aluno pagar depois (ADR 0047): hoje, só o boleto. */
     record OpcoesDoBalcao(boolean boleto) {
     }

@@ -252,3 +252,8 @@ O diagnóstico de 30/10, numa instalação isolada e de fora, pelo Caddy, achou 
   contratar uma empresa.
 - **Boleto no balcão fica.** O dono chegou a pedir para tirar o boleto gerado pela recepção e pelo ADMIN, e mudou de
   ideia no mesmo dia: continua como na decisão 4.
+- **Boleto simulado com tela (31/10).** No modo de teste, o boleto vinha só com a linha digitável, sem o endereço que a
+  empresa de verdade manda (o PDF do boleto), e o link "Abrir o boleto" nunca aparecia. Agora o simulador manda o
+  endereço de uma tela do próprio app (`/boleto-simulado/{id}`), como já fazia com o cartão (ADR 0037): ela abre numa
+  aba nova, com o valor, o prazo, a linha digitável e o aviso de que o boleto não vale. Só existe com o provedor
+  simulado (sem ele, 404); o aluno vê os dele, e a recepção e o ADMIN, os que geraram no balcão.

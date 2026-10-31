@@ -32,6 +32,8 @@ class ProvedorSimulado implements ProvedorDePagamento {
     private static final Logger log = LoggerFactory.getLogger(ProvedorSimulado.class);
     static final String CABECALHO_DO_TOKEN = "x-aviso-token";
     static final String LINK_DO_CARTAO = "/cartao-simulado/";
+    /** O "PDF do boleto" no simulado: uma tela do próprio app, que mostra o boleto com o aviso de não pagar. */
+    static final String LINK_DO_BOLETO = "/boleto-simulado/";
 
     private record Registro(BigDecimal valor, Situacao situacao) {
     }
@@ -74,7 +76,7 @@ class ProvedorSimulado implements ProvedorDePagamento {
         }
         // 47 dígitos, como uma linha digitável de verdade, mas começando com zeros.
         String digitos = String.format("%047d", Math.abs(pedido.referencia().getMostSignificantBits() % 1_000_000_000L));
-        return new Gerado(id, null, digitos, null, null);
+        return new Gerado(id, null, digitos, LINK_DO_BOLETO + pedido.referencia(), null);
     }
 
     @Override
