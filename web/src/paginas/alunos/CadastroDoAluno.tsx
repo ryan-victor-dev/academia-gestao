@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Excluir } from '../../componentes/Excluir';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
-import { cpf, data, dataHora, telefone } from '../../formato';
+import { cpf, dataHora, nascimentoComIdade, telefone } from '../../formato';
 import { chamar, chamarComVersao, ErroDaApi } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
 import { Identidade } from '../../componentes/Identidade';
@@ -126,7 +126,7 @@ function Cadastro({ id }: { id: string }) {
       ) : (
         <dl className="dados">
           {completo && <><dt>CPF</dt><dd>{cpf(completo.cpf)}</dd></>}
-          <dt>Nascimento</dt><dd>{data(aluno.dataNascimento)}</dd>
+          <dt>Nascimento</dt><dd>{nascimentoComIdade(aluno.dataNascimento)}</dd>
           {completo && <><dt>E-mail</dt><dd>{completo.email ?? '—'}</dd></>}
           {completo && <><dt>Telefone</dt><dd>{telefone(completo.telefone)}</dd></>}
           <dt>Observações</dt><dd className="texto">{aluno.observacoes ?? '—'}</dd>

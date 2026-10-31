@@ -146,10 +146,10 @@ class TrilhaDeAuditoriaTest {
         String cpf = CpfsParaTeste.aleatorio();
         String email = "ana-" + UUID.randomUUID() + "@teste.local";
         UUID aluno = criado(enviar(post("/api/alunos"), """
-                {"nome": "Ana Auditada", "cpf": "%s", "email": "%s", "telefone": "31987654321"}"""
+                {"nome": "Ana Auditada", "cpf": "%s", "email": "%s", "telefone": "31987654321", "dataNascimento": "1990-05-10"}"""
                 .formatted(cpf, email)).andExpect(status().isCreated()));
         enviar(put("/api/alunos/" + aluno).header("If-Match", "\"0\""), """
-                {"nome": "Ana Auditada", "cpf": "%s", "email": "%s", "telefone": "31912345678"}"""
+                {"nome": "Ana Auditada", "cpf": "%s", "email": "%s", "telefone": "31912345678", "dataNascimento": "1990-05-10"}"""
                 .formatted(cpf, email)).andExpect(status().isOk());
         enviar(post("/api/alunos/" + aluno + "/login"), "").andExpect(status().isCreated());
         UUID login = jdbc.queryForObject("SELECT id FROM usuarios WHERE aluno_id = ?", UUID.class, aluno);

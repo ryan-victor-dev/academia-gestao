@@ -56,6 +56,11 @@ export function idade(nascimento: string | null | undefined, dia: string = hoje(
   return ha - a - (hm < m || (hm === m && hd < d) ? 1 : 0);
 }
 
+/** "10/05/1990 (35 anos)"; sem data, "—". */
+export function nascimentoComIdade(nascimento: string | null | undefined): string {
+  return nascimento ? `${data(nascimento)} (${anos(nascimento)})` : '—';
+}
+
 /** "35 anos", "1 ano"; sem data, "—". */
 export function anos(nascimento: string | null | undefined): string {
   const n = idade(nascimento);

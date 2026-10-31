@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.EnumMap;
 import java.util.Map;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -74,9 +75,9 @@ class PermissoesDeAlunosTest {
         limpeza.apagarTudo();
 
         alunoLogado = alunoRepository.save(Aluno.novo(new DadosAluno("Aluno Logado", CpfsParaTeste.aleatorio(),
-                null, null, null, null), Instant.now()));
+                null, null, NASCIMENTO, null), Instant.now()));
         alvo = alunoRepository.save(Aluno.novo(new DadosAluno("Aluno Alvo", CpfsParaTeste.aleatorio(),
-                null, null, null, null), Instant.now()));
+                null, null, NASCIMENTO, null), Instant.now()));
         String hash = passwordEncoder.encode(SENHA);
         for (Perfil perfil : Perfil.values()) {
             String email = perfil.name().toLowerCase() + "@academia.com";
@@ -99,7 +100,7 @@ class PermissoesDeAlunosTest {
     private Aluno alunoComEmail() {
         String cpf = CpfsParaTeste.aleatorio();
         return alunoRepository.save(Aluno.novo(new DadosAluno("Aluno " + cpf, cpf, cpf + "@email.com",
-                null, null, null), Instant.now()));
+                null, NASCIMENTO, null), Instant.now()));
     }
 
     private Aluno alunoComLogin() {
@@ -116,7 +117,7 @@ class PermissoesDeAlunosTest {
 
     private MockHttpServletRequestBuilder requisicao(String operacao) {
         String base = "/api/alunos/" + alvo.getId();
-        String corpo = "{\"nome\": \"Aluno Alvo\", \"cpf\": \"%s\"}";
+        String corpo = "{\"nome\": \"Aluno Alvo\", \"cpf\": \"%s\", \"dataNascimento\": \"1990-05-10\"}";
         return switch (operacao) {
             case "listar" -> get("/api/alunos");
             case "consultar" -> get(base);

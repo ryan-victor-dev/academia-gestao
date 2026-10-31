@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.time.Instant;
 import java.util.UUID;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -58,7 +59,7 @@ class LoginDoAlunoTest {
     @BeforeEach
     void cadastrar() {
         limpeza.apagarTudo();
-        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "Ana@Email.com", null, null, null), Instant.now()));
+        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "Ana@Email.com", null, NASCIMENTO, null), Instant.now()));
     }
 
     private ResultActions criarLogin(UUID alunoId) throws Exception {
@@ -134,7 +135,7 @@ class LoginDoAlunoTest {
     @Test
     void alunoSemEmailDevolve400() throws Exception {
         Aluno semEmail = alunoRepository.save(Aluno.novo(
-                new DadosAluno("Bia", "11144477735", null, null, null, null), Instant.now()));
+                new DadosAluno("Bia", "11144477735", null, null, NASCIMENTO, null), Instant.now()));
 
         criarLogin(semEmail.getId())
                 .andExpect(status().isBadRequest())

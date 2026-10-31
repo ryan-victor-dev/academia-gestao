@@ -115,14 +115,16 @@ confere("recepção não cria usuário",
 
 secao("alunos")
 s, b, h = req("POST", "/api/alunos", {"nome": "José Antônio", "cpf": "529.982.247-25", "email": "jose@email.com",
-                                      "observacoes": "lesão no joelho"}, REC)
+                                      "dataNascimento": "1990-05-10", "observacoes": "lesão no joelho"}, REC)
 confere("cadastrar aluno", s == 201 and h.get("ETag") == '"0"', (s, b))
 ALUNO = b["id"]
+confere("aluno novo sem data de nascimento é recusado (ADR 0048)",
+        req("POST", "/api/alunos", {"nome": "Sem Data", "cpf": "111.444.777-35"}, REC)[0] == 400)
 confere("CPF inválido (só o 1º dígito errado)", req("POST", "/api/alunos", {"nome": "X", "cpf": "52998224733"}, REC)[0] == 400)
 confere("busca sem acento", req("GET", "/api/alunos?busca=jose", token=REC)[1]["totalElementos"] == 1)
 s, b, _ = req("GET", f"/api/alunos/{ALUNO}", token=INS)
 confere("instrutor sem CPF", s == 200 and "cpf" not in b)
-corpo = {"nome": "José Antônio Silva", "cpf": "52998224725", "email": "jose@email.com"}
+corpo = {"nome": "José Antônio Silva", "cpf": "52998224725", "email": "jose@email.com", "dataNascimento": "1990-05-10"}
 confere("PUT sem If-Match = 428", req("PUT", f"/api/alunos/{ALUNO}", corpo, REC)[0] == 428)
 confere("PUT com If-Match", req("PUT", f"/api/alunos/{ALUNO}", corpo, REC, {"If-Match": '"0"'})[0] == 200)
 confere("If-Match antigo = 412", req("PUT", f"/api/alunos/{ALUNO}", corpo, REC, {"If-Match": '"0"'})[0] == 412)
@@ -153,7 +155,7 @@ s, b, _ = req("POST", "/api/planos", {"nome": "Anual", "valorMensal": 99.9, "dur
                                       "percentualMulta": 20, "formaPagamento": "A_VISTA"}, ADM)
 confere("plano anual com fidelidade e à vista", s == 201 and b["fidelidade"] and b["formaPagamento"] == "A_VISTA", (s, b))
 ANUAL = b["id"]
-s, b, _ = req("POST", "/api/alunos", {"nome": "Maria", "cpf": "111.444.777-35", "email": "maria@email.com"}, REC)
+s, b, _ = req("POST", "/api/alunos", {"nome": "Maria", "cpf": "111.444.777-35", "email": "maria@email.com", "dataNascimento": "1988-07-21"}, REC)
 MARIA = b["id"]
 s, b, _ = req("POST", f"/api/alunos/{MARIA}/login", token=REC)
 TOK_MARIA = ativar("maria@email.com", b["senhaTemporaria"], "senha-da-maria-123")
@@ -239,7 +241,7 @@ confere("registro guarda o pagamento e o estorno apontando para ele", s == 200
         and b[0]["total"] == 219.78 and b[1]["motivo"] == "Pix devolvido"
         and [l["codigoTransacao"] for l in b] == ["E2EMULTA1", "E2EMULTA1"], (s, b))
 
-s, b, _ = req("POST", "/api/alunos", {"nome": "Ana Atrasada", "cpf": "390.533.447-05"}, REC)
+s, b, _ = req("POST", "/api/alunos", {"nome": "Ana Atrasada", "cpf": "390.533.447-05", "dataNascimento": "2001-11-30"}, REC)
 ANA = b["id"]
 s, m, _ = req("POST", "/api/matriculas", {"alunoId": ANA, "planoId": MENSAL}, REC)
 confere("mensal gera as mensalidades", s == 201 and len(req("GET", f"/api/cobrancas?alunoId={ANA}", token=REC)[1]) == 1, (s, m))
@@ -306,7 +308,7 @@ confere("registro de acessos só para o ADMIN", req("GET", "/api/auditoria/acess
 
 secao("treinos")
 # A Maria foi inativada nas matrículas: a ficha é de uma aluna nova, com login.
-s, b, _ = req("POST", "/api/alunos", {"nome": "Bruna", "cpf": "987.654.321-00", "email": "bruna@email.com"}, REC)
+s, b, _ = req("POST", "/api/alunos", {"nome": "Bruna", "cpf": "987.654.321-00", "email": "bruna@email.com", "dataNascimento": "1979-02-14"}, REC)
 BRUNA = b["id"]
 s, b, _ = req("POST", f"/api/alunos/{BRUNA}/login", token=REC)
 TOK_BRUNA = ativar("bruna@email.com", b["senhaTemporaria"], "senha-da-bruna-123")

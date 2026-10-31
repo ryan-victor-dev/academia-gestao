@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.time.Instant;
 import java.util.UUID;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,9 +48,9 @@ class AlunoListagemTest {
     @BeforeEach
     void cadastrar() {
         limpeza.apagarTudo();
-        repository.save(Aluno.novo(new DadosAluno("Bruno Lima", "11144477735", null, null, null, null), Instant.now()));
-        repository.save(Aluno.novo(new DadosAluno("Ana Souza", "52998224725", null, null, null, null), Instant.now()));
-        carla = Aluno.novo(new DadosAluno("Carla Anastácio", "93541134780", null, null, null, null), Instant.now());
+        repository.save(Aluno.novo(new DadosAluno("Bruno Lima", "11144477735", null, null, NASCIMENTO, null), Instant.now()));
+        repository.save(Aluno.novo(new DadosAluno("Ana Souza", "52998224725", null, null, NASCIMENTO, null), Instant.now()));
+        carla = Aluno.novo(new DadosAluno("Carla Anastácio", "93541134780", null, null, NASCIMENTO, null), Instant.now());
         carla.inativar();
         carla = repository.save(carla);
     }
@@ -91,8 +92,8 @@ class AlunoListagemTest {
             "JOAO,      João Pereira",
     })
     void buscaPorNomeIgnoraAcentosEMaiusculas(String busca, String esperado) throws Exception {
-        repository.save(Aluno.novo(new DadosAluno("José Antônio", "39053344705", null, null, null, null), Instant.now()));
-        repository.save(Aluno.novo(new DadosAluno("João Pereira", "12345678909", null, null, null, null), Instant.now()));
+        repository.save(Aluno.novo(new DadosAluno("José Antônio", "39053344705", null, null, NASCIMENTO, null), Instant.now()));
+        repository.save(Aluno.novo(new DadosAluno("João Pereira", "12345678909", null, null, NASCIMENTO, null), Instant.now()));
 
         mvc.perform(get("/api/alunos").param("busca", busca).param("incluirInativos", "true").with(perfil("ADMIN")))
                 .andExpect(jsonPath("$.conteudo[*].nome").value(contains(esperado)));
@@ -101,7 +102,7 @@ class AlunoListagemTest {
     /** O nome da busca é gravado pelo banco (coluna gerada, V52): acompanha a troca do nome. */
     @Test
     void buscaAchaPeloNomeNovoDepoisDaTroca() throws Exception {
-        Aluno aluno = repository.save(Aluno.novo(new DadosAluno("José Antônio", "39053344705", null, null, null, null),
+        Aluno aluno = repository.save(Aluno.novo(new DadosAluno("José Antônio", "39053344705", null, null, NASCIMENTO, null),
                 Instant.now()));
         jdbc.update("UPDATE alunos SET nome = 'Josefina Conceição' WHERE id = ?", aluno.getId());
 
@@ -121,7 +122,7 @@ class AlunoListagemTest {
     // acha o aluno, e uma tentativa de injeção é só um texto que não casa com ninguém.
     @Test
     void buscaComAspasEBarraInvertida() throws Exception {
-        repository.save(Aluno.novo(new DadosAluno("Joana D'Ávila", "39053344705", null, null, null, null), Instant.now()));
+        repository.save(Aluno.novo(new DadosAluno("Joana D'Ávila", "39053344705", null, null, NASCIMENTO, null), Instant.now()));
 
         mvc.perform(get("/api/alunos").param("busca", "d'avila").with(perfil("ADMIN")))
                 .andExpect(jsonPath("$.conteudo[*].nome").value(contains("Joana D'Ávila")));

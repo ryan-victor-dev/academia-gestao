@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
 import { Paginacao, type Pagina } from '../../componentes/Paginacao';
-import { data } from '../../formato';
+import { nascimentoComIdade } from '../../formato';
 import { chamar } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
 import type { AlunoNaLista } from './tipos';
@@ -58,7 +58,7 @@ export function ListaDeAlunos() {
               <li key={aluno.id}>
                 <Link to={`/alunos/${aluno.id}`}>
                   <span className="principal">{aluno.nome}</span>
-                  <span className="suave">Nascimento: {data(aluno.dataNascimento)}</span>
+                  <span className="suave">Nascimento: {nascimentoComIdade(aluno.dataNascimento)}</span>
                   {!aluno.ativo && <span className="etiqueta">Inativo</span>}
                 </Link>
               </li>

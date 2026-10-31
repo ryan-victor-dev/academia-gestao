@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.time.Instant;
 import java.util.UUID;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -62,7 +63,7 @@ class NovaSenhaDoAlunoTest {
     @BeforeEach
     void cadastrarAlunaComLogin() {
         limpeza.apagarTudo();
-        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "ana@email.com", null, null, null), Instant.now()));
+        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "ana@email.com", null, NASCIMENTO, null), Instant.now()));
         usuarioRepository.save(Usuario.deAluno("Ana", "ana@email.com", passwordEncoder.encode(SENHA), ana.getId()));
     }
 
@@ -94,7 +95,7 @@ class NovaSenhaDoAlunoTest {
 
     @Test
     void alunoSemLoginDevolve404() throws Exception {
-        Aluno semLogin = alunoRepository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, null, null), Instant.now()));
+        Aluno semLogin = alunoRepository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, NASCIMENTO, null), Instant.now()));
 
         novaSenha(semLogin.getId())
                 .andExpect(status().isNotFound())

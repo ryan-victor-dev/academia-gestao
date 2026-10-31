@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -70,7 +71,7 @@ class InativacaoComLoginTest {
     @BeforeEach
     void cadastrarAlunaComLogin() {
         limpeza.apagarTudo();
-        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "ana@email.com", null, null, null), Instant.now()));
+        ana = alunoRepository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", "ana@email.com", null, NASCIMENTO, null), Instant.now()));
         usuarioRepository.save(Usuario.deAluno("Ana", "ana@email.com", passwordEncoder.encode(SENHA), ana.getId()));
     }
 
@@ -156,7 +157,7 @@ class InativacaoComLoginTest {
 
     @Test
     void alunoSemLoginTambemPodeSerInativadoEReativado() throws Exception {
-        Aluno semLogin = alunoRepository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, null, null), Instant.now()));
+        Aluno semLogin = alunoRepository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, NASCIMENTO, null), Instant.now()));
 
         mvc.perform(post("/api/alunos/" + semLogin.getId() + "/inativar").with(RECEPCAO)).andExpect(status().isOk());
         mvc.perform(post("/api/alunos/" + semLogin.getId() + "/reativar").with(RECEPCAO)).andExpect(status().isOk());
@@ -165,7 +166,7 @@ class InativacaoComLoginTest {
     @Test
     void inativarUmAlunoNaoMexeNoLoginDeOutros() throws Exception {
         usuarioRepository.save(Usuario.daEquipe("Rita", "rita@academia.com", "hash", Perfil.RECEPCAO));
-        Aluno bia = alunoRepository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, null, null), Instant.now()));
+        Aluno bia = alunoRepository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, NASCIMENTO, null), Instant.now()));
 
         mvc.perform(post("/api/alunos/" + bia.getId() + "/inativar").with(RECEPCAO));
 

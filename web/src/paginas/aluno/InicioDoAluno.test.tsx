@@ -33,7 +33,7 @@ describe('início do aluno', () => {
   it('meus dados: carrega só ao abrir', async () => {
     const api = apiFalsa({ 'GET /api/matriculas/me': json(200, []), 'GET /api/cobrancas/me': json(200, []),
       'GET /api/alunos/me': json(200, { id: 'a1', nome: 'Ana', cpf: '12345678909', email: 'ana@x.com', telefone: '11999990000',
-        dataNascimento: null, observacoes: null, ativo: true, criadoEm: '' }) });
+        dataNascimento: '1990-05-02', observacoes: null, ativo: true, criadoEm: '' }) });
     renderizar(<InicioDoAluno />, { perfil: 'ALUNO' });
     await screen.findByText(/Nenhuma matrícula vigente/);
     expect(api.de('GET /api/alunos/me')).toHaveLength(0);
@@ -42,5 +42,6 @@ describe('início do aluno', () => {
 
     expect(await screen.findByText('123.456.789-09')).toBeInTheDocument();
     expect(screen.getByText('(11) 99999-0000')).toBeInTheDocument();
+    expect(screen.getByText(/^02\/05\/1990 \(\d+ anos\)$/)).toBeInTheDocument();
   });
 });

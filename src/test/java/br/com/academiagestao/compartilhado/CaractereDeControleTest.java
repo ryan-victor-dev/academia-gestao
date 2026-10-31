@@ -100,7 +100,7 @@ class CaractereDeControleTest {
         UUID aluno = UUID.randomUUID();
         String nome = "Busca " + aluno;
         String resposta = mvc.perform(post("/api/alunos").with(ADMIN).contentType(MediaType.APPLICATION_JSON)
-                        .content(corpo(Map.of("nome", nome, "cpf", CpfsParaTeste.aleatorio()))))
+                        .content(corpo(Map.of("nome", nome, "cpf", CpfsParaTeste.aleatorio(), "dataNascimento", "1990-05-10"))))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         try {
             mvc.perform(get("/api/alunos").with(ADMIN).param("busca", nome))
@@ -118,7 +118,7 @@ class CaractereDeControleTest {
     @Test
     void quebraDeLinhaTabEEspacoSaoAceitos() throws Exception {
         String resposta = mvc.perform(post("/api/alunos").with(ADMIN).contentType(MediaType.APPLICATION_JSON)
-                        .content(corpo(Map.of("nome", "Ana Maria", "cpf", CpfsParaTeste.aleatorio(),
+                        .content(corpo(Map.of("nome", "Ana Maria", "cpf", CpfsParaTeste.aleatorio(), "dataNascimento", "1990-05-10",
                                 "observacoes", "Linha 1\r\nLinha 2\ttab"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.observacoes").value("Linha 1\r\nLinha 2\ttab"))

@@ -9,11 +9,15 @@ import { MeuNascimento } from './MeuNascimento';
 const vazia = { identidadeDeGenero: null, identidadeDeGeneroOutra: null, orientacaoSexual: null, orientacaoSexualOutra: null };
 
 describe('a própria data de nascimento (ADR 0048)', () => {
-  it('só a equipe informa a sua em "Meus dados"; a do aluno fica no cadastro', async () => {
-    apiFalsa({ 'GET /api/alunos/me/identidade': json(200, vazia), 'GET /api/me/identidade': json(200, vazia) });
+  it('só a equipe informa a sua em "Meus dados"; o aluno só consulta a do cadastro', async () => {
+    apiFalsa({ 'GET /api/alunos/me/identidade': json(200, vazia), 'GET /api/me/identidade': json(200, vazia),
+      'GET /api/alunos/me': json(200, { id: 'a1', nome: 'Ana', dataNascimento: '1990-05-02' }) });
     const { unmount } = renderizar(<MeusDados />, { perfil: 'ALUNO' });
     await screen.findByLabelText('Identidade de gênero');
     expect(screen.queryByRole('form', { name: 'Minha data de nascimento' })).not.toBeInTheDocument();
+    // O aluno só consulta a sua, com a idade (ADR 0048).
+    expect(await screen.findByText(/^02\/05\/1990 \(\d+ anos\)$/)).toBeInTheDocument();
+    expect(screen.getByText('Para corrigir, fale com a recepção.')).toBeInTheDocument();
     unmount();
 
     renderizar(<MeusDados />, { perfil: 'INSTRUTOR' });

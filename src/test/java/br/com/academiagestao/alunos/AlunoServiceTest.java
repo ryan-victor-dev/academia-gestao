@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -27,13 +28,13 @@ class AlunoServiceTest {
         // Simula duas edições simultâneas com o mesmo If-Match: as duas passam pela conferência,
         // mas o UPDATE da segunda não acha mais a versão e o Hibernate lança a exceção de lock.
         AlunoRepository repository = mock(AlunoRepository.class);
-        Aluno ana = Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now());
+        Aluno ana = Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, NASCIMENTO, null), Instant.now());
         when(repository.findById(ana.getId())).thenReturn(Optional.of(ana));
         when(repository.saveAndFlush(any())).thenThrow(new ObjectOptimisticLockingFailureException(Aluno.class, ana.getId()));
         AlunoService service = new AlunoService(repository, mock(LoginsDeAlunos.class), List.of(), List.of(), mock(Auditoria.class), Clock.systemUTC());
 
         assertThatThrownBy(() -> service.atualizar(ana.getId(),
-                new DadosAluno("Ana Maria", "52998224725", null, null, null, null), "\"0\""))
+                new DadosAluno("Ana Maria", "52998224725", null, null, NASCIMENTO, null), "\"0\""))
                 .isInstanceOf(RecursoModificadoException.class);
     }
 
@@ -48,7 +49,7 @@ class AlunoServiceTest {
     void cpfRepetidoQuePassouDaChecagemViraCpfJaCadastrado() {
         AlunoService service = comRecusaDoBanco("alunos_cpf_key");
 
-        assertThatThrownBy(() -> service.cadastrar(new DadosAluno("Ana", "52998224725", null, null, null, null)))
+        assertThatThrownBy(() -> service.cadastrar(new DadosAluno("Ana", "52998224725", null, null, NASCIMENTO, null)))
                 .isInstanceOf(CpfJaCadastradoException.class);
     }
 
@@ -57,10 +58,10 @@ class AlunoServiceTest {
     void outraRecusaDoBancoNaoViraCpfJaCadastrado() {
         AlunoService service = comRecusaDoBanco("ck_outra_regra");
 
-        assertThatThrownBy(() -> service.cadastrar(new DadosAluno("Ana", "52998224725", null, null, null, null)))
+        assertThatThrownBy(() -> service.cadastrar(new DadosAluno("Ana", "52998224725", null, null, NASCIMENTO, null)))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> comRecusaDoBancoSemIndice()
-                .cadastrar(new DadosAluno("Ana", "52998224725", null, null, null, null)))
+                .cadastrar(new DadosAluno("Ana", "52998224725", null, null, NASCIMENTO, null)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

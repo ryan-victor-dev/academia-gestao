@@ -200,8 +200,8 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/usuarios/{id}/nova-senha` (senha temporária; nunca para um ADMIN) | ADMIN |
 | `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` (só o resumo: id, nome, data de nascimento e se está ativo¹¹) | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `GET /api/alunos/{id}` (o cadastro; cada abertura vai para o registro de acessos¹¹) | ADMIN, RECEPCAO, INSTRUTOR¹ |
-| `POST /api/alunos` | ADMIN, RECEPCAO |
-| `PUT /api/alunos/{id}` (exige `If-Match`²; o login do aluno acompanha o e-mail, a confirmar, ADR 0045) | ADMIN, RECEPCAO |
+| `POST /api/alunos` (`dataNascimento` obrigatória, ADR 0048) | ADMIN, RECEPCAO |
+| `PUT /api/alunos/{id}` (exige `If-Match`²; o login do aluno acompanha o e-mail, a confirmar, ADR 0045; a data de nascimento não se apaga, ADR 0048) | ADMIN, RECEPCAO |
 | `POST /api/alunos/{id}/inativar`, `/reativar` (inativar deixa o login só de leitura⁹, reativar o libera; inativar com matrícula vigente ou agendada dá 409) | ADMIN, RECEPCAO |
 | `DELETE /api/alunos/{id}` (só o nunca usado, com o login dele se nunca entrou; com matrícula, ficha, pagamento ou login já usado, 409: inative¹⁴) | ADMIN |
 | `POST /api/alunos/{id}/login` (cria o login com senha temporária) | ADMIN, RECEPCAO |

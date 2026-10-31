@@ -21,6 +21,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -130,7 +131,7 @@ class ExclusaoDeAlunoConcorrenciaTest {
 
             List<String> resultados = juntas(() -> {
                 try {
-                    service.atualizar(aluno, new DadosAluno(editado, cpf, null, null, null, null), "*");
+                    service.atualizar(aluno, new DadosAluno(editado, cpf, null, null, NASCIMENTO, null), "*");
                     return "editado";
                 } catch (AlunoNaoEncontradoException | RecursoModificadoException e) {
                     return "depois";

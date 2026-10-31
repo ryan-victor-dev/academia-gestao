@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.time.Instant;
 import java.util.UUID;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -43,8 +44,8 @@ class MeuCadastroTest {
     @BeforeEach
     void cadastrar() {
         limpeza.apagarTudo();
-        ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now()));
-        repository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, null, null), Instant.now()));
+        ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, NASCIMENTO, null), Instant.now()));
+        repository.save(Aluno.novo(new DadosAluno("Bia", "11144477735", null, null, NASCIMENTO, null), Instant.now()));
     }
 
     private static RequestPostProcessor tokenDeAluno(UUID alunoId) {

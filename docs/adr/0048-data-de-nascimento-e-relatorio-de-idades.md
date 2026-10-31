@@ -41,3 +41,14 @@ só dele) e a própria pessoa (`/api/me`) a recebem.
 
 Na aba Equipe, a linha mostra a idade, ou "Sem nascimento" para quem é de antes; o campo aparece no cadastro
 (obrigatório) e na edição (obrigatório só para quem já tem).
+
+### Data de nascimento do aluno obrigatória no cadastro novo
+`POST /api/alunos` sem a data dá 400 ("data de nascimento é obrigatória"). Na edição (`PUT`, que substitui o
+cadastro inteiro), quem tem a data precisa mandar uma: mandar sem dá o mesmo 400, e nada muda. Quem foi cadastrado
+antes continua editável sem ela. A regra fica na entidade (`Aluno.novo` e `atualizar`), e não na validação do
+pedido, porque depende do cadastro atual. O banco não muda: a coluna continua aceitando nulo por causa dos antigos.
+
+Nas telas, o campo "Nascimento" é obrigatório no cadastro novo e na edição de quem tem a data, e o botão só se
+habilita com ela. A idade aparece ao lado da data na lista de alunos, no cadastro e em "Meus dados" do aluno
+("10/05/1990 (35 anos)"): tanto no quadro da página inicial quanto na página "Meus dados" do menu, onde o aluno só
+consulta (quem corrige é a recepção). A data continua visível a toda a equipe, como antes (decisão 1).

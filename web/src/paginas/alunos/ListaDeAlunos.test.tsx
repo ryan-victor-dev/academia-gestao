@@ -17,7 +17,7 @@ describe('lista de alunos', () => {
 
     const link = await screen.findByRole('link', { name: /Ana Souza/ });
     expect(link).toHaveAttribute('href', '/alunos/a1');
-    expect(screen.getByText('Nascimento: 02/05/1990')).toBeInTheDocument();
+    expect(screen.getByText(/^Nascimento: 02\/05\/1990 \(\d+ anos\)$/)).toBeInTheDocument();
     expect(api.de('GET /api/alunos').at(-1)!.busca.get('incluirInativos')).toBe('false');
   });
 

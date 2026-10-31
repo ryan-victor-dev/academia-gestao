@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { MensagemDeErro } from '../../componentes/MensagemDeErro';
-import { cpf, data, dinheiro, telefone } from '../../formato';
+import { cpf, data, dinheiro, nascimentoComIdade, telefone } from '../../formato';
 import { chamar } from '../../sessao/api';
 import { useUsuario } from '../../sessao/contexto';
 import type { Aluno } from '../alunos/tipos';
@@ -70,7 +70,7 @@ export function InicioDoAluno() {
               <dt>CPF</dt><dd>{cpf(dados.cpf)}</dd>
               <dt>E-mail</dt><dd>{dados.email ?? '—'}</dd>
               <dt>Telefone</dt><dd>{telefone(dados.telefone)}</dd>
-              <dt>Nascimento</dt><dd>{data(dados.dataNascimento)}</dd>
+              <dt>Nascimento</dt><dd>{nascimentoComIdade(dados.dataNascimento)}</dd>
             </dl>
           )}
           <p className="suave">Para corrigir algum dado, fale com a recepção.</p>

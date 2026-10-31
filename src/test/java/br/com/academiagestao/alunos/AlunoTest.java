@@ -2,17 +2,19 @@ package br.com.academiagestao.alunos;
 
 import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AlunoTest {
 
     private static DadosAluno dados(String nome, String cpf) {
-        return new DadosAluno(nome, cpf, null, null, null, null);
+        return new DadosAluno(nome, cpf, null, null, NASCIMENTO, null);
     }
 
     @Test
@@ -46,9 +48,30 @@ class AlunoTest {
 
     @Test
     void recusaTelefoneSemDdd() {
-        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, "98765-4321", null, null), Instant.now()))
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, "98765-4321", NASCIMENTO, null), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("telefone");
+    }
+
+    /** ADR 0048: obrigatória no cadastro novo; quem tem não apaga; quem é de antes continua editável sem. */
+    @Test
+    void nascimentoObrigatorioNoNovoEQueNaoSeApaga() {
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now()))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessage("data de nascimento é obrigatória");
+
+        Aluno comData = Aluno.novo(dados("Ana", "52998224725"), Instant.now());
+        assertThatThrownBy(() -> comData.atualizar(new DadosAluno("Ana Maria", "52998224725", null, null, null, null), Instant.now()))
+                .isInstanceOf(DadosInvalidosException.class)
+                .hasMessage("data de nascimento é obrigatória");
+        assertThat(comData.getNome()).isEqualTo("Ana");
+        assertThat(comData.getDataNascimento()).isEqualTo(NASCIMENTO);
+
+        Aluno deAntes = Aluno.novo(dados("Bia", "11144477735"), Instant.now());
+        ReflectionTestUtils.setField(deAntes, "dataNascimento", null);
+        deAntes.atualizar(new DadosAluno("Bia Lima", "11144477735", null, null, null, null), Instant.now());
+        assertThat(deAntes.getNome()).isEqualTo("Bia Lima");
+        assertThat(deAntes.getDataNascimento()).isNull();
     }
 
     // 19/10/2026, 23h30 em São Paulo: em UTC já é dia 20.
@@ -70,7 +93,7 @@ class AlunoTest {
     /** O "hoje" é o da academia: às 23h30 de São Paulo, o dia seguinte (o de UTC) ainda é futuro. */
     @Test
     void naEdicaoTambemOHojeEhODaAcademia() {
-        Aluno aluno = Aluno.novo(nascidoEm(null), NOITE);
+        Aluno aluno = Aluno.novo(nascidoEm(NASCIMENTO), NOITE);
 
         assertThatThrownBy(() -> aluno.atualizar(nascidoEm(HOJE_NA_ACADEMIA.plusDays(1)), NOITE))
                 .isInstanceOf(DadosInvalidosException.class)
@@ -91,7 +114,7 @@ class AlunoTest {
 
     @Test
     void criadoEmVemDoRelogio() {
-        assertThat(Aluno.novo(nascidoEm(null), NOITE).getCriadoEm()).isEqualTo(NOITE);
+        assertThat(Aluno.novo(nascidoEm(NASCIMENTO), NOITE).getCriadoEm()).isEqualTo(NOITE);
     }
 
     @Test
@@ -133,13 +156,13 @@ class AlunoTest {
 
     @Test
     void emailSemArrobaOuComprido() {
-        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "ana.email.com", null, null, null), Instant.now()))
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "ana.email.com", null, NASCIMENTO, null), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class)
                 .hasMessageContaining("e-mail");
         String email150 = "a".repeat(140) + "@email.com";
-        assertThat(Aluno.novo(new DadosAluno("Ana", "52998224725", email150, null, null, null), Instant.now()).getEmail())
+        assertThat(Aluno.novo(new DadosAluno("Ana", "52998224725", email150, null, NASCIMENTO, null), Instant.now()).getEmail())
                 .hasSize(150);
-        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "a" + email150, null, null, null), Instant.now()))
+        assertThatThrownBy(() -> Aluno.novo(new DadosAluno("Ana", "52998224725", "a" + email150, null, NASCIMENTO, null), Instant.now()))
                 .isInstanceOf(DadosInvalidosException.class);
     }
 

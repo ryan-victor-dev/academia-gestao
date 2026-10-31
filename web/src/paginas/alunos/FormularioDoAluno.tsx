@@ -5,7 +5,10 @@ import { ROTULOS_DO_ALUNO, type DadosDoAluno } from './tipos';
 
 const VAZIO: DadosDoAluno = { nome: '', cpf: '', email: '', telefone: '', dataNascimento: '', observacoes: '' };
 
-/** Formulário do cadastro, para criar e para editar. */
+/**
+ * Formulário do cadastro, para criar e para editar. A data de nascimento é obrigatória no cadastro novo e na edição
+ * de quem já tem (ADR 0048): só quem é de antes dela pode continuar sem.
+ */
 export function FormularioDoAluno({ inicial, rotuloDoBotao, aoSalvar, aoCancelar }: {
   inicial?: DadosDoAluno;
   rotuloDoBotao: string;
@@ -13,6 +16,7 @@ export function FormularioDoAluno({ inicial, rotuloDoBotao, aoSalvar, aoCancelar
   aoCancelar?: () => void;
 }) {
   const [dados, setDados] = useState<DadosDoAluno>(inicial ?? VAZIO);
+  const nascimentoObrigatorio = !inicial || !!inicial.dataNascimento;
   const [erro, setErro] = useState<unknown>(null);
   const [enviando, setEnviando] = useState(false);
   const campo = (nome: keyof DadosDoAluno) => ({
@@ -39,14 +43,14 @@ export function FormularioDoAluno({ inicial, rotuloDoBotao, aoSalvar, aoCancelar
       <label>CPF<input required inputMode="numeric" autoComplete="off" {...campo('cpf')} /></label>
       <label>E-mail<input type="email" {...campo('email')} /></label>
       <label>Telefone<input type="tel" {...campo('telefone')} /></label>
-      <label>Nascimento<input type="date" max={hoje()} {...campo('dataNascimento')} /></label>
+      <label>Nascimento<input type="date" required={nascimentoObrigatorio} max={hoje()} {...campo('dataNascimento')} /></label>
       <label className="largo">
         Observações (saúde, restrições: o professor também vê)
         <textarea rows={3} maxLength={2000} {...campo('observacoes')} />
       </label>
       <MensagemDeErro erro={erro} rotulos={ROTULOS_DO_ALUNO} />
       <div className="acoes">
-        <button type="submit" disabled={enviando || !dados.nome.trim() || !dados.cpf.trim()}>
+        <button type="submit" disabled={enviando || !dados.nome.trim() || !dados.cpf.trim() || (nascimentoObrigatorio && !dados.dataNascimento)}>
           {enviando ? 'Salvando…' : rotuloDoBotao}
         </button>
         {aoCancelar && <button type="button" className="secundario" onClick={aoCancelar}>Cancelar</button>}

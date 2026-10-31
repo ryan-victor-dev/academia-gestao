@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anos, cpf, data, dataHora, diaDe, diaSeguinte, dinheiro, hoje, idade, instanteDaAcademia, paraCampoDeDataHora, telefone } from './formato';
+import { anos, cpf, data, dataHora, diaDe, diaSeguinte, dinheiro, hoje, idade, instanteDaAcademia, nascimentoComIdade, paraCampoDeDataHora, telefone } from './formato';
 
 describe('formatos', () => {
   it('data pura não muda de dia por causa do fuso', () => {
@@ -37,6 +37,8 @@ describe('formatos', () => {
     expect(idade('2026-10-30', '2026-10-30')).toBe(0);
     expect(idade(null)).toBeNull();
     expect(anos(null)).toBe('—');
+    expect(nascimentoComIdade(null)).toBe('—');
+    expect(nascimentoComIdade(`${Number(hoje().slice(0, 4)) - 30}-01-01`)).toBe(`01/01/${Number(hoje().slice(0, 4)) - 30} (30 anos)`);
     expect(anos(`${Number(hoje().slice(0, 4)) - 1}-01-01`)).toBe('1 ano');
     expect(anos(`${Number(hoje().slice(0, 4)) - 2}-01-01`)).toBe('2 anos');
   });

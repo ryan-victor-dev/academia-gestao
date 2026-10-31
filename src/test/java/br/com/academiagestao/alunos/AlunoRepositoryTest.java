@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.Instant;
 import java.util.UUID;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -37,7 +38,7 @@ class AlunoRepositoryTest {
 
     @Test
     void salvaEEncontraPeloCpf() {
-        repository.saveAndFlush(Aluno.novo(new DadosAluno("Ana", "529.982.247-25", null, null, null, null), Instant.now()));
+        repository.saveAndFlush(Aluno.novo(new DadosAluno("Ana", "529.982.247-25", null, null, NASCIMENTO, null), Instant.now()));
 
         assertThat(repository.findByCpf("52998224725"))
                 .get()
@@ -47,10 +48,10 @@ class AlunoRepositoryTest {
 
     @Test
     void bancoRecusaCpfRepetido() {
-        repository.saveAndFlush(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now()));
+        repository.saveAndFlush(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, NASCIMENTO, null), Instant.now()));
 
         assertThatThrownBy(() -> repository.saveAndFlush(
-                Aluno.novo(new DadosAluno("Outra Ana", "529.982.247-25", null, null, null, null), Instant.now())))
+                Aluno.novo(new DadosAluno("Outra Ana", "529.982.247-25", null, null, NASCIMENTO, null), Instant.now())))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.time.Instant;
 import java.util.UUID;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -56,7 +57,7 @@ class EdicaoSimultaneaTest {
     @BeforeEach
     void cadastrar() {
         limpeza.apagarTudo();
-        ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, null, null), Instant.now()));
+        ana = repository.save(Aluno.novo(new DadosAluno("Ana", "52998224725", null, null, NASCIMENTO, null), Instant.now()));
     }
 
     private String etagDoGet() throws Exception {
@@ -67,7 +68,7 @@ class EdicaoSimultaneaTest {
     private ResultActions editar(String ifMatch, String nome) throws Exception {
         var requisicao = put("/api/alunos/" + ana.getId()).with(RECEPCAO)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nome\": \"%s\", \"cpf\": \"52998224725\"}".formatted(nome));
+                .content("{\"nome\": \"%s\", \"cpf\": \"52998224725\", \"dataNascimento\": \"1990-05-10\"}".formatted(nome));
         if (ifMatch != null) {
             requisicao.header("If-Match", ifMatch);
         }
@@ -135,7 +136,7 @@ class EdicaoSimultaneaTest {
         Aluno copiaAntiga = repository.findById(ana.getId()).orElseThrow();
         jdbc.update("UPDATE alunos SET nome = 'Outra pessoa mudou', versao = versao + 1 WHERE id = ?", ana.getId());
 
-        copiaAntiga.atualizar(new DadosAluno("Ana Maria", "52998224725", null, null, null, null), Instant.now());
+        copiaAntiga.atualizar(new DadosAluno("Ana Maria", "52998224725", null, null, NASCIMENTO, null), Instant.now());
         assertThatThrownBy(() -> repository.saveAndFlush(copiaAntiga))
                 .isInstanceOf(OptimisticLockingFailureException.class);
     }

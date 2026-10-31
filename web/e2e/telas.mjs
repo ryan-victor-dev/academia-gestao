@@ -133,6 +133,8 @@ try {
   await rec.getByLabel('Nome', { exact: true }).fill('Ana das Telas');
   await rec.getByLabel('CPF', { exact: true }).fill(cpfValido());
   await rec.getByLabel('E-mail', { exact: true }).fill('ana.telas@academia.local');
+  // A data de nascimento é obrigatória no cadastro novo (ADR 0048).
+  await rec.getByLabel('Nascimento', { exact: true }).fill('1995-03-10');
   await rec.getByRole('button', { name: 'Cadastrar' }).click();
   await rec.getByRole('heading', { name: 'Ana das Telas' }).waitFor();
   const alunoId = new globalThis.URL(rec.url()).pathname.split('/').pop();

@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { anos, data, hoje } from '../formato';
+import { useEffect, useState, type FormEvent } from 'react';
+import { anos, data, hoje, nascimentoComIdade } from '../formato';
 import { chamar } from '../sessao/api';
 import { MensagemDeErro } from './MensagemDeErro';
 
@@ -46,6 +46,28 @@ export function MeuNascimento({ inicial }: { inicial: string | null | undefined 
         <div className="acoes"><button type="submit" disabled={enviando}>{enviando ? 'Salvando…' : 'Salvar'}</button></div>
         {salvo && <p role="status">Salvo.</p>}
       </form>
+    </section>
+  );
+}
+
+/** A do aluno (ADR 0048), só para consultar: ela é do cadastro, e quem corrige é a recepção. */
+export function NascimentoDoAluno() {
+  const [nascimento, setNascimento] = useState<string | null | undefined>(undefined);
+  const [erro, setErro] = useState<unknown>(null);
+
+  useEffect(() => {
+    let atual = true;
+    chamar<{ dataNascimento: string | null }>('/api/alunos/me')
+      .then((a) => { if (atual) setNascimento(a.dataNascimento); }).catch((e) => { if (atual) setErro(e); });
+    return () => { atual = false; };
+  }, []);
+
+  return (
+    <section>
+      <h2>Data de nascimento</h2>
+      <MensagemDeErro erro={erro} />
+      {nascimento !== undefined && <p>{nascimentoComIdade(nascimento)}</p>}
+      <p className="suave">Para corrigir, fale com a recepção.</p>
     </section>
   );
 }

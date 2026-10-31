@@ -69,8 +69,15 @@ public class Aluno {
     protected Aluno() {
     }
 
-    /** @param agora momento do cadastro (do relógio da aplicação), de onde sai o "hoje" na academia. */
+    /**
+     * A data de nascimento é obrigatória no cadastro novo (ADR 0048); quem é de antes fica sem até alguém preencher.
+     *
+     * @param agora momento do cadastro (do relógio da aplicação), de onde sai o "hoje" na academia.
+     */
     public static Aluno novo(DadosAluno dados, Instant agora) {
+        if (dados != null && dados.dataNascimento() == null) {
+            throw new DadosInvalidosException("data de nascimento é obrigatória");
+        }
         Aluno aluno = new Aluno();
         aluno.id = UUID.randomUUID();
         aluno.ativo = true;
@@ -81,8 +88,14 @@ public class Aluno {
         return aluno;
     }
 
-    /** Corrige ou completa o cadastro. Vale também para o CPF (digitado errado, por exemplo). */
+    /**
+     * Corrige ou completa o cadastro. Vale também para o CPF (digitado errado, por exemplo). A data de nascimento se
+     * corrige, mas não se apaga (ADR 0048): só quem é de antes dela continua sem.
+     */
     public void atualizar(DadosAluno dados, Instant agora) {
+        if (dados != null && dados.dataNascimento() == null && this.dataNascimento != null) {
+            throw new DadosInvalidosException("data de nascimento é obrigatória");
+        }
         aplicar(dados, agora);
     }
 

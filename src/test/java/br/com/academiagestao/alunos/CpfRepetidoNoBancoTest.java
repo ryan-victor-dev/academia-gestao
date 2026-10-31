@@ -16,6 +16,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import static br.com.academiagestao.alunos.NascimentoParaTeste.NASCIMENTO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -62,7 +63,7 @@ class CpfRepetidoNoBancoTest {
         assertThat(inserido.await(10, TimeUnit.SECONDS)).isTrue();
 
         long inicio = System.nanoTime();
-        assertThatThrownBy(() -> service.cadastrar(new DadosAluno("Segunda", cpf, null, null, null, null)))
+        assertThatThrownBy(() -> service.cadastrar(new DadosAluno("Segunda", cpf, null, null, NASCIMENTO, null)))
                 .isInstanceOf(CpfJaCadastradoException.class);
         outraTransacao.get(10, TimeUnit.SECONDS);
 

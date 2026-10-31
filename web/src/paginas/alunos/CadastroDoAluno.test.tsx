@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { apiFalsa, json, renderizar } from '../../testes/ajudantes';
@@ -47,6 +47,25 @@ describe('cadastro do aluno', () => {
     expect(put.cabecalhos.get('If-Match')).toBe('"4"');
     expect(put.corpo).toMatchObject({ nome: 'Ana Souza', email: null, telefone: null, observacoes: 'Lesão no joelho' });
     expect(await screen.findByRole('button', { name: 'Editar' })).toBeInTheDocument();
+  });
+
+  it('nascimento (ADR 0048): mostra a idade; quem tem não apaga; quem é de antes edita sem', async () => {
+    apiFalsa(base);
+    const { unmount } = abrir();
+    expect(await screen.findByText(/^02\/05\/1990 \(\d+ anos\)$/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    expect(screen.getByLabelText('Nascimento')).toBeRequired();
+    fireEvent.change(screen.getByLabelText('Nascimento'), { target: { value: '' } });
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled();
+    unmount();
+
+    const api = apiFalsa({ ...base, 'GET /api/alunos/00000000-0000-0000-0000-0000000000a1': json(200, { ...ana, dataNascimento: null }, { ETag: '"4"' }),
+      'PUT /api/alunos/00000000-0000-0000-0000-0000000000a1': json(200, { ...ana, dataNascimento: null }, { ETag: '"5"' }) });
+    abrir();
+    await userEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+    expect(screen.getByLabelText('Nascimento')).not.toBeRequired();
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(api.de('PUT /api/alunos/00000000-0000-0000-0000-0000000000a1')[0].corpo).toMatchObject({ dataNascimento: null });
   });
 
   it('outra pessoa alterou antes (412): explica o que fazer', async () => {

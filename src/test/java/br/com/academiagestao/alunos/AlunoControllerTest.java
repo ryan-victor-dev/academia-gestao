@@ -89,6 +89,24 @@ class AlunoControllerTest {
                 .andExpect(jsonPath("$.ativo").value(true));
     }
 
+    /** ADR 0048: a data é obrigatória no cadastro novo, e quem tem não a apaga na edição. */
+    @Test
+    void semDataDeNascimentoDevolve400() throws Exception {
+        cadastrar("RECEPCAO", """
+                {"nome": "Ana", "cpf": "529.982.247-25"}""")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("data de nascimento é obrigatória"));
+
+        String id = cadastrarAluno("Ana", "529.982.247-25");
+        mvc.perform(put("/api/alunos/" + id).with(perfil("RECEPCAO")).header("If-Match", "\"0\"")
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"nome": "Ana Maria", "cpf": "529.982.247-25", "dataNascimento": null}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("data de nascimento é obrigatória"));
+        mvc.perform(get("/api/alunos/" + id).with(perfil("RECEPCAO")))
+                .andExpect(jsonPath("$.nome").value("Ana")).andExpect(jsonPath("$.dataNascimento").value("1995-03-10"));
+    }
+
     @Test
     void cpfInvalidoDevolve400ApontandoOCampo() throws Exception {
         cadastrar("RECEPCAO", json("Ana", "529.982.247-24"))
@@ -121,7 +139,7 @@ class AlunoControllerTest {
     @Test
     void regraQueSoAEntidadeConfereTambemDevolve400() throws Exception {
         cadastrar("RECEPCAO", """
-                {"nome": "Ana", "cpf": "%s", "telefone": "98765-4321"}
+                {"nome": "Ana", "cpf": "%s", "telefone": "98765-4321", "dataNascimento": "1995-03-10"}
                 """.formatted(CPF_ANA))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(endsWith("(10 ou 11 dígitos)")));
@@ -177,7 +195,7 @@ class AlunoControllerTest {
                         .header("If-Match", "\"0\"") // versão de quem acabou de ser cadastrado
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"nome": "Ana Maria Souza", "cpf": "%s"}
+                                {"nome": "Ana Maria Souza", "cpf": "%s", "dataNascimento": "1995-03-10"}
                                 """.formatted(CPF_ANA)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nome").value("Ana Maria Souza"))
