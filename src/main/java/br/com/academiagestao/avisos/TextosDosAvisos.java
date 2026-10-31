@@ -11,17 +11,18 @@ import java.util.Locale;
 /**
  * Os textos dos avisos de fatura (ADR 0047, decisão 7). Antes do vencimento, em tom amigável, como quem adianta uma
  * coisa boa: ainda dá para pagar sem acréscimo e com o acesso liberado; e o que acontece se atrasar. Em atraso, direto:
- * o valor de hoje, que o atraso aumenta o valor e que bloqueia o acesso. Texto simples (o e-mail não interpreta HTML).
- * Java puro.
+ * o valor de hoje, que o atraso aumenta o valor e que bloqueia o acesso. Ao aluno inativo, que só recebe os de atraso, o
+ * texto não fala do bloqueio (ele já saiu) nem do app (o login dele só consulta, ADR 0029): paga na recepção. Texto
+ * simples (o e-mail não interpreta HTML). Java puro.
  */
 final class TextosDosAvisos {
 
     private static final Locale BRASIL = Locale.of("pt", "BR");
     private static final DateTimeFormatter DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    /** O que o texto precisa saber da fatura e das regras do atraso. */
+    /** O que o texto precisa saber da fatura e das regras do atraso. {@code alunoAtivo}: falso em quem saiu da academia. */
     record Fatura(String nomeDoAluno, String tipo, int parcela, LocalDate prazo, BigDecimal valor, BigDecimal devidoHoje,
-                  long diasDeAtraso) {
+                  long diasDeAtraso, boolean alunoAtivo) {
     }
 
     record Regras(boolean acrescimoPercentual, BigDecimal acrescimo, BigDecimal jurosAoMes, int diasParaBloquear) {
@@ -62,6 +63,16 @@ final class TextosDosAvisos {
                     + "Só para você saber: se o pagamento atrasar, o valor aumenta (" + custoDoAtraso(r) + ") e, depois de "
                     + dias(r.diasParaBloquear()) + " de atraso, o acesso à academia é bloqueado até o pagamento." + fim);
         }
+        String boleto = "\n\nSe você já pagou por boleto nos últimos dias, pode desconsiderar este aviso: o banco leva até 3 dias"
+                + " úteis para confirmar o pagamento.";
+        if (!f.alunoAtivo()) {
+            return new Texto("Sua " + nome(f) + " está atrasada há " + dias(f.diasDeAtraso()), ola
+                    + "A sua " + nome(f) + ", que venceu em " + data(f.prazo()) + ", está atrasada há " + dias(f.diasDeAtraso())
+                    + ". O valor para pagar hoje é " + dinheiro(f.devidoHoje())
+                    + " (era " + dinheiro(f.valor()) + ").\n\n"
+                    + "O atraso aumenta o valor da fatura (" + custoDoAtraso(r) + ")." + boleto
+                    + "\n\nVocê pode pagar na recepção da academia.\n\nAcademia");
+        }
         long faltam = r.diasParaBloquear() - f.diasDeAtraso();
         return new Texto("Sua " + nome(f) + " está atrasada há " + dias(f.diasDeAtraso()), ola
                 + "A sua " + nome(f) + ", que venceu em " + data(f.prazo()) + ", está atrasada há " + dias(f.diasDeAtraso())
@@ -69,8 +80,7 @@ final class TextosDosAvisos {
                 + "O atraso aumenta o valor da fatura (" + custoDoAtraso(r) + ") e bloqueia o acesso à academia: "
                 + (faltam > 0 ? "o bloqueio começa com " + dias(r.diasParaBloquear()) + " de atraso, daqui a " + dias(faltam) + "."
                         : "o acesso já está bloqueado até o pagamento.")
-                + "\n\nSe você já pagou por boleto nos últimos dias, pode desconsiderar este aviso: o banco leva até 3 dias"
-                + " úteis para confirmar o pagamento." + fim);
+                + boleto + fim);
     }
 
     /**
@@ -85,6 +95,11 @@ final class TextosDosAvisos {
             return "Academia: oi, " + nome + "! Sua " + nome(f) + " de " + dinheiro(f.valor()) + " " + quando
                     + ". Pague até lá sem acréscimo e com o acesso liberado. O atraso aumenta o valor e bloqueia o acesso"
                     + " após " + dias(r.diasParaBloquear()) + ".";
+        }
+        if (!f.alunoAtivo()) {
+            return "Academia: " + nome + ", sua " + nome(f) + " está atrasada há " + dias(f.diasDeAtraso()) + ". Hoje: "
+                    + dinheiro(f.devidoHoje()) + ". O atraso aumenta o valor. Pague na recepção. Pagou por boleto há pouco?"
+                    + " Desconsidere.";
         }
         long faltam = r.diasParaBloquear() - f.diasDeAtraso();
         return "Academia: " + nome + ", sua " + nome(f) + " está atrasada há " + dias(f.diasDeAtraso()) + ". Hoje: "

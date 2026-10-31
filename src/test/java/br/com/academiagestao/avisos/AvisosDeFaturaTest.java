@@ -178,6 +178,9 @@ class AvisosDeFaturaTest {
 
         assertThat(assuntos(inativo)).containsExactlyInAnyOrder("Sua mensalidade 5 está atrasada há 1 dia",
                 "Sua mensalidade 6 está atrasada há 3 dias", "Sua mensalidade 7 está atrasada há 5 dias");
+        // Sem o bloqueio e sem o app: o login do inativo só consulta, e ele paga na recepção.
+        assertThat(correio.para(inativo)).allSatisfy(m -> assertThat(m.texto()).doesNotContain("bloque")
+                .contains("Você pode pagar na recepção da academia."));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM avisos_de_fatura WHERE cobranca_id = ?", Integer.class, daSemEmail)).isZero();
     }
 

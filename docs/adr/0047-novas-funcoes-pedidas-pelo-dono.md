@@ -244,7 +244,9 @@ O diagnóstico de 30/10, numa instalação isolada e de fora, pelo Caddy, achou 
 
 - **Aluno inativo recebe os avisos de atraso.** Antes, quem saiu da academia não recebia aviso nenhum, e a dívida ficava
   só com a recepção. Agora ele recebe os de atraso (1, 3 e 5 dias) da fatura que ficou em aberto, e não os lembretes de
-  antes do vencimento nem o do dia, que são para quem continua treinando.
+  antes do vencimento nem o do dia, que são para quem continua treinando. O texto dele (e-mail e SMS) não fala do
+  bloqueio do acesso, que não faz sentido para quem saiu, nem manda pagar pelo app: o login do inativo só consulta
+  (ADR 0029) e não gera Pix nem boleto. Ele paga na recepção (decisão do dono de 31/10).
 - **SMS desligado.** Os avisos saem por e-mail (as notificações do app ficam para uma etapa seguinte); o SMS
   continua atrás da porta, desligado por padrão (`SMS_PROVEDOR=desligado`), para o dia em que o dono quiser
   contratar uma empresa.

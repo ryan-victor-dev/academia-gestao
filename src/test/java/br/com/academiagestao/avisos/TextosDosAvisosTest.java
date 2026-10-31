@@ -17,7 +17,7 @@ class TextosDosAvisosTest {
     private static final LocalDate PRAZO = LocalDate.of(2026, 11, 15);
 
     private static TextosDosAvisos.Fatura fatura(BigDecimal devido, long atraso) {
-        return new TextosDosAvisos.Fatura("Ana Paula Souza", "MENSALIDADE", 3, PRAZO, new BigDecimal("120.00"), devido, atraso);
+        return new TextosDosAvisos.Fatura("Ana Paula Souza", "MENSALIDADE", 3, PRAZO, new BigDecimal("120.00"), devido, atraso, true);
     }
 
     @Test
@@ -34,6 +34,30 @@ class TextosDosAvisosTest {
                 .contains("em Pagamentos").doesNotContain("atrasada").doesNotContain("boleto");
         assertThat(TextosDosAvisos.email(Marco.VENCE_EM_1, fatura(new BigDecimal("120.00"), 0), PADRAO).corpo())
                 .contains("vence em 1 dia, no dia 15/11/2026");
+    }
+
+    /** Quem saiu da academia só recebe os de atraso: sem o bloqueio (já saiu) e sem o app (o login só consulta). */
+    @Test
+    void aoInativoOAtrasoSemBloqueioESemOApp() {
+        TextosDosAvisos.Fatura inativo = new TextosDosAvisos.Fatura("Ana Paula Souza", "MENSALIDADE", 3, PRAZO,
+                new BigDecimal("120.00"), new BigDecimal("122.52"), 3, false);
+        TextosDosAvisos.Texto t = TextosDosAvisos.email(Marco.ATRASADA_3, inativo, PADRAO);
+
+        assertThat(t.assunto()).isEqualTo("Sua mensalidade 3 está atrasada há 3 dias");
+        assertThat(t.corpo()).startsWith("Olá, Ana!")
+                .contains("que venceu em 15/11/2026, está atrasada há 3 dias")
+                .contains("O valor para pagar hoje é R$ 122,52 (era R$ 120,00)")
+                .contains("O atraso aumenta o valor da fatura (acréscimo de 2% e juros de 1% ao mês).")
+                .contains("Se você já pagou por boleto nos últimos dias, pode desconsiderar")
+                .contains("Você pode pagar na recepção da academia.")
+                .doesNotContain("bloque").doesNotContain("app").doesNotContain("Bons treinos");
+        assertThat(TextosDosAvisos.sms(Marco.ATRASADA_3, inativo, PADRAO)).isEqualTo("Academia: Ana, sua mensalidade 3 está"
+                + " atrasada há 3 dias. Hoje: R$ 122,52. O atraso aumenta o valor. Pague na recepção. Pagou por boleto há pouco?"
+                + " Desconsidere.");
+        // O ativo continua com o bloqueio e o app.
+        assertThat(TextosDosAvisos.email(Marco.ATRASADA_3, fatura(new BigDecimal("122.52"), 3), PADRAO).corpo())
+                .contains("bloqueia o acesso").contains("pelo app");
+        assertThat(TextosDosAvisos.sms(Marco.ATRASADA_3, fatura(new BigDecimal("122.52"), 3), PADRAO)).contains("bloqueia o acesso");
     }
 
     @Test
@@ -83,9 +107,9 @@ class TextosDosAvisosTest {
 
     @Test
     void nomesDasFaturasEDetalhes() {
-        assertThat(TextosDosAvisos.nome(new TextosDosAvisos.Fatura("A", "MULTA", 1, PRAZO, BigDecimal.ONE, BigDecimal.ONE, 0)))
+        assertThat(TextosDosAvisos.nome(new TextosDosAvisos.Fatura("A", "MULTA", 1, PRAZO, BigDecimal.ONE, BigDecimal.ONE, 0, true)))
                 .isEqualTo("multa por sair antes");
-        assertThat(TextosDosAvisos.nome(new TextosDosAvisos.Fatura("A", "A_VISTA", 1, PRAZO, BigDecimal.ONE, BigDecimal.ONE, 0)))
+        assertThat(TextosDosAvisos.nome(new TextosDosAvisos.Fatura("A", "A_VISTA", 1, PRAZO, BigDecimal.ONE, BigDecimal.ONE, 0, true)))
                 .isEqualTo("fatura do plano à vista");
         assertThat(TextosDosAvisos.primeiroNome("  Maria  Clara ")).isEqualTo("Maria");
         assertThat(TextosDosAvisos.primeiroNome(" ")).isEqualTo("tudo bem");

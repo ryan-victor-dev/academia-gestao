@@ -96,7 +96,7 @@ class AvisosDeFatura {
                 continue;
             }
             TextosDosAvisos.Fatura dados = new TextosDosAvisos.Fatura(contato.nome(), fatura.tipo(), fatura.parcela(),
-                    fatura.prazo(), fatura.valor(), fatura.devidoHoje(), fatura.diasDeAtraso());
+                    fatura.prazo(), fatura.valor(), fatura.devidoHoje(), fatura.diasDeAtraso(), contato.ativo());
             if (correio.ligado() && contato.email() != null && enviar(fatura.id(), marco.get(), Canal.EMAIL, () -> {
                 TextosDosAvisos.Texto texto = TextosDosAvisos.email(marco.get(), dados, regras);
                 correio.enviar(new Correio.Mensagem(contato.email(), texto.assunto(), texto.corpo()));
