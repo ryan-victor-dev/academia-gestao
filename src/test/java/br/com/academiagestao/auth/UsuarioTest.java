@@ -1,8 +1,10 @@
 package br.com.academiagestao.auth;
 
+import br.com.academiagestao.compartilhado.DadosInvalidosException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -233,5 +235,38 @@ class UsuarioTest {
         assertThatThrownBy(() -> u.acompanharEmailDoCadastro(null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> u.acompanharEmailDoCadastro("sem-arroba")).isInstanceOf(IllegalArgumentException.class);
         assertThat(u.getEmail()).isEqualTo("ana.souza@academia.com");
+    }
+
+    @Test
+    void cpfDaEquipeGuardadoSoComOsDigitos() {
+        Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.RECEPCAO);
+        assertThat(u.getCpf()).isNull();
+
+        u.informarCpf("529.982.247-25");
+
+        assertThat(u.getCpf()).isEqualTo("52998224725");
+        assertThatThrownBy(() -> u.informarCpf("529.982.247-24")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> u.informarCpf(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(u.getCpf()).isEqualTo("52998224725");
+        assertThatThrownBy(() -> Usuario.deAluno("Caio", "caio@x.com", HASH, UUID.randomUUID()).informarCpf("52998224725"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void nascimentoDaEquipeNemNoFuturoNemMaisDe120Anos() {
+        // 30/10/2026 ao meio-dia em Brasília.
+        Instant agora = Instant.parse("2026-10-30T15:00:00Z");
+        Usuario u = Usuario.daEquipe("Ana", "ana@x.com", HASH, Perfil.INSTRUTOR);
+        assertThat(u.getDataNascimento()).isNull();
+
+        u.informarNascimento(LocalDate.of(1990, 5, 17), agora);
+
+        assertThat(u.getDataNascimento()).isEqualTo(LocalDate.of(1990, 5, 17));
+        assertThatThrownBy(() -> u.informarNascimento(LocalDate.of(2026, 10, 31), agora))
+                .isInstanceOf(DadosInvalidosException.class);
+        assertThatThrownBy(() -> u.informarNascimento(null, agora)).isInstanceOf(NullPointerException.class);
+        assertThat(u.getDataNascimento()).isEqualTo(LocalDate.of(1990, 5, 17));
+        assertThatThrownBy(() -> Usuario.deAluno("Caio", "caio@x.com", HASH, UUID.randomUUID())
+                .informarNascimento(LocalDate.of(1990, 5, 17), agora)).isInstanceOf(IllegalStateException.class);
     }
 }

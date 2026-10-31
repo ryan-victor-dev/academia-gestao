@@ -119,8 +119,9 @@ class CaixaTest {
     @ValueSource(strings = {"-0.01", "100000000.01", "1.001"})
     void contadoForaDaFaixaRecusado(String contado) {
         Caixa caixa = aberto("0");
+        // A mensagem do contado, e não a do retirado ("até o dinheiro contado"), que também recusaria o negativo.
         assertThatThrownBy(() -> fechar(caixa, contado, "0", "0", "Teste"))
-                .isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("contado");
+                .isInstanceOf(CobrancaInvalidaException.class).hasMessageContaining("contado é obrigatório");
         assertThatThrownBy(() -> caixa.fechar(null, null, BigDecimal.ZERO, BigDecimal.ZERO, "Teste", RECEPCAO, AGORA))
                 .isInstanceOf(CobrancaInvalidaException.class);
         assertThat(fechar(caixa, "100000000", "0", "0", "Teste").contado()).isEqualTo(new BigDecimal("100000000.00"));
@@ -258,6 +259,8 @@ class CaixaTest {
                 null, RECEPCAO, AGORA).retirado()).isEqualTo(new BigDecimal("40.00"));
         assertThat(aberto("0").fechar(new BigDecimal("40"), BigDecimal.ZERO, new BigDecimal("40"), BigDecimal.ZERO,
                 null, RECEPCAO, AGORA).retirado()).isEqualTo(new BigDecimal("0.00"));
+        assertThat(aberto("0").fechar(new BigDecimal("40"), new BigDecimal("10.55"), new BigDecimal("40"), BigDecimal.ZERO,
+                null, RECEPCAO, AGORA).retirado()).isEqualTo(new BigDecimal("10.55"));
     }
 
     @ParameterizedTest

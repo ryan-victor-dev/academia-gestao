@@ -30,6 +30,23 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>toda entidade e todo o domínio da cobrança (Java puro, ADR 0024) são mutados;</li>
  *   <li>nenhuma entrada aponta para o que não existe mais.</li>
  * </ul>
+ *
+ * <p>Sobreviventes esperados do PIT (12, conferidos em 30/10; qualquer outro é teste faltando):
+ * <ul>
+ *   <li>{@code getVersao} de Aluno, Matricula, Ficha, Exercicio e Plano trocado por 0 (5): a versão é do
+ *       Hibernate e, sem o banco, é sempre 0. Matam: EdicaoSimultaneaTest (aluno), MatriculaRepositoryTest,
+ *       FichaControllerTest, ExercicioControllerTest e PlanoControllerTest (o ETag).</li>
+ *   <li>{@code Matricula.continuar}: crédito zero gravado como zero, e o primeiro vencimento igual ao início
+ *       gravado como data (3). Os getters devolvem o mesmo valor; muda só a coluna, que as restrições
+ *       {@code ck_matriculas_credito} e {@code ck_matriculas_primeiro_vencimento} recusam
+ *       (CobrancasDaMatriculaTest).</li>
+ *   <li>{@code Ficha.divisao}: a posição do exercício {@code i - 1} (1). A posição só vai ao banco, que a
+ *       recusa (FichaControllerTest).</li>
+ *   <li>{@code DadosDaPublicacao.numaLinha}: {@code indexOf >= 0} trocado por {@code > 0} (2). Equivalente: o
+ *       valor chega sem espaços nas pontas ({@code strip}), então nunca começa com a quebra de linha.</li>
+ *   <li>{@code SenhasComTeto.avisar} sem a troca atômica (1). Equivalente: só muda algo com duas threads
+ *       avisando no mesmo instante, e o pior efeito é um aviso a mais no log.</li>
+ * </ul>
  */
 class ListaDaMutacaoTest {
 

@@ -129,7 +129,7 @@ public class Usuario {
         if (perfil == Perfil.ALUNO) {
             throw new IllegalStateException("o CPF do aluno fica no cadastro do aluno");
         }
-        if (novoCpf == null || !Cpf.ehValido(novoCpf)) {
+        if (!Cpf.ehValido(novoCpf)) { // nulo também: o Cpf o lê como vazio
             throw new IllegalArgumentException("CPF inválido");
         }
         this.cpf = Cpf.normalizar(novoCpf);
