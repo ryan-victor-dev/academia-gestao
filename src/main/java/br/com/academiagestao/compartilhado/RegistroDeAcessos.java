@@ -13,7 +13,7 @@ import java.util.UUID;
  */
 public interface RegistroDeAcessos {
 
-    enum Tipo { CONSULTA_ALUNO, LOGIN, LOGIN_FALHO, LOGIN_BLOQUEADO, TROCA_SENHA_FALHA, RELATORIO_PERFIL }
+    enum Tipo { CONSULTA_ALUNO, LOGIN, LOGIN_FALHO, LOGIN_BLOQUEADO, TROCA_SENHA_FALHA, RELATORIO_PERFIL, CONSULTA_FOLHA }
 
     /**
      * Os que o {@link #login} grava. A consulta e o bloqueio têm método próprio e ficam de fora:
@@ -42,6 +42,9 @@ public interface RegistroDeAcessos {
      * abertura, e não uma por pessoa listada.
      */
     void relatorioDePerfil(UUID usuarioId, String ip);
+
+    /** O ADMIN consultou a folha (ADR 0049), com o valor combinado com cada pessoa: uma linha por consulta. */
+    void consultaDaFolha(UUID usuarioId, String ip);
 
     /**
      * Um login ou uma troca de senha recusada. {@code usuarioId} nulo: a conta digitada não

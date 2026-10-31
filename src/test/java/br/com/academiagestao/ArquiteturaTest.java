@@ -53,7 +53,7 @@ class ArquiteturaTest {
             .that().resideInAPackage("..compartilhado..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..auth..", "..alunos..", "..planos..", "..matriculas..", "..cobranca..", "..treinos..",
-                    "..auditoria..", "..pagamentos..", "..noticias..", "..avisos..")
+                    "..auditoria..", "..pagamentos..", "..noticias..", "..avisos..", "..folha..")
             .because("compartilhado é a base comum: se dependesse de um módulo, todos dependeriam dele");
 
     @ArchTest
@@ -61,7 +61,7 @@ class ArquiteturaTest {
             .that().resideInAPackage("..auth..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "..alunos..", "..planos..", "..matriculas..", "..cobranca..", "..treinos..", "..auditoria..",
-                    "..pagamentos..", "..noticias..", "..avisos..")
+                    "..pagamentos..", "..noticias..", "..avisos..", "..folha..")
             .because("os outros módulos dependem do auth, nunca o contrário (sem ciclos)");
 
     // Porta pública de cada módulo: o que outros módulos podem usar. O resto é interno.
@@ -98,6 +98,10 @@ class ArquiteturaTest {
     // Avisos de fatura e da academia (ADR 0047): ninguém de fora usa.
     @ArchTest
     static final ArchRule avisosSoPelaPortaPublica = soPelaPortaPublica("avisos", Set.of());
+
+    // Pagamentos à equipe (ADR 0049): só o ADMIN, pela API; ninguém de fora usa.
+    @ArchTest
+    static final ArchRule folhaSoPelaPortaPublica = soPelaPortaPublica("folha", Set.of());
 
     @ArchTest
     static final ArchRule cobrancaEmJavaPuro = classes()

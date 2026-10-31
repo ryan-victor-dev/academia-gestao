@@ -122,6 +122,8 @@ class UsuarioDaAplicacaoNoBanco implements Callback {
             // Avisos da academia: o que foi publicado e a fila ficam (a fila muda de situação, nunca sai); a preferência muda.
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE avisos_da_academia FROM " + usuario);
             sql.execute("REVOKE DELETE, TRUNCATE ON TABLE envios_da_academia, preferencias_de_avisos FROM " + usuario);
+            // Pessoas da folha (ADR 0049): quem sai é inativado, e nunca apagado (os pagamentos apontam para ela).
+            sql.execute("REVOKE DELETE, TRUNCATE ON TABLE pessoas_da_folha FROM " + usuario);
             // O registro de acessos também só cresce (V38, ADR 0031).
             sql.execute("REVOKE UPDATE, DELETE, TRUNCATE ON TABLE acessos FROM " + usuario);
             // A única saída da trilha e dos acessos: as funções do dono que só apagam o que

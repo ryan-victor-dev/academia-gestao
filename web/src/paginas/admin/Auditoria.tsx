@@ -18,7 +18,7 @@ interface Registro {
 interface Acesso {
   id: number;
   momento: string;
-  tipo: 'CONSULTA_ALUNO' | 'LOGIN' | 'LOGIN_FALHO' | 'LOGIN_BLOQUEADO' | 'TROCA_SENHA_FALHA' | 'RELATORIO_PERFIL';
+  tipo: 'CONSULTA_ALUNO' | 'LOGIN' | 'LOGIN_FALHO' | 'LOGIN_BLOQUEADO' | 'TROCA_SENHA_FALHA' | 'RELATORIO_PERFIL' | 'CONSULTA_FOLHA';
   usuarioNome: string | null;
   conta: string | null;
   ip: string;
@@ -28,12 +28,13 @@ interface Acesso {
 const ENTIDADES: Record<string, string> = {
   ALUNO: 'Aluno', MATRICULA: 'Matrícula', COBRANCA: 'Cobrança', CAIXA: 'Caixa', PLANO: 'Plano', USUARIO: 'Usuário',
   CONFIGURACAO: 'Configuração', EXERCICIO: 'Exercício', FICHA: 'Ficha', PAGAMENTO_ONLINE: 'Pagamento online',
-  PUBLICACAO: 'Publicação',
+  PUBLICACAO: 'Publicação', PESSOA_DA_FOLHA: 'Pessoa da folha',
 };
 const TIPOS_DE_ACESSO: Record<Acesso['tipo'], string> = {
   CONSULTA_ALUNO: 'Abriu o cadastro de um aluno', LOGIN: 'Entrou', LOGIN_FALHO: 'Senha errada',
   LOGIN_BLOQUEADO: 'Bloqueado por tentativas', TROCA_SENHA_FALHA: 'Troca de senha recusada',
   RELATORIO_PERFIL: 'Abriu o relatório de idades e gênero',
+  CONSULTA_FOLHA: 'Consultou a folha',
 };
 
 const mostrar = (v: unknown) => (v === null || v === undefined ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));

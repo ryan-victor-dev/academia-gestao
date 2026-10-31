@@ -18,6 +18,6 @@ describe('menu por perfil (espelha as permissões da API)', () => {
 
   it('ADMIN: tudo da equipe, mais equipe, configuração, auditoria e idades e gênero (ADR 0048); nada do aluno', () => {
     expect(rotulos('ADMIN')).toEqual(['Início', 'Alunos', 'Cobranças', 'Caixa', 'Exercícios', 'Revisões', 'Planos',
-      'Equipe', 'Configuração', 'Pagamento online', 'Auditoria', 'Idades e gênero', 'Meus dados', 'Minha senha']);
+      'Equipe', 'Folha', 'Configuração', 'Pagamento online', 'Auditoria', 'Idades e gênero', 'Meus dados', 'Minha senha']);
   });
 });

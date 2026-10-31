@@ -18,7 +18,7 @@ scripts/usuario-validacao.sh PERFIL   # token de um usuário de teste (só desen
 ## Arquitetura
 
 Monolito modular por domínio (ADR 0002): `auth`, `alunos`, `planos`, `cobranca`,
-`matriculas`, `treinos`, `auditoria`, `pagamentos`, `noticias`, `avisos`, `compartilhado`. Em cada módulo: Controller
+`matriculas`, `treinos`, `auditoria`, `pagamentos`, `noticias`, `avisos`, `folha`, `compartilhado`. Em cada módulo: Controller
 (records de entrada/saída, nunca a entidade) → Service (transação, checagens que dependem
 do banco) → Entidade rica (fábrica, sem setters, valida tudo antes de alterar) → Repository.
 As regras da cobrança ficam em `cobranca.dominio`, Java puro (ADRs 0004 e 0024); o resto

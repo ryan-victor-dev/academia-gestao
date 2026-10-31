@@ -180,6 +180,8 @@
 								<param>br.com.academiagestao.compartilhado.MensageiroSms</param>
 								<param>br.com.academiagestao.noticias.DadosDaPublicacao</param>
 								<param>br.com.academiagestao.noticias.TipoDeArquivo*</param>
+								<param>br.com.academiagestao.folha.Combinado</param>
+								<param>br.com.academiagestao.folha.SemLogin</param>
 								<param>br.com.academiagestao.noticias.AssinaturaDosAnexos*</param>
 								<param>br.com.academiagestao.avisos.Marco</param>
 								<param>br.com.academiagestao.avisos.TextosDosAvisos*</param>
@@ -224,6 +226,8 @@
 								<param>br.com.academiagestao.compartilhado.SmsConfigTest</param>
 								<param>br.com.academiagestao.noticias.DadosDaPublicacaoTest</param>
 								<param>br.com.academiagestao.noticias.TipoDeArquivoTest</param>
+								<param>br.com.academiagestao.folha.CombinadoTest</param>
+								<param>br.com.academiagestao.folha.SemLoginTest</param>
 								<param>br.com.academiagestao.avisos.MarcoTest</param>
 								<param>br.com.academiagestao.avisos.TextosDosAvisosTest</param>
 								<param>br.com.academiagestao.auditoria.AuditoriaNoBancoTest</param>

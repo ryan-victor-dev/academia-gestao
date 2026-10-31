@@ -199,6 +199,9 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `POST /api/usuarios/{id}/desativar`, `/reativar` | ADMIN |
 | `DELETE /api/usuarios/{id}` (só o login da equipe nunca usado; quem já entrou ou registrou algo, 409: desative¹⁴) | ADMIN |
 | `POST /api/usuarios/{id}/nova-senha` (senha temporária; nunca para um ADMIN) | ADMIN |
+| `GET /api/folha/pessoas` (quem recebe pela folha: a equipe com login, sem vínculo até o ADMIN definir, e quem não tem login; `incluirInativos`), `GET /api/folha/pessoas/{id}` | ADMIN |
+| `POST /api/folha/pessoas` (com `usuarioId`, ou com `nome` e `cpf` de quem não tem login; `vinculo` CLT, MEI ou AUTONOMO e `valorCombinado` opcional, ADR 0049) | ADMIN |
+| `PUT /api/folha/pessoas/{id}` (exige `If-Match`²; de quem tem login, só o combinado; de quem não tem, também nome, CPF e `ativo`) | ADMIN |
 | `GET /api/alunos?busca=&incluirInativos=&pagina=&tamanho=` (só o resumo: id, nome, data de nascimento e se está ativo¹¹) | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `GET /api/alunos/{id}` (o cadastro; cada abertura vai para o registro de acessos¹¹) | ADMIN, RECEPCAO, INSTRUTOR¹ |
 | `POST /api/alunos` (`dataNascimento` obrigatória, ADR 0048) | ADMIN, RECEPCAO |

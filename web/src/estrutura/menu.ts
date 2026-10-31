@@ -21,6 +21,7 @@ export const MENU: ItemDoMenu[] = [
   { caminho: '/minhas-cobrancas', rotulo: 'Pagamentos', perfis: ['ALUNO'] },
   { caminho: '/planos', rotulo: 'Planos', perfis: ['ADMIN', 'RECEPCAO', 'INSTRUTOR', 'ALUNO'] },
   { caminho: '/equipe', rotulo: 'Equipe', perfis: ['ADMIN'] },
+  { caminho: '/folha', rotulo: 'Folha', perfis: ['ADMIN'] },
   { caminho: '/configuracao', rotulo: 'Configuração', perfis: ['ADMIN'] },
   { caminho: '/pagamento-online', rotulo: 'Pagamento online', perfis: ['ADMIN'] },
   { caminho: '/auditoria', rotulo: 'Auditoria', perfis: ['ADMIN'] },
