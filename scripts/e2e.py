@@ -373,14 +373,16 @@ TOK = b["token"]
 codigos = [req("POST", "/api/auth/trocar-senha", {"senhaAtual": f"chute-{i}-xxxxxx", "novaSenha": "nova-senha-x-123"}, TOK)[0]
            for i in range(12)]
 confere("troca de senha: 10 chutes e depois 429", codigos == [400] * 10 + [429] * 2, codigos)
+def esperar_a_aplicacao():
+    for _ in range(60):
+        try:
+            if req("GET", "/actuator/health")[0] == 200:
+                return
+        except Exception:
+            pass
+        time.sleep(2)
 sh("docker", "compose", "restart", "app")
-for _ in range(60):
-    try:
-        if req("GET", "/actuator/health")[0] == 200:
-            break
-    except Exception:
-        pass
-    time.sleep(2)
+esperar_a_aplicacao()
 confere("bloqueio sobrevive ao reinício (app só de leitura)", login("caio@academia.local", "senha-definitiva-caio-1")[0] == 429)
 
 secao("recuperação de ADMIN (container só de leitura)")
@@ -397,7 +399,8 @@ sh("docker", "compose", "restart", "caddy")
 time.sleep(3)
 confere("Caddy volta depois de reiniciar", req("GET", "/actuator/health")[0] == 200)
 sh("docker", "compose", "up", "-d")
-time.sleep(3)
+# O up pode recriar a aplicação: no CI (mais lento), ela ainda subia na restauração com a chave errada (502).
+esperar_a_aplicacao()
 confere("init de permissões roda de novo sem erro",
         sh("docker", "inspect", f"{PROJETO}-caddy-permissoes-1", "--format", "{{.State.ExitCode}}").stdout.strip() == "0")
 
@@ -433,11 +436,8 @@ with open(os.path.join(PASTA, "chave-errada.txt"), "w") as f:
 r = subprocess.run(["scripts/restaurar-backup.sh", arquivo, "--sim"], capture_output=True, text=True, cwd=PASTA,
                    env={**ambiente, "BACKUP_CHAVE": "chave-errada.txt"})
 depois, saude = sql("SELECT count(*) FROM planos WHERE nome = 'Depois do backup'"), req("GET", "/actuator/health")
-# No CI, o health deu 502 aqui (a aplicação fora do ar atrás do Caddy): o estado e o fim do log dela dizem por quê.
-app = "" if saude[0] == 200 else (sh("docker", "inspect", "-f", "reinícios={{.RestartCount}} sem-memória={{.State.OOMKilled}} "
-        "estado={{.State.Status}} desde={{.State.StartedAt}}", P + "app").stdout + sh("docker", "logs", "--tail", "40", P + "app").stdout[-3000:])
 confere("com a chave errada, não restaura nem para o app", r.returncode == 1 and "decifrar" in r.stderr
-        and depois == "1" and saude[0] == 200, (r.returncode, r.stderr[-300:], depois, saude[:2], app))
+        and depois == "1" and saude[0] == 200, (r.returncode, r.stderr[-300:], depois, saude[:2]))
 r = subprocess.run(["scripts/restaurar-backup.sh", arquivo, "--sim"], capture_output=True, text=True, cwd=PASTA,
                    env={**ambiente, "BACKUP_CHAVE": "chave-backup.txt"})
 confere("restaurar sai com 0", r.returncode == 0, (r.returncode, r.stderr[-300:]))
