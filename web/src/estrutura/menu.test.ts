@@ -16,8 +16,8 @@ describe('menu por perfil (espelha as permissões da API)', () => {
     expect(rotulos('ALUNO')).toEqual(['Início', 'Meu treino', 'Pagamentos', 'Planos', 'Meus dados', 'Minha senha']);
   });
 
-  it('ADMIN: tudo da equipe, mais equipe, configuração e auditoria; nada do aluno', () => {
+  it('ADMIN: tudo da equipe, mais equipe, configuração, auditoria e idades e gênero (ADR 0048); nada do aluno', () => {
     expect(rotulos('ADMIN')).toEqual(['Início', 'Alunos', 'Cobranças', 'Caixa', 'Exercícios', 'Revisões', 'Planos',
-      'Equipe', 'Configuração', 'Pagamento online', 'Auditoria', 'Meus dados', 'Minha senha']);
+      'Equipe', 'Configuração', 'Pagamento online', 'Auditoria', 'Idades e gênero', 'Meus dados', 'Minha senha']);
   });
 });

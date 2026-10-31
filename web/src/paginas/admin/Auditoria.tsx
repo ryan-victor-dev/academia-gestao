@@ -18,7 +18,7 @@ interface Registro {
 interface Acesso {
   id: number;
   momento: string;
-  tipo: 'CONSULTA_ALUNO' | 'LOGIN' | 'LOGIN_FALHO' | 'LOGIN_BLOQUEADO' | 'TROCA_SENHA_FALHA';
+  tipo: 'CONSULTA_ALUNO' | 'LOGIN' | 'LOGIN_FALHO' | 'LOGIN_BLOQUEADO' | 'TROCA_SENHA_FALHA' | 'RELATORIO_PERFIL';
   usuarioNome: string | null;
   conta: string | null;
   ip: string;
@@ -33,6 +33,7 @@ const ENTIDADES: Record<string, string> = {
 const TIPOS_DE_ACESSO: Record<Acesso['tipo'], string> = {
   CONSULTA_ALUNO: 'Abriu o cadastro de um aluno', LOGIN: 'Entrou', LOGIN_FALHO: 'Senha errada',
   LOGIN_BLOQUEADO: 'Bloqueado por tentativas', TROCA_SENHA_FALHA: 'Troca de senha recusada',
+  RELATORIO_PERFIL: 'Abriu o relatório de idades e gênero',
 };
 
 const mostrar = (v: unknown) => (v === null || v === undefined ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));

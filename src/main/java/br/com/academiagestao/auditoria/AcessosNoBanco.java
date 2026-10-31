@@ -31,6 +31,12 @@ class AcessosNoBanco implements RegistroDeAcessos {
 
     @Override
     @Transactional(propagation = Propagation.NEVER)
+    public void relatorioDePerfil(UUID usuarioId, String ip) {
+        jdbc.update("INSERT INTO acessos (tipo, usuario_id, ip) VALUES ('RELATORIO_PERFIL', ?, ?)", usuarioId, ip);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.NEVER)
     public void login(TipoDeLogin tipo, UUID usuarioId, String conta, String ip) {
         jdbc.update("INSERT INTO acessos (tipo, usuario_id, conta, ip) VALUES (?, ?, ?, ?)",
                 tipo.tipo().name(), usuarioId, conta, ip);

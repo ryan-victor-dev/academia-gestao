@@ -68,7 +68,7 @@ class ArquiteturaTest {
     @ArchTest
     static final ArchRule authSoPelaPortaPublica = soPelaPortaPublica("auth",
             Set.of("LoginsDeAlunos", "ClaimsDoToken", "CredenciaisTemporarias", "RecuperacaoDeAdmin", "NomesDaEquipe",
-                    "ContatosDaEquipe", "ContatoDaEquipe"));
+                    "ContatosDaEquipe", "ContatoDaEquipe", "PerfisDaEquipe", "PessoaDaEquipe"));
 
     @ArchTest
     static final ArchRule alunosSoPelaPortaPublica = soPelaPortaPublica("alunos",

@@ -12,6 +12,7 @@ import { Auditoria } from './paginas/admin/Auditoria';
 import { ConfiguracaoDaCobranca } from './paginas/admin/ConfiguracaoDaCobranca';
 import { PagamentosOnline } from './paginas/admin/PagamentosOnline';
 import { Equipe } from './paginas/admin/Equipe';
+import { RelatorioDePerfil } from './paginas/admin/RelatorioDePerfil';
 import { InicioDoAluno } from './paginas/aluno/InicioDoAluno';
 import { MeusPagamentos } from './paginas/aluno/MeusPagamentos';
 import { CartaoSimulado } from './paginas/aluno/CartaoSimulado';
@@ -124,6 +125,7 @@ function AreaLogada({ aoSair, aoTrocarSenha }: { aoSair: () => void; aoTrocarSen
     '/configuracao': <ConfiguracaoDaCobranca />,
     '/pagamento-online': <PagamentosOnline />,
     '/auditoria': <Auditoria />,
+    '/idades-e-genero': <RelatorioDePerfil />,
     '/revisoes': <RevisoesVencidas />,
     '/meus-dados': <MeusDados />,
     '/senha': <TrocarSenha obrigatoria={false} aoTrocar={aoTrocarSenha} />,

@@ -1,6 +1,7 @@
 package br.com.academiagestao.compartilhado;
 
 import java.time.LocalDate;
+import java.time.Period;
 
 /**
  * A data de nascimento de alunos e da equipe (ADR 0048): a mesma regra para os dois. Java puro (ADR 0004).
@@ -23,5 +24,13 @@ public final class Nascimento {
             throw new DadosInvalidosException("data de nascimento pode ser de no máximo " + IDADE_MAXIMA_ANOS
                     + " anos atrás");
         }
+    }
+
+    /**
+     * Os anos completos. Quem nasceu em 29/02 completa os anos em 01/03 nos anos comuns (Código Civil, art. 132,
+     * § 3º), como nas telas.
+     */
+    public static int idade(LocalDate data, LocalDate hoje) {
+        return Period.between(data, hoje).getYears();
     }
 }

@@ -52,3 +52,19 @@ Nas telas, o campo "Nascimento" é obrigatório no cadastro novo e na edição d
 habilita com ela. A idade aparece ao lado da data na lista de alunos, no cadastro e em "Meus dados" do aluno
 ("10/05/1990 (35 anos)"): tanto no quadro da página inicial quanto na página "Meus dados" do menu, onde o aluno só
 consulta (quem corrige é a recepção). A data continua visível a toda a equipe, como antes (decisão 1).
+
+### Relatório de idades e gênero (só o ADMIN)
+`GET /api/relatorios/idades-e-genero` (página "Idades e gênero" no menu do ADMIN): para alunos e para a equipe,
+separados, quantos há em cada faixa etária (até 17, 18 a 29, 30 a 39, 40 a 49, 50 a 59, 60 ou mais, e sem data), em
+cada identidade de gênero e em cada orientação sexual, com quem não respondeu à parte e a porcentagem; e a lista de
+todos, com a idade e o que cada um respondeu ("outra" mostra o que a pessoa escreveu). Por padrão só quem está ativo;
+`inativos=true` inclui alunos inativos e equipe desativada. As faixas foram escolhidas na implementação (o dono pode
+pedir outras).
+
+O relatório fica no módulo de alunos e lê a equipe por uma porta nova do `auth` (`PerfisDaEquipe`), que só ele usa.
+Traz a orientação sexual de todos, dado sensível: a resposta não vai para cache, e cada abertura vai para o registro
+de acessos (ADR 0031) numa linha só, com um tipo novo (`RELATORIO_PERFIL`, V63), e não uma linha por pessoa listada,
+que é o que o registro evita nas listas. A tela da Auditoria mostra e filtra esse tipo.
+
+A lista vem inteira, sem paginação: numa academia são centenas ou poucos milhares de pessoas, e o relatório é aberto
+de vez em quando, pelo ADMIN. Se um dia passar disso, a lista ganha paginação e as contagens continuam inteiras.

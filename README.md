@@ -190,6 +190,7 @@ curl http://localhost:8090/api/me -H "Authorization: Bearer <token>"
 | `GET /api/me` | Qualquer perfil logado |
 | `GET`, `PUT /api/me/identidade` (identidade de gênero e orientação sexual da própria pessoa, opcionais; dado sensível, ADR 0047) | ADMIN, RECEPCAO, INSTRUTOR |
 | `PUT /api/me/nascimento` (`dataNascimento` da própria pessoa da equipe; a do aluno fica no cadastro, ADR 0048) | ADMIN, RECEPCAO, INSTRUTOR |
+| `GET /api/relatorios/idades-e-genero` (por faixa etária, identidade de gênero e orientação sexual, de alunos e equipe, e a lista de todos; `inativos=true` inclui quem saiu; sem cache, e cada abertura vai para o registro de acessos, ADR 0048) | ADMIN |
 | `GET`, `PUT /api/usuarios/{id}/identidade` (a de alguém da equipe) | ADMIN |
 | `GET /api/usuarios` (a equipe, sem os logins de alunos) | ADMIN |
 | `GET /api/usuarios/alunos` (logins de alunos, paginados; `busca` por parte do nome ou do e-mail, `pagina`, `tamanho` até 100) | ADMIN |
@@ -336,7 +337,8 @@ pagamento em dinheiro que registra: a recepção vê a forma e o valor de cada u
 ¹¹ Registro de acessos (ADR 0031): cada vez que alguém da equipe abre o cadastro de um aluno
 (`CONSULTA_ALUNO`; buscas e listas não entram), cada login (`LOGIN`, `LOGIN_FALHO` com o
 e-mail digitado, `LOGIN_BLOQUEADO` pelo limite) e cada senha atual errada na troca
-(`TROCA_SENHA_FALHA`), com o IP. O bloqueio entra uma vez por conta e IP a cada 15 minutos,
+(`TROCA_SENHA_FALHA`), com o IP. A abertura do relatório de idades e gênero entra numa linha só
+(`RELATORIO_PERFIL`, ADR 0048), e não uma por pessoa listada. O bloqueio entra uma vez por conta e IP a cada 15 minutos,
 e não uma vez por tentativa. Fica 1 ano; o usuário da aplicação não apaga nem altera. Por
 isso a lista de alunos traz só o resumo: os dados pessoais saem só pelo cadastro aberto (ADR 0032).
 ¹² Pagamento online (ADRs 0034 a 0037): Pix, boleto e cartão de crédito ou débito (à vista, digitado na

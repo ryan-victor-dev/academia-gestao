@@ -184,6 +184,8 @@
 								<param>br.com.academiagestao.avisos.Marco</param>
 								<param>br.com.academiagestao.avisos.TextosDosAvisos*</param>
 								<param>br.com.academiagestao.alunos.Aluno</param>
+								<param>br.com.academiagestao.alunos.FaixaEtaria</param>
+								<param>br.com.academiagestao.compartilhado.Nascimento</param>
 								<param>br.com.academiagestao.auditoria.AuditoriaNoBanco</param>
 								<param>br.com.academiagestao.auth.GeradorDeSenhaTemporaria</param>
 								<param>br.com.academiagestao.auth.LimiteDeRequisicoes</param>
@@ -215,6 +217,8 @@
 							<targetTests>
 								<param>br.com.academiagestao.alunos.AlunoServiceTest</param>
 								<param>br.com.academiagestao.alunos.AlunoTest</param>
+								<param>br.com.academiagestao.alunos.FaixaEtariaTest</param>
+								<param>br.com.academiagestao.compartilhado.NascimentoTest</param>
 								<param>br.com.academiagestao.compartilhado.CpfTest</param>
 								<param>br.com.academiagestao.compartilhado.IdentidadeTest</param>
 								<param>br.com.academiagestao.compartilhado.SmsConfigTest</param>
