@@ -432,9 +432,9 @@ with open(os.path.join(PASTA, "chave-errada.txt"), "w") as f:
     f.write(sh("docker", "compose", "run", "--rm", "--no-deps", "-T", "--entrypoint", "age-keygen", "backup").stdout)
 r = subprocess.run(["scripts/restaurar-backup.sh", arquivo, "--sim"], capture_output=True, text=True, cwd=PASTA,
                    env={**ambiente, "BACKUP_CHAVE": "chave-errada.txt"})
+depois, saude = sql("SELECT count(*) FROM planos WHERE nome = 'Depois do backup'"), req("GET", "/actuator/health")
 confere("com a chave errada, não restaura nem para o app", r.returncode == 1 and "decifrar" in r.stderr
-        and sql("SELECT count(*) FROM planos WHERE nome = 'Depois do backup'") == "1"
-        and req("GET", "/actuator/health")[0] == 200, (r.returncode, r.stderr[-300:]))
+        and depois == "1" and saude[0] == 200, (r.returncode, r.stderr[-300:], depois, saude[:2]))
 r = subprocess.run(["scripts/restaurar-backup.sh", arquivo, "--sim"], capture_output=True, text=True, cwd=PASTA,
                    env={**ambiente, "BACKUP_CHAVE": "chave-backup.txt"})
 confere("restaurar sai com 0", r.returncode == 0, (r.returncode, r.stderr[-300:]))
