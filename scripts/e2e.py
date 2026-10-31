@@ -433,8 +433,11 @@ with open(os.path.join(PASTA, "chave-errada.txt"), "w") as f:
 r = subprocess.run(["scripts/restaurar-backup.sh", arquivo, "--sim"], capture_output=True, text=True, cwd=PASTA,
                    env={**ambiente, "BACKUP_CHAVE": "chave-errada.txt"})
 depois, saude = sql("SELECT count(*) FROM planos WHERE nome = 'Depois do backup'"), req("GET", "/actuator/health")
+# No CI, o health deu 502 aqui (a aplicação fora do ar atrás do Caddy): o estado e o fim do log dela dizem por quê.
+app = "" if saude[0] == 200 else (sh("docker", "inspect", "-f", "reinícios={{.RestartCount}} sem-memória={{.State.OOMKilled}} "
+        "estado={{.State.Status}} desde={{.State.StartedAt}}", P + "app").stdout + sh("docker", "logs", "--tail", "40", P + "app").stdout[-3000:])
 confere("com a chave errada, não restaura nem para o app", r.returncode == 1 and "decifrar" in r.stderr
-        and depois == "1" and saude[0] == 200, (r.returncode, r.stderr[-300:], depois, saude[:2]))
+        and depois == "1" and saude[0] == 200, (r.returncode, r.stderr[-300:], depois, saude[:2], app))
 r = subprocess.run(["scripts/restaurar-backup.sh", arquivo, "--sim"], capture_output=True, text=True, cwd=PASTA,
                    env={**ambiente, "BACKUP_CHAVE": "chave-backup.txt"})
 confere("restaurar sai com 0", r.returncode == 0, (r.returncode, r.stderr[-300:]))
