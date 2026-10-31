@@ -811,6 +811,9 @@ class CaixaControllerTest {
         UUID emDinheiro = cobranca();
         UUID noPix = cobranca();
         pagar(emDinheiro, "DINHEIRO").andExpect(status().isOk());
+        // Um segundo depois: com o relógio parado, os dois pagamentos teriam o mesmo instante, e a lista
+        // (por instante e tipo) poderia trazê-los em qualquer ordem (falhou assim no CI).
+        relogio.fixar(relogio.instant().plusSeconds(1));
         String codigo = "T" + UUID.randomUUID().toString().toUpperCase();
         mvc.perform(post("/api/cobrancas/" + noPix + "/pagar").with(recepcao()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"valor\": 100, \"meioDePagamento\": \"PIX\", \"codigoTransacao\": \"" + codigo + "\"}"))
